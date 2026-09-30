@@ -16,6 +16,31 @@ pub use sf_proto;
 
 pub const DEFAULT_PORT: u16 = 9092;
 
+/// Geräte-ID, mit der auch die Windows-App ihr Softphone anmeldet. Die
+/// Anlage legt dazu ein Telefon `SIP/<nr>.WinClient` an; dessen Typ lässt
+/// sich in der Verwaltung auf "UCC Client for Linux" stellen.
+pub const SIP_DEVICE_ID: &str = "163C00A2-C2F1-4FFE-9474-49283C379852";
+
+/// Antwort von `SipDeviceService.RegisterSipDevice`.
+#[derive(Clone)]
+pub struct SipCredentials {
+    pub user: String,
+    pub password: String,
+    pub realm: String,
+    pub port: u16,
+}
+
+impl std::fmt::Debug for SipCredentials {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("SipCredentials")
+            .field("user", &self.user)
+            .field("password", &"***")
+            .field("realm", &self.realm)
+            .field("port", &self.port)
+            .finish()
+    }
+}
+
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
     #[error("Verbindung fehlgeschlagen: {0}")]
@@ -108,6 +133,41 @@ impl OneHub {
         v1::sipdevice::sip_device_service_client::SipDeviceServiceClient
     );
     service!(chat, v1::chat::chat_service_client::ChatServiceClient);
+
+    /// Holt die SIP-Zugangsdaten für das App-Telefon. Legt das Telefon bei
+    /// Bedarf auf der Anlage an.
+    pub async fn register_sip_device(&self, app_version: &str) -> Result<SipCredentials> {
+        let req = v1::sipdevice::RegisterSipDeviceRequest {
+            sip_device_id: Some(v1::types::SipDeviceId {
+                id: SIP_DEVICE_ID.into(),
+            }),
+            app_version: app_version.into(),
+        };
+        let cfg = self
+            .sip_device()
+            .register_sip_device(req)
+            .await?
+            .into_inner()
+            .sip_device_config
+            .ok_or_else(|| Status::internal("RegisterSipDevice ohne Konfiguration"))?;
+        Ok(SipCredentials {
+            user: cfg.sip_user_id.map(|u| u.id).unwrap_or_default(),
+            password: cfg.password,
+            realm: cfg.realm,
+            port: u16::try_from(cfg.port)
+                .map_err(|_| Status::internal(format!("ungültiger SIP-Port {}", cfg.port)))?,
+        })
+    }
+
+    /// Telefon-ID des App-Telefons, das zu einem SIP-Benutzer gehört.
+    pub async fn phone_id_for_sip_user(&self, sip_user: &str) -> Result<Option<String>> {
+        let phones = self.me().get_phones(()).await?.into_inner().phones;
+        Ok(phones
+            .into_iter()
+            .find(|p| p.name == sip_user)
+            .and_then(|p| p.phone_id)
+            .map(|id| id.id))
+    }
 
     pub async fn server_version(&self) -> Result<String> {
         Ok(self

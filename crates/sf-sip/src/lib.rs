@@ -114,7 +114,7 @@ pub enum SipEvent {
         call_id: String,
         reason: String,
     },
-    /// Medienverschlüsselung ausgehandelt, z. B. "srtp".
+    /// Medienverschlüsselung ausgehandelt, z. B. "0,audio,AES_CM_128_HMAC_SHA1_80".
     MediaEncryption {
         call_id: String,
         info: String,
@@ -184,7 +184,7 @@ impl Config {
 }
 
 /// SIP-Zugang, wie ihn `SipDeviceService.RegisterSipDevice` liefert.
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct Account {
     pub user: String,
     pub password: String,
@@ -192,6 +192,18 @@ pub struct Account {
     pub port: u16,
     /// Registrierungsintervall in Sekunden; 0 = nicht registrieren.
     pub register_interval: u32,
+}
+
+impl std::fmt::Debug for Account {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Account")
+            .field("user", &self.user)
+            .field("password", &"***")
+            .field("host", &self.host)
+            .field("port", &self.port)
+            .field("register_interval", &self.register_interval)
+            .finish()
+    }
 }
 
 impl Account {

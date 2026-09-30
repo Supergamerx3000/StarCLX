@@ -4268,6 +4268,7 @@ dependencies = [
  "clap",
  "sf-auth",
  "sf-onehub",
+ "sf-sip",
  "tokio",
  "url",
 ]

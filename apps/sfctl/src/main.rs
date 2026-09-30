@@ -1,6 +1,8 @@
 //! `sfctl`: Kommandozeile für die STARFACE, auf demselben Kern wie die
 //! Desktop-App. Dient vorerst als Entwicklungs- und Testwerkzeug.
 
+use std::time::{Duration, Instant};
+
 use anyhow::{Context, Result, bail};
 use clap::{Parser, Subcommand};
 use sf_onehub::sf_proto::v1;
@@ -40,6 +42,22 @@ enum Command {
         /// Telefon-ID (siehe `sfctl phones`), sonst das Primärtelefon
         #[arg(long)]
         phone_id: Option<String>,
+    },
+    /// Softphone anmelden und Anrufe über das App-Telefon führen
+    Softphone {
+        /// Diese Nummer anrufen; die Anlage klingelt zuerst am Softphone,
+        /// das automatisch annimmt
+        #[arg(long)]
+        call: Option<String>,
+        /// Auch fremde eingehende Anrufe sofort annehmen
+        #[arg(long)]
+        answer_all: bool,
+        /// Nach so vielen Sekunden beenden (sonst mit Strg+C)
+        #[arg(long)]
+        seconds: Option<u64>,
+        /// TLS-Zertifikat der Anlage für SIP nicht prüfen
+        #[arg(long)]
+        insecure_sip: bool,
     },
 }
 
@@ -100,6 +118,129 @@ async fn main() -> Result<()> {
             let call = hub.call().place_call(req).await?.into_inner();
             println!("{}", call.call_id.map(|c| c.id).unwrap_or_default());
         }
+        Command::Softphone {
+            call,
+            answer_all,
+            seconds,
+            insecure_sip,
+        } => softphone(&hub, &host, call, answer_all, seconds, insecure_sip).await?,
     }
     Ok(())
+}
+
+/// Zeitfenster nach `PlaceCall`, in dem ein eingehender Anruf als Rückruf
+/// der Anlage gilt und automatisch angenommen wird.
+const PLACE_CALL_WINDOW: Duration = Duration::from_secs(20);
+
+async fn softphone(
+    hub: &OneHub,
+    host: &str,
+    number: Option<String>,
+    answer_all: bool,
+    seconds: Option<u64>,
+    insecure_sip: bool,
+) -> Result<()> {
+    let creds = hub
+        .register_sip_device(env!("CARGO_PKG_VERSION"))
+        .await
+        .context("RegisterSipDevice")?;
+    let phone_id = hub.phone_id_for_sip_user(&creds.user).await?;
+    println!(
+        "SIP-Benutzer {} (Realm {}, Port {}), Telefon-ID {}",
+        creds.user,
+        creds.realm,
+        creds.port,
+        phone_id.as_deref().unwrap_or("unbekannt")
+    );
+
+    let config = sf_sip::Config {
+        verify_server: !insecure_sip,
+        ..Default::default()
+    };
+    let software = concat!("starface-linuxclient/", env!("CARGO_PKG_VERSION"));
+    let (phone, mut sip) = sf_sip::Softphone::start(&config, software)?;
+    phone.add_account(&sf_sip::Account {
+        user: creds.user.clone(),
+        password: creds.password.clone(),
+        host: host.to_owned(),
+        port: creds.port,
+        register_interval: 3600,
+    })?;
+
+    let registered = tokio::time::timeout(Duration::from_secs(15), async {
+        while let Some(ev) = sip.recv().await {
+            println!("SIP: {ev:?}");
+            match ev {
+                sf_sip::SipEvent::Registered { .. } => return Ok(()),
+                sf_sip::SipEvent::RegisterFailed { reason, .. } => bail!("Registrierung: {reason}"),
+                _ => {}
+            }
+        }
+        bail!("Softphone beendet")
+    })
+    .await;
+    registered.context("keine SIP-Registrierung innerhalb von 15 s")??;
+
+    let mut events = hub.call().subscribe_call_events(()).await?.into_inner();
+
+    let mut placed_at = None;
+    if let Some(number) = number {
+        let req = v1::call::PlaceCallRequest {
+            number,
+            requested_call_id: None,
+            phone_id: phone_id.map(|id| v1::types::PhoneId { id }),
+        };
+        let id = hub.call().place_call(req).await?.into_inner().call_id;
+        println!("PlaceCall: {:?}", id.map(|c| c.id));
+        placed_at = Some(Instant::now());
+    }
+
+    let deadline = seconds.map(|s| Instant::now() + Duration::from_secs(s));
+    let mut active: Option<String> = None;
+    loop {
+        tokio::select! {
+            _ = tokio::signal::ctrl_c() => break,
+            _ = sleep_until(deadline) => break,
+            ev = events.message() => match ev? {
+                Some(ev) => println!("Anlage: {:?}", ev.call_event),
+                None => bail!("Ereignisstrom der Anlage beendet"),
+            },
+            ev = sip.recv() => {
+                let Some(ev) = ev else { bail!("Softphone beendet") };
+                println!("SIP: {ev:?}");
+                match ev {
+                    sf_sip::SipEvent::Incoming { call, auto_answer } => {
+                        let ours = placed_at.is_some_and(|t| t.elapsed() < PLACE_CALL_WINDOW);
+                        if auto_answer || ours || answer_all {
+                            println!("nehme an: {}", call.peer_uri);
+                            phone.answer(&call.call_id)?;
+                            active = Some(call.call_id);
+                            placed_at = None;
+                        } else {
+                            println!("klingelt: {} (mit --answer-all annehmen)", call.peer_uri);
+                        }
+                    }
+                    sf_sip::SipEvent::Closed { call_id, .. }
+                        if active.as_ref() == Some(&call_id) && !answer_all =>
+                    {
+                        break;
+                    }
+                    _ => {}
+                }
+            }
+        }
+    }
+
+    if let Some(id) = active {
+        let _ = phone.hangup(Some(&id));
+    }
+    drop(phone);
+    Ok(())
+}
+
+async fn sleep_until(deadline: Option<Instant>) {
+    match deadline {
+        Some(d) => tokio::time::sleep_until(d.into()).await,
+        None => std::future::pending().await,
+    }
 }
