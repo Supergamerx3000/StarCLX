@@ -1,0 +1,95 @@
+syntax = "proto3";
+package gamma.onehub.api.v1.sfpbx.group;
+import "google/protobuf/empty.proto";
+import "typedefs/group.proto";
+import "typedefs/group_id.proto";
+
+service GroupService {
+  rpc GetGroupMemberships(.google.protobuf.Empty) returns (.gamma.onehub.api.v1.sfpbx.group.GroupMembershipsResponse);
+  rpc GetGroup(.gamma.onehub.api.v1.sfpbx.group.GetGroupRequest) returns (.gamma.onehub.api.v1.sfpbx.group.GroupResponse);
+  rpc SearchGroups(.gamma.onehub.api.v1.sfpbx.group.SearchGroupsRequest) returns (.gamma.onehub.api.v1.sfpbx.group.SearchGroupsResponse);
+  rpc LogOnToGroup(.gamma.onehub.api.v1.sfpbx.group.LogOnToGroupRequest) returns (.google.protobuf.Empty);
+  rpc LogOffFromGroup(.gamma.onehub.api.v1.sfpbx.group.LogOffFromGroupRequest) returns (.google.protobuf.Empty);
+  rpc SubscribeGroupEvents(.google.protobuf.Empty) returns (stream .gamma.onehub.api.v1.sfpbx.group.GroupEventResponse);
+}
+
+enum GroupSearchType {
+  GROUP_SEARCH_TYPE_UNSPECIFIED = 0;
+  GROUP_SEARCH_TYPE_NAME = 1;
+  GROUP_SEARCH_TYPE_PHONE_NUMBER = 2;
+}
+message GetGroupRequest {
+  .gamma.onehub.api.v1.types.GroupId group_id = 1;
+}
+
+message SearchGroupsRequest {
+  string search_term = 1;
+  repeated .gamma.onehub.api.v1.sfpbx.group.GroupSearchType group_search_types = 2;
+}
+
+message LogOnToGroupRequest {
+  .gamma.onehub.api.v1.types.GroupId group_id = 1;
+}
+
+message LogOffFromGroupRequest {
+  .gamma.onehub.api.v1.types.GroupId group_id = 1;
+}
+
+message GroupMembershipsResponse {
+  repeated .gamma.onehub.api.v1.sfpbx.group.GroupMembership group_memberships = 1;
+}
+
+message GroupResponse {
+  .gamma.onehub.api.v1.types.Group group = 1;
+}
+
+message SearchGroupsResponse {
+  repeated .gamma.onehub.api.v1.types.Group groups = 1;
+}
+
+message GroupEventResponse {
+  oneof group_events {
+    .gamma.onehub.api.v1.sfpbx.group.AddedToGroupEvent added_to_group = 1;
+    .gamma.onehub.api.v1.sfpbx.group.RemovedFromGroupEvent removed_from_group = 2;
+    .gamma.onehub.api.v1.sfpbx.group.GroupNameChangedEvent group_name_changed = 3;
+    .gamma.onehub.api.v1.sfpbx.group.LoggedOnEvent logged_on = 4;
+    .gamma.onehub.api.v1.sfpbx.group.LoggedOffEvent logged_off = 5;
+    .gamma.onehub.api.v1.sfpbx.group.GroupVisibilityChangedEvent visibility_changed = 6;
+  }
+}
+
+message GroupMembership {
+  .gamma.onehub.api.v1.types.GroupId group_id = 1;
+  string name = 2;
+  bool loggedOn = 3;
+  bool visible = 4;
+  bool read_only = 5;
+}
+
+message AddedToGroupEvent {
+  repeated .gamma.onehub.api.v1.sfpbx.group.GroupMembership group_memberships = 1;
+}
+
+message RemovedFromGroupEvent {
+  .gamma.onehub.api.v1.types.GroupId group_id = 1;
+}
+
+message GroupNameChangedEvent {
+  .gamma.onehub.api.v1.types.GroupId group_id = 1;
+  string name = 2;
+}
+
+message LoggedOnEvent {
+  .gamma.onehub.api.v1.types.GroupId group_id = 1;
+}
+
+message LoggedOffEvent {
+  .gamma.onehub.api.v1.types.GroupId group_id = 1;
+}
+
+message GroupVisibilityChangedEvent {
+  .gamma.onehub.api.v1.types.GroupId group_id = 1;
+  bool is_visible = 2;
+  bool is_read_only = 3;
+}
+

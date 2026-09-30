@@ -1,0 +1,15 @@
+[package]
+name = "sf-proto"
+description = "Aus den rekonstruierten OneHub-Protos generierte gRPC-Client-Stubs"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+tonic.workspace = true
+tonic-prost.workspace = true
+prost.workspace = true
+prost-types.workspace = true
+
+[build-dependencies]
+tonic-prost-build = "0.14"
+protoc-bin-vendored = "3"

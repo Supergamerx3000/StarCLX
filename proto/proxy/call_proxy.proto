@@ -1,0 +1,273 @@
+syntax = "proto3";
+package gamma.onehub.api.v1.call;
+import "google/protobuf/empty.proto";
+import "google/protobuf/timestamp.proto";
+import "typedefs/call_id.proto";
+import "typedefs/conference_call_room_id.proto";
+import "typedefs/call_state.proto";
+import "typedefs/phone_id.proto";
+import "typedefs/group_id.proto";
+import "typedefs/user_id.proto";
+import "typedefs/call_direction.proto";
+import "typedefs/local_participant.proto";
+import "typedefs/remote_participant.proto";
+
+service CallService {
+  rpc GetCalls(.google.protobuf.Empty) returns (.gamma.onehub.api.v1.call.GetCallsResponse);
+  rpc PlaceCall(.gamma.onehub.api.v1.call.PlaceCallRequest) returns (.gamma.onehub.api.v1.call.PlaceCallResponse);
+  rpc GrabCall(.gamma.onehub.api.v1.call.GrabCallRequest) returns (.gamma.onehub.api.v1.call.GrabCallResponse);
+  rpc HangupCall(.gamma.onehub.api.v1.call.HangupCallRequest) returns (.google.protobuf.Empty);
+  rpc HoldCall(.gamma.onehub.api.v1.call.HoldCallRequest) returns (.google.protobuf.Empty);
+  rpc ResumeCall(.gamma.onehub.api.v1.call.ResumeCallRequest) returns (.google.protobuf.Empty);
+  rpc ForwardCall(.gamma.onehub.api.v1.call.ForwardCallRequest) returns (.google.protobuf.Empty);
+  rpc TransferCall(.gamma.onehub.api.v1.call.TransferCallRequest) returns (.google.protobuf.Empty);
+  rpc PlaceConsultationCall(.gamma.onehub.api.v1.call.PlaceConsultationCallRequest) returns (.gamma.onehub.api.v1.call.PlaceConsultationCallResponse);
+  rpc TransferConsultationCall(.gamma.onehub.api.v1.call.TransferConsultationCallRequest) returns (.google.protobuf.Empty);
+  rpc AcceptCallElsewhere(.gamma.onehub.api.v1.call.AcceptCallElsewhereRequest) returns (.google.protobuf.Empty);
+  rpc RecordCall(.gamma.onehub.api.v1.call.RecordCallRequest) returns (.google.protobuf.Empty);
+  rpc SwitchPhone(.gamma.onehub.api.v1.call.SwitchPhoneRequest) returns (.google.protobuf.Empty);
+  rpc ParkAndOrbit(.gamma.onehub.api.v1.call.ParkAndOrbitRequest) returns (.google.protobuf.Empty);
+  rpc SendDtmf(.gamma.onehub.api.v1.call.SendDtmfRequest) returns (.google.protobuf.Empty);
+  rpc SetCallData(.gamma.onehub.api.v1.call.SetCallDataRequest) returns (.google.protobuf.Empty);
+  rpc SubscribeCallEvents(.google.protobuf.Empty) returns (stream .gamma.onehub.api.v1.call.CallEventResponse);
+}
+
+enum ForwardType {
+  FORWARD_TYPE_UNSPECIFIED = 0;
+  FORWARD_TYPE_CFI = 1;
+  FORWARD_TYPE_CFU = 2;
+  FORWARD_TYPE_CFB = 3;
+  FORWARD_TYPE_CF_NR = 4;
+  FORWARD_TYPE_PICKUP = 5;
+  FORWARD_TYPE_BLIND_TRANSFER = 6;
+  FORWARD_TYPE_TRANSFER = 7;
+  FORWARD_TYPE_BL_BACK = 8;
+}
+enum RecordBy {
+  RECORD_BY_UNSPECIFIED = 0;
+  RECORD_BY_SOMEONE = 1;
+  RECORD_BY_USER = 2;
+}
+enum CallBackOnBusyState {
+  CALL_BACK_ON_BUSY_STATE_UNSPECIFIED = 0;
+  CALL_BACK_ON_BUSY_STATE_AVAILABLE = 1;
+  CALL_BACK_ON_BUSY_STATE_ACTIVE = 2;
+  CALL_BACK_ON_BUSY_STATE_INACTIVE = 3;
+}
+message PlaceCallRequest {
+  string number = 1;
+  optional .gamma.onehub.api.v1.types.CallId requested_call_id = 2;
+  optional .gamma.onehub.api.v1.types.PhoneId phone_id = 3;
+}
+
+message GrabCallRequest {
+  oneof target {
+    .gamma.onehub.api.v1.types.UserId user_id = 1;
+    .gamma.onehub.api.v1.types.GroupId group_id = 2;
+  }
+  optional .gamma.onehub.api.v1.types.PhoneId phone_id = 3;
+}
+
+message HangupCallRequest {
+  .gamma.onehub.api.v1.types.CallId call_id = 1;
+}
+
+message HoldCallRequest {
+  .gamma.onehub.api.v1.types.CallId call_id = 1;
+}
+
+message ResumeCallRequest {
+  .gamma.onehub.api.v1.types.CallId call_id = 1;
+  optional .gamma.onehub.api.v1.types.PhoneId phone_id = 2;
+}
+
+message ForwardCallRequest {
+  .gamma.onehub.api.v1.types.CallId call_id = 1;
+  string number = 2;
+}
+
+message TransferCallRequest {
+  .gamma.onehub.api.v1.types.CallId call_id = 1;
+  .gamma.onehub.api.v1.types.CallId call_id_parked = 2;
+}
+
+message PlaceConsultationCallRequest {
+  string number = 1;
+  .gamma.onehub.api.v1.types.CallId call_id = 2;
+  optional .gamma.onehub.api.v1.types.PhoneId phone_id = 3;
+}
+
+message TransferConsultationCallRequest {
+  .gamma.onehub.api.v1.types.CallId call_id = 1;
+}
+
+message AcceptCallElsewhereRequest {
+  .gamma.onehub.api.v1.types.CallId call_id = 1;
+  string context = 2;
+}
+
+message RecordCallRequest {
+  .gamma.onehub.api.v1.types.CallId call_id = 1;
+}
+
+message SwitchPhoneRequest {
+  .gamma.onehub.api.v1.types.CallId call_id = 1;
+}
+
+message ParkAndOrbitRequest {
+  string number = 1;
+  .gamma.onehub.api.v1.types.CallId call_id = 2;
+  optional .gamma.onehub.api.v1.types.PhoneId phone_id = 3;
+}
+
+message SendDtmfRequest {
+  .gamma.onehub.api.v1.types.CallId call_id = 1;
+  string digits = 2;
+}
+
+message SetCallDataRequest {
+  .gamma.onehub.api.v1.types.CallId call_id = 1;
+  string key = 2;
+  string value = 3;
+}
+
+message GetCallsResponse {
+  repeated .gamma.onehub.api.v1.call.Call calls = 1;
+}
+
+message PlaceCallResponse {
+  .gamma.onehub.api.v1.types.CallId call_id = 1;
+}
+
+message GrabCallResponse {
+  .gamma.onehub.api.v1.types.CallId call_id = 1;
+}
+
+message PlaceConsultationCallResponse {
+  .gamma.onehub.api.v1.types.CallId call_id = 1;
+}
+
+message CallEventResponse {
+  oneof call_event {
+    .gamma.onehub.api.v1.call.CallCreatedEvent call_created = 1;
+    .gamma.onehub.api.v1.call.CallForwardedEvent call_forwarded = 2;
+    .gamma.onehub.api.v1.call.CallProvisionalChangedEvent call_provisional_changed = 3;
+    .gamma.onehub.api.v1.call.CallStateChangedEvent call_state_changed = 4;
+    .gamma.onehub.api.v1.call.CallRecordingChangedEvent call_recording_changed = 5;
+    .gamma.onehub.api.v1.call.CallConferenceCreatedEvent call_conference_created = 6;
+    .gamma.onehub.api.v1.call.CallMetadataChangedEvent call_metadata_changed = 7;
+    .gamma.onehub.api.v1.call.CallAcceptRequestedEvent call_accept_requested = 8;
+    .gamma.onehub.api.v1.call.CallDataChangedEvent call_data_changed = 9;
+    .gamma.onehub.api.v1.call.CallTranscriptionReferenceChangedEvent call_transcription_reference_changed = 10;
+    .gamma.onehub.api.v1.call.CallBotOutputChangedEvent call_bot_output_changed = 11;
+    .gamma.onehub.api.v1.call.CallDisconnectedEvent call_disconnected = 12;
+    .gamma.onehub.api.v1.call.CallBackOnBusyStateChangedEvent call_back_on_busy_state_changed = 13;
+  }
+}
+
+message CallCreatedEvent {
+  repeated .gamma.onehub.api.v1.call.Call calls = 1;
+}
+
+message CallForwardedEvent {
+  .gamma.onehub.api.v1.types.CallId call_id = 1;
+  .gamma.onehub.api.v1.call.ForwardingDetails forwarding_details = 2;
+}
+
+message CallProvisionalChangedEvent {
+  .gamma.onehub.api.v1.types.CallId call_id = 1;
+  .gamma.onehub.api.v1.types.LocalParticipant local_participant = 2;
+  .gamma.onehub.api.v1.types.RemoteParticipant remote_participant = 3;
+  optional string avatar_hash = 4;
+  optional .gamma.onehub.api.v1.types.GroupId group_id = 5;
+  optional string door_line_cam_url = 6;
+  optional string door_line_dtmf_code = 7;
+}
+
+message CallStateChangedEvent {
+  .gamma.onehub.api.v1.types.CallId call_id = 1;
+  .gamma.onehub.api.v1.types.CallState call_state = 2;
+  optional .google.protobuf.Timestamp connected_timestamp = 3;
+}
+
+message CallRecordingChangedEvent {
+  .gamma.onehub.api.v1.types.CallId call_id = 1;
+  .gamma.onehub.api.v1.call.RecordBy record_by = 2;
+  bool is_record_owner = 3;
+}
+
+message CallConferenceCreatedEvent {
+  .gamma.onehub.api.v1.types.CallId call_id = 1;
+  .gamma.onehub.api.v1.types.ConferenceCallRoomId conference_call_room_id = 2;
+  bool is_conference_admin = 3;
+}
+
+message CallMetadataChangedEvent {
+  .gamma.onehub.api.v1.types.CallId call_id = 1;
+  repeated string phone_names = 2;
+  repeated string channel_names = 3;
+  repeated string sip_call_ids = 4;
+}
+
+message CallAcceptRequestedEvent {
+  .gamma.onehub.api.v1.types.CallId call_id = 1;
+  string context = 2;
+  optional .gamma.onehub.api.v1.types.PhoneId phone_id = 3;
+}
+
+message CallDataChangedEvent {
+  .gamma.onehub.api.v1.types.CallId call_id = 1;
+  map<string, string> call_data = 2;
+}
+
+message CallTranscriptionReferenceChangedEvent {
+  .gamma.onehub.api.v1.types.CallId call_id = 1;
+  string transcription_reference = 2;
+}
+
+message CallBotOutputChangedEvent {
+  .gamma.onehub.api.v1.types.CallId call_id = 1;
+  map<string, string> bot_output = 2;
+}
+
+message CallDisconnectedEvent {
+  .gamma.onehub.api.v1.types.CallId call_id = 1;
+}
+
+message CallBackOnBusyStateChangedEvent {
+  .gamma.onehub.api.v1.types.CallId call_id = 1;
+  .gamma.onehub.api.v1.call.CallBackOnBusyState call_back_on_busy_state = 2;
+}
+
+message Call {
+  .gamma.onehub.api.v1.types.CallId call_id = 1;
+  .gamma.onehub.api.v1.types.CallState call_state = 2;
+  .gamma.onehub.api.v1.types.LocalParticipant local_participant = 3;
+  .gamma.onehub.api.v1.types.RemoteParticipant remote_participant = 4;
+  string avatar_hash = 5;
+  .gamma.onehub.api.v1.types.CallDirection call_direction = 6;
+  bool is_internal_call = 7;
+  .gamma.onehub.api.v1.types.CallId consultation_call_id = 8;
+  .gamma.onehub.api.v1.types.GroupId group_id = 9;
+  .google.protobuf.Timestamp connected_timestamp = 10;
+  repeated string phone_names = 11;
+  repeated string channel_names = 12;
+  repeated string sip_call_ids = 13;
+  .gamma.onehub.api.v1.call.RecordBy record_by = 14;
+  bool is_record_owner = 15;
+  string door_line_cam_url = 16;
+  string door_line_dtmf_code = 17;
+  .gamma.onehub.api.v1.call.ForwardingDetails forwarding_details = 18;
+  .gamma.onehub.api.v1.types.ConferenceCallRoomId conference_call_room_id = 19;
+  bool is_conference_admin = 20;
+  map<string, string> call_data = 21;
+  string transcription_reference = 22;
+  map<string, string> bot_output = 23;
+}
+
+message ForwardingDetails {
+  .gamma.onehub.api.v1.call.ForwardType forward_type = 1;
+  string forwarder_name = 2;
+  string forwarder_number = 3;
+}
+

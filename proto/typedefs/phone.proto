@@ -1,0 +1,9 @@
+syntax = "proto3";
+package gamma.onehub.api.v1.types;
+import "typedefs/phone_id.proto";
+
+message Phone {
+  .gamma.onehub.api.v1.types.PhoneId phone_id = 1;
+  string name = 2;
+}
+

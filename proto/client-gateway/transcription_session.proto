@@ -1,0 +1,44 @@
+syntax = "proto3";
+package gamma.onehub.api.v1.ai.audio;
+import "google/protobuf/empty.proto";
+import "google/protobuf/timestamp.proto";
+import "typedefs/ai_session_id.proto";
+import "typedefs/call_id.proto";
+import "typedefs/ai_transcription_state.proto";
+
+service TranscriptionSessionService {
+  rpc StartTranscription(.gamma.onehub.api.v1.ai.audio.StartTranscriptionRequest) returns (.gamma.onehub.api.v1.ai.audio.StartTranscriptionResponse);
+  rpc PauseTranscription(.gamma.onehub.api.v1.ai.audio.PauseTranscriptionRequest) returns (.google.protobuf.Empty);
+  rpc ResumeTranscription(.gamma.onehub.api.v1.ai.audio.ResumeTranscriptionRequest) returns (.google.protobuf.Empty);
+  rpc SubscribeSessionState(.gamma.onehub.api.v1.types.AiSessionId) returns (stream .gamma.onehub.api.v1.ai.audio.TranscriptionStateEvent);
+  rpc GetSessionState(.gamma.onehub.api.v1.types.AiSessionId) returns (.gamma.onehub.api.v1.ai.audio.TranscriptionStateResponse);
+}
+
+message StartTranscriptionRequest {
+  .gamma.onehub.api.v1.types.CallId call_id = 1;
+}
+
+message StartTranscriptionResponse {
+  .gamma.onehub.api.v1.types.AiSessionId ai_session_id = 1;
+}
+
+message PauseTranscriptionRequest {
+  .gamma.onehub.api.v1.types.AiSessionId ai_session_id = 1;
+}
+
+message ResumeTranscriptionRequest {
+  .gamma.onehub.api.v1.types.AiSessionId ai_session_id = 1;
+}
+
+message TranscriptionStateEvent {
+  .gamma.onehub.api.v1.types.AiSessionId ai_session_id = 1;
+  .gamma.onehub.api.v1.types.AiTranscriptionState ai_transcription_state = 2;
+  .google.protobuf.Timestamp trigger_time = 3;
+}
+
+message TranscriptionStateResponse {
+  .gamma.onehub.api.v1.types.AiSessionId ai_session_id = 1;
+  .gamma.onehub.api.v1.types.AiTranscriptionState ai_transcription_state = 2;
+  optional string cause = 3;
+}
+

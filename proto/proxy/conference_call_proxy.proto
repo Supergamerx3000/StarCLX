@@ -1,0 +1,174 @@
+syntax = "proto3";
+package gamma.onehub.api.v1.conference;
+import "google/protobuf/empty.proto";
+import "typedefs/call_id.proto";
+import "typedefs/conference_call_room_id.proto";
+import "typedefs/conference_call_participant.proto";
+import "typedefs/phone_id.proto";
+import "typedefs/call_state.proto";
+
+service ConferenceCallService {
+  rpc GetConferenceCalls(.google.protobuf.Empty) returns (.gamma.onehub.api.v1.conference.GetConferenceCallsResponse);
+  rpc JoinToConference(.gamma.onehub.api.v1.conference.JoinToConferenceRequest) returns (.google.protobuf.Empty);
+  rpc RequestToSpeak(.gamma.onehub.api.v1.conference.RequestToSpeakRequest) returns (.google.protobuf.Empty);
+  rpc LeaveConference(.gamma.onehub.api.v1.conference.LeaveConferenceRequest) returns (.google.protobuf.Empty);
+  rpc QuitConference(.gamma.onehub.api.v1.conference.QuitConferenceRequest) returns (.google.protobuf.Empty);
+  rpc Mute(.gamma.onehub.api.v1.conference.MuteRequest) returns (.google.protobuf.Empty);
+  rpc Unmute(.gamma.onehub.api.v1.conference.UnmuteRequest) returns (.google.protobuf.Empty);
+  rpc EnableListening(.gamma.onehub.api.v1.conference.EnableListeningRequest) returns (.google.protobuf.Empty);
+  rpc DisableListening(.gamma.onehub.api.v1.conference.DisableListeningRequest) returns (.google.protobuf.Empty);
+  rpc EnableListeningAll(.gamma.onehub.api.v1.conference.EnableListeningAllRequest) returns (.google.protobuf.Empty);
+  rpc EnableSpeakingAll(.gamma.onehub.api.v1.conference.EnableSpeakingAllRequest) returns (.google.protobuf.Empty);
+  rpc DisableSpeakingAllExceptModerator(.gamma.onehub.api.v1.conference.DisableSpeakingAllExceptModeratorRequest) returns (.google.protobuf.Empty);
+  rpc TransferToConference(.gamma.onehub.api.v1.conference.TransferToConferenceRequest) returns (.google.protobuf.Empty);
+  rpc CallNumberToConference(.gamma.onehub.api.v1.conference.CallNumberToConferenceRequest) returns (.google.protobuf.Empty);
+  rpc TransferToConferenceConsultationCall(.gamma.onehub.api.v1.conference.TransferToConferenceConsultationCallRequest) returns (.google.protobuf.Empty);
+  rpc InitiateConference(.gamma.onehub.api.v1.conference.InitiateConferenceRequest) returns (.google.protobuf.Empty);
+  rpc SubscribeConferenceCallEvents(.google.protobuf.Empty) returns (stream .gamma.onehub.api.v1.conference.ConferenceCallEventResponse);
+}
+
+message JoinToConferenceRequest {
+  .gamma.onehub.api.v1.types.ConferenceCallRoomId conference_call_room_id = 1;
+  optional .gamma.onehub.api.v1.types.PhoneId phone_id = 2;
+}
+
+message RequestToSpeakRequest {
+  .gamma.onehub.api.v1.types.CallId participant_call_id = 1;
+}
+
+message LeaveConferenceRequest {
+  .gamma.onehub.api.v1.types.ConferenceCallRoomId conference_call_room_id = 1;
+}
+
+message QuitConferenceRequest {
+  .gamma.onehub.api.v1.types.ConferenceCallRoomId conference_call_room_id = 1;
+}
+
+message MuteRequest {
+  .gamma.onehub.api.v1.types.CallId participant_call_id = 1;
+}
+
+message UnmuteRequest {
+  .gamma.onehub.api.v1.types.CallId participant_call_id = 1;
+}
+
+message EnableListeningRequest {
+  .gamma.onehub.api.v1.types.CallId participant_call_id = 1;
+}
+
+message DisableListeningRequest {
+  .gamma.onehub.api.v1.types.CallId participant_call_id = 1;
+}
+
+message EnableListeningAllRequest {
+  .gamma.onehub.api.v1.types.ConferenceCallRoomId conference_call_room_id = 1;
+}
+
+message EnableSpeakingAllRequest {
+  .gamma.onehub.api.v1.types.ConferenceCallRoomId conference_call_room_id = 1;
+}
+
+message DisableSpeakingAllExceptModeratorRequest {
+  .gamma.onehub.api.v1.types.CallId participant_call_id = 1;
+}
+
+message GetConferenceCallsResponse {
+  repeated .gamma.onehub.api.v1.conference.ConferenceCall conference_calls = 1;
+}
+
+message ConferenceCallEventResponse {
+  oneof conference_call_event {
+    .gamma.onehub.api.v1.conference.ConferenceCallParticipantConnectedEvent conference_call_participant_connected = 1;
+    .gamma.onehub.api.v1.conference.ConferenceCallParticipantCallStateChangedEvent conference_call_participant_call_state_changed = 2;
+    .gamma.onehub.api.v1.conference.ConferenceCallParticipantStartsTalkingEvent conference_call_participant_starts_talking = 3;
+    .gamma.onehub.api.v1.conference.ConferenceCallParticipantStopsTalkingEvent conference_call_participant_stops_talking = 4;
+    .gamma.onehub.api.v1.conference.ConferenceCallParticipantMutedEvent conference_call_participant_muted = 5;
+    .gamma.onehub.api.v1.conference.ConferenceCallParticipantUnmutedEvent conference_call_participant_unmuted = 6;
+    .gamma.onehub.api.v1.conference.ConferenceCallParticipantListeningEnabledEvent conference_call_participant_listening_enabled = 7;
+    .gamma.onehub.api.v1.conference.ConferenceCallParticipantListeningDisabledEvent conference_call_participant_listening_disabled = 8;
+    .gamma.onehub.api.v1.conference.ConferenceCallParticipantRequestedSpeakingEvent conference_call_participant_requested_speaking = 9;
+    .gamma.onehub.api.v1.conference.ConferenceCallParticipantSpeakRequestRemovedEvent conference_call_participant_speak_request_removed = 10;
+    .gamma.onehub.api.v1.conference.ConferenceCallParticipantDisconnectedEvent conference_call_participant_disconnected = 11;
+  }
+}
+
+message ConferenceCallParticipantConnectedEvent {
+  .gamma.onehub.api.v1.types.ConferenceCallRoomId conference_call_room_id = 1;
+  repeated .gamma.onehub.api.v1.types.ConferenceCallParticipant conference_call_participants = 2;
+}
+
+message ConferenceCallParticipantCallStateChangedEvent {
+  .gamma.onehub.api.v1.types.ConferenceCallRoomId conference_call_room_id = 1;
+  .gamma.onehub.api.v1.types.CallId conference_call_participant_call_id = 2;
+  .gamma.onehub.api.v1.types.CallState conference_call_participant_call_state = 3;
+}
+
+message ConferenceCallParticipantStartsTalkingEvent {
+  .gamma.onehub.api.v1.types.ConferenceCallRoomId conference_call_room_id = 1;
+  .gamma.onehub.api.v1.types.CallId conference_call_participant_call_id = 2;
+}
+
+message ConferenceCallParticipantStopsTalkingEvent {
+  .gamma.onehub.api.v1.types.ConferenceCallRoomId conference_call_room_id = 1;
+  .gamma.onehub.api.v1.types.CallId conference_call_participant_call_id = 2;
+}
+
+message ConferenceCallParticipantMutedEvent {
+  .gamma.onehub.api.v1.types.ConferenceCallRoomId conference_call_room_id = 1;
+  .gamma.onehub.api.v1.types.CallId conference_call_participant_call_id = 2;
+}
+
+message ConferenceCallParticipantUnmutedEvent {
+  .gamma.onehub.api.v1.types.ConferenceCallRoomId conference_call_room_id = 1;
+  .gamma.onehub.api.v1.types.CallId conference_call_participant_call_id = 2;
+}
+
+message ConferenceCallParticipantListeningEnabledEvent {
+  .gamma.onehub.api.v1.types.ConferenceCallRoomId conference_call_room_id = 1;
+  .gamma.onehub.api.v1.types.CallId conference_call_participant_call_id = 2;
+}
+
+message ConferenceCallParticipantListeningDisabledEvent {
+  .gamma.onehub.api.v1.types.ConferenceCallRoomId conference_call_room_id = 1;
+  .gamma.onehub.api.v1.types.CallId conference_call_participant_call_id = 2;
+}
+
+message ConferenceCallParticipantRequestedSpeakingEvent {
+  .gamma.onehub.api.v1.types.ConferenceCallRoomId conference_call_room_id = 1;
+  .gamma.onehub.api.v1.types.CallId conference_call_participant_call_id = 2;
+}
+
+message ConferenceCallParticipantSpeakRequestRemovedEvent {
+  .gamma.onehub.api.v1.types.ConferenceCallRoomId conference_call_room_id = 1;
+  .gamma.onehub.api.v1.types.CallId conference_call_participant_call_id = 2;
+}
+
+message TransferToConferenceRequest {
+  .gamma.onehub.api.v1.types.ConferenceCallRoomId conference_call_room_id = 1;
+  .gamma.onehub.api.v1.types.CallId call_id_to_transfer = 2;
+}
+
+message CallNumberToConferenceRequest {
+  .gamma.onehub.api.v1.types.ConferenceCallRoomId conference_call_room_id = 1;
+  string phone_number = 2;
+}
+
+message TransferToConferenceConsultationCallRequest {
+  .gamma.onehub.api.v1.types.CallId call_id = 1;
+}
+
+message InitiateConferenceRequest {
+  repeated .gamma.onehub.api.v1.types.CallId call_ids = 1;
+  .gamma.onehub.api.v1.types.PhoneId phone_id = 2;
+}
+
+message ConferenceCallParticipantDisconnectedEvent {
+  .gamma.onehub.api.v1.types.ConferenceCallRoomId conference_call_room_id = 1;
+  .gamma.onehub.api.v1.types.CallId conference_call_participant_call_id = 2;
+}
+
+message ConferenceCall {
+  .gamma.onehub.api.v1.types.ConferenceCallRoomId conference_call_room_id = 1;
+  repeated .gamma.onehub.api.v1.types.ConferenceCallParticipant conference_call_participants = 2;
+}
+

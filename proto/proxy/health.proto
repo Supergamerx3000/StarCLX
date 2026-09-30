@@ -1,0 +1,8 @@
+syntax = "proto3";
+package gamma.onehub.api.v1.health;
+import "google/protobuf/empty.proto";
+
+service HealthService {
+  rpc Check(.google.protobuf.Empty) returns (.google.protobuf.Empty);
+}
+

@@ -1,0 +1,8 @@
+syntax = "proto3";
+package gamma.onehub.api.v1.types;
+
+enum CallDirection {
+  CALL_DIRECTION_UNSPECIFIED = 0;
+  CALL_DIRECTION_INBOUND = 1;
+  CALL_DIRECTION_OUTBOUND = 2;
+}

@@ -1,0 +1,135 @@
+syntax = "proto3";
+package gamma.onehub.api.v1.contact;
+import "google/protobuf/empty.proto";
+import "typedefs/contact.proto";
+import "typedefs/contact_id.proto";
+import "typedefs/order_direction.proto";
+import "typedefs/user_id.proto";
+
+service ContactService {
+  rpc GetContacts(.gamma.onehub.api.v1.contact.GetContactsRequest) returns (.gamma.onehub.api.v1.contact.GetContactsResponse);
+  rpc GetContact(.gamma.onehub.api.v1.contact.GetContactRequest) returns (.gamma.onehub.api.v1.contact.GetContactResponse);
+  rpc CreateContact(.gamma.onehub.api.v1.contact.CreateContactRequest) returns (.google.protobuf.Empty);
+  rpc UpdateContact(.gamma.onehub.api.v1.contact.UpdateContactRequest) returns (.google.protobuf.Empty);
+  rpc DeleteContact(.gamma.onehub.api.v1.contact.DeleteContactRequest) returns (.google.protobuf.Empty);
+  rpc GetScheme(.google.protobuf.Empty) returns (.gamma.onehub.api.v1.contact.GetSchemeResponse);
+  rpc GetFolders(.google.protobuf.Empty) returns (.gamma.onehub.api.v1.contact.GetFoldersResponse);
+}
+
+enum ContactDisplayKey {
+  CONTACT_DISPLAY_KEY_UNSPECIFIED = 0;
+  CONTACT_DISPLAY_KEY_NAME = 1;
+  CONTACT_DISPLAY_KEY_SURNAME = 2;
+  CONTACT_DISPLAY_KEY_SALUTATION = 3;
+  CONTACT_DISPLAY_KEY_TITLE = 4;
+  CONTACT_DISPLAY_KEY_EMAIL = 5;
+  CONTACT_DISPLAY_KEY_COUNTRY = 6;
+  CONTACT_DISPLAY_KEY_CITY = 7;
+  CONTACT_DISPLAY_KEY_STATE = 8;
+  CONTACT_DISPLAY_KEY_POSTAL_CODE = 9;
+  CONTACT_DISPLAY_KEY_STREET = 10;
+  CONTACT_DISPLAY_KEY_URL = 11;
+  CONTACT_DISPLAY_KEY_COMPANY = 12;
+  CONTACT_DISPLAY_KEY_MESSENGER = 13;
+  CONTACT_DISPLAY_KEY_BIRTHDAY = 14;
+  CONTACT_DISPLAY_KEY_NOTE = 15;
+  CONTACT_DISPLAY_KEY_JOB_TITLE = 16;
+  CONTACT_DISPLAY_KEY_PHONE_NUMBER = 17;
+  CONTACT_DISPLAY_KEY_PRIVATE_PHONE_NUMBER = 18;
+  CONTACT_DISPLAY_KEY_OFFICE_PHONE_NUMBER = 19;
+  CONTACT_DISPLAY_KEY_MOBILE_PHONE_NUMBER = 20;
+  CONTACT_DISPLAY_KEY_FAX_NUMBER = 21;
+  CONTACT_DISPLAY_KEY_DESCRIPTION = 22;
+  CONTACT_DISPLAY_KEY_USER_DEFINED = 23;
+}
+enum FolderType {
+  FOLDER_TYPE_UNSPECIFIED = 0;
+  FOLDER_TYPE_PUBLIC = 1;
+  FOLDER_TYPE_PRIVATE = 2;
+  FOLDER_TYPE_USERS = 3;
+  FOLDER_TYPE_NUMBER = 4;
+  FOLDER_TYPE_CUSTOM = 5;
+}
+message GetContactsRequest {
+  string search_term = 1;
+  .gamma.onehub.api.v1.contact.FolderId folder_id = 2;
+  .gamma.onehub.api.v1.types.ContactOrderBy order_by = 3;
+  .gamma.onehub.api.v1.types.OrderDirection order_direction = 4;
+  int32 limit = 5;
+  int32 offset = 6;
+}
+
+message GetContactRequest {
+  .gamma.onehub.api.v1.types.ContactId contact_id = 1;
+}
+
+message CreateContactRequest {
+  repeated .gamma.onehub.api.v1.contact.ContactBlock blocks = 1;
+  .gamma.onehub.api.v1.contact.FolderId folder_id = 2;
+}
+
+message UpdateContactRequest {
+  .gamma.onehub.api.v1.contact.Contact contact = 1;
+}
+
+message DeleteContactRequest {
+  .gamma.onehub.api.v1.types.ContactId contact_id = 1;
+}
+
+message GetContactsResponse {
+  repeated .gamma.onehub.api.v1.contact.Contact contacts = 1;
+  int32 total_count = 2;
+}
+
+message GetContactResponse {
+  .gamma.onehub.api.v1.contact.Contact contact = 1;
+}
+
+message GetSchemeResponse {
+  .gamma.onehub.api.v1.contact.ContactBlock summary_block = 1;
+  .gamma.onehub.api.v1.contact.ContactBlock phone_numbers_block = 2;
+  repeated .gamma.onehub.api.v1.contact.ContactBlock detail_blocks = 3;
+}
+
+message GetFoldersResponse {
+  repeated .gamma.onehub.api.v1.contact.ContactFolder folders = 1;
+}
+
+message Contact {
+  .gamma.onehub.api.v1.types.ContactId contact_id = 1;
+  string internal_number = 2;
+  string external_number = 3;
+  string avatar_hash = 4;
+  .gamma.onehub.api.v1.types.UserId user_id = 5;
+  repeated .gamma.onehub.api.v1.contact.ContactBlock blocks = 6;
+  .gamma.onehub.api.v1.contact.ContactFolder folder = 7;
+  bool is_editable = 8;
+  bool is_deletable = 9;
+  string edge_node_name = 10;
+}
+
+message ContactBlock {
+  string name = 1;
+  repeated .gamma.onehub.api.v1.contact.ContactAttribute attributes = 2;
+  string resource_key = 3;
+}
+
+message ContactAttribute {
+  .gamma.onehub.api.v1.contact.ContactDisplayKey display_key = 1;
+  string name = 2;
+  string value = 3;
+  string i18n_display_name = 4;
+  map<string, string> additional_values = 5;
+}
+
+message ContactFolder {
+  .gamma.onehub.api.v1.contact.FolderId folder_id = 1;
+  string folder_name = 2;
+  .gamma.onehub.api.v1.contact.FolderType folder_type = 3;
+  bool is_writable = 4;
+}
+
+message FolderId {
+  string id = 1;
+}
+

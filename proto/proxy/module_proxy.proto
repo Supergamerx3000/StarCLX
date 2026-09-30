@@ -1,0 +1,57 @@
+syntax = "proto3";
+package gamma.onehub.api.v1.module;
+import "google/protobuf/empty.proto";
+
+service ModuleService {
+  rpc GetModules(.google.protobuf.Empty) returns (.gamma.onehub.api.v1.module.ModuleListResponse);
+  rpc SubscribeModuleEvents(.google.protobuf.Empty) returns (stream .gamma.onehub.api.v1.module.ModuleEventResponse);
+  rpc ActivateModule(.gamma.onehub.api.v1.module.ActivateModuleRequest) returns (.google.protobuf.Empty);
+  rpc DeactivateModule(.gamma.onehub.api.v1.module.DeactivateModuleRequest) returns (.google.protobuf.Empty);
+}
+
+message ActivateModuleRequest {
+  .gamma.onehub.api.v1.module.ModuleId module_id = 1;
+}
+
+message DeactivateModuleRequest {
+  .gamma.onehub.api.v1.module.ModuleId module_id = 1;
+}
+
+message ModuleListResponse {
+  repeated .gamma.onehub.api.v1.module.Module modules = 1;
+}
+
+message ModuleEventResponse {
+  oneof module_event {
+    .gamma.onehub.api.v1.module.ModuleChangedEvent module_changed = 1;
+    .gamma.onehub.api.v1.module.ModuleDeletedEvent module_deleted = 2;
+    .gamma.onehub.api.v1.module.ModuleVisibilityChangedEvent visibility_changed = 3;
+  }
+}
+
+message ModuleId {
+  string id = 1;
+}
+
+message Module {
+  .gamma.onehub.api.v1.module.ModuleId module_id = 1;
+  string name = 2;
+  bool active = 3;
+  bool visible = 4;
+  bool read_only = 5;
+}
+
+message ModuleChangedEvent {
+  repeated .gamma.onehub.api.v1.module.Module modules = 1;
+}
+
+message ModuleDeletedEvent {
+  .gamma.onehub.api.v1.module.ModuleId module_id = 1;
+}
+
+message ModuleVisibilityChangedEvent {
+  .gamma.onehub.api.v1.module.ModuleId module_id = 1;
+  bool is_visible = 2;
+  bool is_read_only = 3;
+}
+

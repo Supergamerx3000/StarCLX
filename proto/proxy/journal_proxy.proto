@@ -1,0 +1,219 @@
+syntax = "proto3";
+package gamma.onehub.api.v1.journal;
+import "google/protobuf/duration.proto";
+import "google/protobuf/empty.proto";
+import "google/protobuf/timestamp.proto";
+import "typedefs/call_direction.proto";
+import "typedefs/call_id.proto";
+import "typedefs/group_id.proto";
+import "typedefs/local_participant.proto";
+import "typedefs/order_direction.proto";
+import "typedefs/phone_id.proto";
+import "typedefs/remote_participant.proto";
+import "typedefs/voicemail_id.proto";
+import "typedefs/ai_session_id.proto";
+import "typedefs/transcription_id.proto";
+
+service JournalService {
+  rpc GetJournal(.gamma.onehub.api.v1.journal.GetJournalRequest) returns (.gamma.onehub.api.v1.journal.GetJournalResponse);
+  rpc GetJournalUpdates(.gamma.onehub.api.v1.journal.GetJournalUpdatesRequest) returns (.gamma.onehub.api.v1.journal.GetJournalUpdatesResponse);
+  rpc SetJournalEntryComment(.gamma.onehub.api.v1.journal.SetCommentRequest) returns (.google.protobuf.Empty);
+  rpc ClearJournalEntryComment(.gamma.onehub.api.v1.journal.ClearCommentRequest) returns (.google.protobuf.Empty);
+  rpc DeleteJournalEntry(.gamma.onehub.api.v1.journal.DeleteJournalEntryRequest) returns (.google.protobuf.Empty);
+  rpc CallBack(.gamma.onehub.api.v1.journal.CallBackRequest) returns (.gamma.onehub.api.v1.journal.CallBackResponse);
+  rpc SetJournalEntryCalledBack(.gamma.onehub.api.v1.journal.SetCalledBackRequest) returns (.google.protobuf.Empty);
+  rpc SubscribeJournalEvents(.google.protobuf.Empty) returns (stream .gamma.onehub.api.v1.journal.JournalEventResponse);
+}
+
+enum JournalEntryOrderBy {
+  JOURNAL_ENTRY_ORDER_BY_UNSPECIFIED = 0;
+  JOURNAL_ENTRY_ORDER_BY_ID = 1;
+  JOURNAL_ENTRY_ORDER_BY_START_TIME = 3;
+  JOURNAL_ENTRY_ORDER_BY_DURATION = 4;
+}
+enum AnswerType {
+  ANSWER_TYPE_UNSPECIFIED = 0;
+  ANSWER_TYPE_ANSWERED = 1;
+  ANSWER_TYPE_MISSED = 2;
+}
+enum CommentFilter {
+  COMMENT_FILTER_UNSPECIFIED = 0;
+  COMMENT_FILTER_WITH_COMMENT = 1;
+  COMMENT_FILTER_WITHOUT_COMMENT = 2;
+}
+enum CalledBackFilter {
+  CALLED_BACK_FILTER_UNSPECIFIED = 0;
+  CALLED_BACK_FILTER_CALLED_BACK = 1;
+  CALLED_BACK_FILTER_NOT_CALLED_BACK = 2;
+}
+message GetJournalRequest {
+  .gamma.onehub.api.v1.journal.JournalFilter journal_filter = 1;
+  .gamma.onehub.api.v1.journal.JournalEntryOrderBy journal_entry_order_by = 2;
+  .gamma.onehub.api.v1.types.OrderDirection order_direction = 3;
+  int32 limit = 4;
+  int32 offset = 5;
+}
+
+message GetJournalUpdatesRequest {
+  .gamma.onehub.api.v1.journal.JournalFilter journal_filter = 1;
+  .gamma.onehub.api.v1.journal.JournalEntryOrderBy journal_updates_order_by = 2;
+  .gamma.onehub.api.v1.types.OrderDirection order_direction = 3;
+  int32 limit = 4;
+  int32 offset = 5;
+}
+
+message SetCommentRequest {
+  .gamma.onehub.api.v1.journal.JournalEntryId journal_entry_id = 1;
+  string comment = 2;
+}
+
+message ClearCommentRequest {
+  .gamma.onehub.api.v1.journal.JournalEntryId journal_entry_id = 1;
+}
+
+message DeleteJournalEntryRequest {
+  .gamma.onehub.api.v1.journal.JournalEntryId journal_entry_id = 1;
+}
+
+message CallBackRequest {
+  .gamma.onehub.api.v1.journal.JournalEntryId journal_entry_id = 1;
+  .gamma.onehub.api.v1.types.PhoneId phone_id = 2;
+  .gamma.onehub.api.v1.types.CallId call_id = 3;
+}
+
+message SetCalledBackRequest {
+  .gamma.onehub.api.v1.journal.JournalEntryId journal_entry_id = 1;
+  bool called_back = 2;
+}
+
+message GetJournalResponse {
+  repeated .gamma.onehub.api.v1.journal.JournalEntry journal_entries = 1;
+  uint32 total_count = 2;
+}
+
+message GetJournalUpdatesResponse {
+  repeated .gamma.onehub.api.v1.journal.JournalUpdate journal_updates = 1;
+  uint32 total_count = 2;
+}
+
+message JournalUpdate {
+  oneof update_type {
+    .gamma.onehub.api.v1.journal.JournalEntry new_journal_entry = 1;
+    .gamma.onehub.api.v1.journal.JournalEntryId deleted_journal_entry_id = 2;
+    .gamma.onehub.api.v1.journal.JournalEntryCommentChanged comment = 3;
+    .gamma.onehub.api.v1.journal.JournalEntryCalledBackChanged call_back = 4;
+    .gamma.onehub.api.v1.journal.JournalEntryVoicemailTranscriptionEvent transcription_event = 5;
+  }
+}
+
+message JournalEntryCommentChanged {
+  .gamma.onehub.api.v1.journal.JournalEntryId journal_entry_id = 1;
+  .gamma.onehub.api.v1.journal.JournalEntryComment updated_comment = 2;
+}
+
+message JournalEntryCalledBackChanged {
+  .gamma.onehub.api.v1.journal.JournalEntryId journal_entry_id = 1;
+  .gamma.onehub.api.v1.journal.JournalEntryCalledBack updated_call_back = 2;
+}
+
+message CallBackResponse {
+  .gamma.onehub.api.v1.types.CallId call_id = 1;
+}
+
+message JournalEventResponse {
+  oneof journal_event {
+    .gamma.onehub.api.v1.journal.JournalEntryCreatedEvent journal_entry_created = 1;
+    .gamma.onehub.api.v1.journal.JournalEntryCommentUpdatedEvent journal_entry_comment_updated = 2;
+    .gamma.onehub.api.v1.journal.JournalEntryCalledBackChangedEvent journal_entry_called_back_changed = 3;
+    .gamma.onehub.api.v1.journal.JournalEntryDeletedEvent journal_entry_deleted = 4;
+    .gamma.onehub.api.v1.journal.JournalEntryVoicemailTranscriptionEvent journal_entry_voicemail_transcription_event = 5;
+  }
+}
+
+message JournalEntry {
+  .gamma.onehub.api.v1.journal.JournalEntryId journal_entry_id = 1;
+  .gamma.onehub.api.v1.types.RemoteParticipant remote_participant = 2;
+  .gamma.onehub.api.v1.types.LocalParticipant local_participant = 3;
+  .google.protobuf.Timestamp start_time = 5;
+  .google.protobuf.Timestamp end_time = 6;
+  .google.protobuf.Duration duration = 7;
+  .gamma.onehub.api.v1.types.CallDirection call_direction = 8;
+  .gamma.onehub.api.v1.journal.AnswerType answer_type = 9;
+  .gamma.onehub.api.v1.types.VoicemailId voicemail_id = 10;
+  .gamma.onehub.api.v1.journal.JournalEntryGroupCallInfo group_call_info = 11;
+  repeated .gamma.onehub.api.v1.journal.JournalEntryExtension extensions = 12;
+}
+
+message JournalEntryExtension {
+  oneof extension {
+    .gamma.onehub.api.v1.journal.JournalEntryComment comment = 1;
+    .gamma.onehub.api.v1.journal.JournalEntryCalledBack call_back = 2;
+    .gamma.onehub.api.v1.journal.JournalEntryTranscription transcription = 3;
+    .gamma.onehub.api.v1.journal.JournalEntryVoicemailTranscription voicemail_transcription = 4;
+  }
+}
+
+message JournalEntryId {
+  string id = 1;
+}
+
+message JournalFilter {
+  .google.protobuf.Timestamp filter_from = 1;
+  .google.protobuf.Timestamp filter_until = 2;
+  .gamma.onehub.api.v1.types.CallDirection call_direction_filter = 3;
+  string search_term = 4;
+  .gamma.onehub.api.v1.journal.AnswerType answer_type_filter = 5;
+  .gamma.onehub.api.v1.journal.CommentFilter comment_filter = 6;
+  .gamma.onehub.api.v1.journal.CalledBackFilter called_back_filter = 7;
+  .gamma.onehub.api.v1.types.GroupId group_id = 8;
+}
+
+message JournalEntryGroupCallInfo {
+  .gamma.onehub.api.v1.types.GroupId group_id = 1;
+  string group_name = 2;
+  string group_call_answered_by = 3;
+}
+
+message JournalEntryComment {
+  string comment = 1;
+  string comment_author = 2;
+  .google.protobuf.Timestamp comment_modified = 3;
+}
+
+message JournalEntryCalledBack {
+  bool called_back = 1;
+  string called_back_by = 2;
+  .google.protobuf.Timestamp called_back_modified = 3;
+}
+
+message JournalEntryTranscription {
+  .gamma.onehub.api.v1.types.AiSessionId session_id = 1;
+}
+
+message JournalEntryVoicemailTranscription {
+  .gamma.onehub.api.v1.types.TranscriptionId transcription_id = 1;
+}
+
+message JournalEntryCreatedEvent {
+  .gamma.onehub.api.v1.journal.JournalEntry journal_entry = 1;
+}
+
+message JournalEntryCommentUpdatedEvent {
+  .gamma.onehub.api.v1.journal.JournalEntryId journal_entry_id = 1;
+  .gamma.onehub.api.v1.journal.JournalEntryComment comment = 2;
+}
+
+message JournalEntryCalledBackChangedEvent {
+  .gamma.onehub.api.v1.journal.JournalEntryId journal_entry_id = 1;
+  .gamma.onehub.api.v1.journal.JournalEntryCalledBack called_back = 2;
+}
+
+message JournalEntryDeletedEvent {
+  .gamma.onehub.api.v1.journal.JournalEntryId journal_entry_id = 1;
+}
+
+message JournalEntryVoicemailTranscriptionEvent {
+  .gamma.onehub.api.v1.journal.JournalEntryId journal_entry_id = 1;
+  .gamma.onehub.api.v1.types.TranscriptionId transcription_id = 2;
+}
+

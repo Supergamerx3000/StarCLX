@@ -1,0 +1,196 @@
+syntax = "proto3";
+package gamma.onehub.api.v1.queue;
+import "google/protobuf/empty.proto";
+import "google/protobuf/timestamp.proto";
+import "typedefs/user_id.proto";
+import "typedefs/call_id.proto";
+import "typedefs/phone_id.proto";
+import "typedefs/queue_id.proto";
+
+service QueueService {
+  rpc GetQueue(.gamma.onehub.api.v1.queue.GetQueueRequest) returns (.gamma.onehub.api.v1.queue.GetQueueResponse);
+  rpc GetQueues(.google.protobuf.Empty) returns (.gamma.onehub.api.v1.queue.GetQueuesResponse);
+  rpc GetQueueCalls(.gamma.onehub.api.v1.queue.GetQueueCallsRequest) returns (.gamma.onehub.api.v1.queue.GetQueueCallsResponse);
+  rpc GetQueueStatistics(.gamma.onehub.api.v1.queue.GetQueueStatisticsRequest) returns (.gamma.onehub.api.v1.queue.GetQueueStatisticsResponse);
+  rpc GrabQueueCall(.gamma.onehub.api.v1.queue.GrabQueueCallRequest) returns (.google.protobuf.Empty);
+  rpc SubscribeQueueEvents(.google.protobuf.Empty) returns (stream .gamma.onehub.api.v1.queue.QueueEventResponse);
+  rpc SubscribeQueueCallEvents(.google.protobuf.Empty) returns (stream .gamma.onehub.api.v1.queue.QueueCallEventResponse);
+  rpc SubscribeQueueStatisticsEvents(.google.protobuf.Empty) returns (stream .gamma.onehub.api.v1.queue.QueueStatisticsEventResponse);
+}
+
+enum QueueCallState {
+  QUEUE_CALL_STATE_UNSPECIFIED = 0;
+  QUEUE_CALL_STATE_WAITING = 1;
+  QUEUE_CALL_STATE_RINGING = 2;
+  QUEUE_CALL_STATE_CONNECTED = 3;
+}
+message GetQueueRequest {
+  .gamma.onehub.api.v1.types.QueueId queue_id = 1;
+}
+
+message GetQueueCallsRequest {
+  .gamma.onehub.api.v1.types.QueueId queue_id = 1;
+}
+
+message GetQueueStatisticsRequest {
+  .gamma.onehub.api.v1.types.QueueId queue_id = 1;
+}
+
+message GrabQueueCallRequest {
+  .gamma.onehub.api.v1.types.QueueId queue_id = 1;
+  .gamma.onehub.api.v1.types.PhoneId phone_id = 2;
+  .gamma.onehub.api.v1.types.CallId call_id = 3;
+}
+
+message GetQueueResponse {
+  .gamma.onehub.api.v1.queue.Queue queue = 1;
+}
+
+message GetQueuesResponse {
+  repeated .gamma.onehub.api.v1.queue.Queue queues = 1;
+}
+
+message GetQueueCallsResponse {
+  repeated .gamma.onehub.api.v1.queue.QueueCall queue_calls = 1;
+}
+
+message GetQueueStatisticsResponse {
+  .gamma.onehub.api.v1.queue.QueueStatistics queue_statistics = 1;
+}
+
+message QueueEventResponse {
+  oneof queue_event {
+    .gamma.onehub.api.v1.queue.AddedToQueueEvent added_to_queue = 1;
+    .gamma.onehub.api.v1.queue.RemovedFromQueueEvent removed_from_queue = 2;
+    .gamma.onehub.api.v1.queue.QueueNameChangedEvent queue_name_changed = 3;
+    .gamma.onehub.api.v1.queue.QueueAgentAddedEvent queue_agent_added = 4;
+    .gamma.onehub.api.v1.queue.QueueAgentRemovedEvent queue_agent_removed = 5;
+    .gamma.onehub.api.v1.queue.QueueAgentLoggedOnEvent queue_agent_logged_on = 6;
+    .gamma.onehub.api.v1.queue.QueueAgentLoggedOffEvent queue_agent_logged_off = 7;
+    .gamma.onehub.api.v1.queue.QueueAgentPauseStateChangedEvent queue_agent_pause_state_changed = 8;
+  }
+}
+
+message QueueCallEventResponse {
+  oneof queue_call_event {
+    .gamma.onehub.api.v1.queue.QueueCallAddedEvent queue_call_added = 1;
+    .gamma.onehub.api.v1.queue.QueueCallRemovedEvent queue_call_removed = 2;
+    .gamma.onehub.api.v1.queue.QueueCallStateChangedEvent queue_call_state_changed = 3;
+    .gamma.onehub.api.v1.queue.QueueCallConnectedEvent queue_call_connected = 4;
+    .gamma.onehub.api.v1.queue.QueueCallPositionChangedEvent queue_call_position_changed = 5;
+    .gamma.onehub.api.v1.queue.QueueCallAgentsChangedEvent queue_call_agents_changed = 6;
+  }
+}
+
+message QueueStatisticsEventResponse {
+  .gamma.onehub.api.v1.types.QueueId queue_id = 1;
+  .gamma.onehub.api.v1.queue.QueueStatistics queue_statistics = 2;
+}
+
+message AddedToQueueEvent {
+  repeated .gamma.onehub.api.v1.queue.Queue queues = 1;
+}
+
+message RemovedFromQueueEvent {
+  .gamma.onehub.api.v1.types.QueueId queue_id = 1;
+}
+
+message QueueNameChangedEvent {
+  .gamma.onehub.api.v1.types.QueueId queue_id = 1;
+  string name = 2;
+}
+
+message QueueAgentAddedEvent {
+  .gamma.onehub.api.v1.types.QueueId queue_id = 1;
+  .gamma.onehub.api.v1.queue.QueueAgent queue_agent = 2;
+}
+
+message QueueAgentRemovedEvent {
+  .gamma.onehub.api.v1.types.QueueId queue_id = 1;
+  .gamma.onehub.api.v1.types.UserId user_id = 2;
+}
+
+message QueueAgentLoggedOnEvent {
+  .gamma.onehub.api.v1.types.QueueId queue_id = 1;
+  .gamma.onehub.api.v1.types.UserId user_id = 2;
+}
+
+message QueueAgentLoggedOffEvent {
+  .gamma.onehub.api.v1.types.QueueId queue_id = 1;
+  .gamma.onehub.api.v1.types.UserId user_id = 2;
+}
+
+message QueueAgentPauseStateChangedEvent {
+  .gamma.onehub.api.v1.types.UserId user_id = 1;
+  bool in_queue_pause = 2;
+}
+
+message QueueCallAddedEvent {
+  .gamma.onehub.api.v1.types.QueueId queue_id = 1;
+  repeated .gamma.onehub.api.v1.queue.QueueCall queue_calls = 2;
+}
+
+message QueueCallRemovedEvent {
+  .gamma.onehub.api.v1.types.QueueId queue_id = 1;
+  .gamma.onehub.api.v1.types.CallId call_id = 2;
+}
+
+message QueueCallStateChangedEvent {
+  .gamma.onehub.api.v1.types.QueueId queue_id = 1;
+  .gamma.onehub.api.v1.types.CallId call_id = 2;
+  .gamma.onehub.api.v1.queue.QueueCallState queue_call_state = 3;
+}
+
+message QueueCallConnectedEvent {
+  .gamma.onehub.api.v1.types.QueueId queue_id = 1;
+  .gamma.onehub.api.v1.types.CallId call_id = 2;
+  .google.protobuf.Timestamp connected_time = 3;
+}
+
+message QueueCallPositionChangedEvent {
+  .gamma.onehub.api.v1.types.QueueId queue_id = 1;
+  .gamma.onehub.api.v1.types.CallId call_id = 2;
+  int32 position = 3;
+}
+
+message QueueCallAgentsChangedEvent {
+  .gamma.onehub.api.v1.types.QueueId queue_id = 1;
+  .gamma.onehub.api.v1.types.CallId call_id = 2;
+  repeated .gamma.onehub.api.v1.types.UserId user_ids = 3;
+}
+
+message Queue {
+  .gamma.onehub.api.v1.types.QueueId queue_id = 1;
+  string name = 2;
+  repeated .gamma.onehub.api.v1.queue.QueueAgent queue_agents = 3;
+}
+
+message QueueAgent {
+  .gamma.onehub.api.v1.types.UserId user_id = 1;
+  string name = 2;
+  bool logged_in = 3;
+  bool in_queue_pause = 4;
+}
+
+message QueueCall {
+  .gamma.onehub.api.v1.types.CallId call_id = 1;
+  string caller_name = 2;
+  string caller_number = 3;
+  int32 priority = 4;
+  int32 position = 5;
+  .gamma.onehub.api.v1.queue.QueueCallState queue_call_state = 6;
+  .google.protobuf.Timestamp incoming_time = 7;
+  .google.protobuf.Timestamp connected_time = 8;
+  repeated .gamma.onehub.api.v1.types.UserId user_ids = 9;
+  map<string, string> bot_output = 10;
+}
+
+message QueueStatistics {
+  int32 callers_in_queue = 1;
+  int32 free_agents = 2;
+  int32 missed_calls = 3;
+  int32 unanswered_calls = 4;
+  int32 total_calls = 5;
+  int32 average_waiting_time = 6;
+}
+

@@ -1,0 +1,35 @@
+syntax = "proto3";
+package gamma.onehub.api.v1.types;
+import "google/protobuf/duration.proto";
+import "typedefs/redirect_id.proto";
+import "typedefs/phone_number_id.proto";
+import "typedefs/group_id.proto";
+import "typedefs/mailbox.proto";
+
+enum RedirectType {
+  REDIRECT_TYPE_UNSPECIFIED = 0;
+  REDIRECT_TYPE_ALWAYS = 1;
+  REDIRECT_TYPE_BUSY = 2;
+  REDIRECT_TYPE_TIMEOUT = 3;
+}
+message Redirect {
+  .gamma.onehub.api.v1.types.RedirectId redirect_id = 1;
+  .gamma.onehub.api.v1.types.PhoneNumberId called_number_id = 2;
+  string called_number = 3;
+  .gamma.onehub.api.v1.types.RedirectType redirect_type = 4;
+  .gamma.onehub.api.v1.types.GroupId group_id = 5;
+  .gamma.onehub.api.v1.types.RedirectTarget redirect_target = 6;
+  repeated .gamma.onehub.api.v1.types.Mailbox mailboxes = 7;
+  bool enabled = 8;
+  .google.protobuf.Duration timeout = 9;
+  .gamma.onehub.api.v1.types.Mailbox last_destination_mailbox = 10;
+  string last_destination_number = 11;
+}
+
+message RedirectTarget {
+  oneof redirect_target {
+    string phone_number = 1;
+    .gamma.onehub.api.v1.types.Mailbox mailbox = 2;
+  }
+}
+

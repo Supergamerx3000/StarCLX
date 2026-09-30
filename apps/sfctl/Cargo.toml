@@ -1,0 +1,13 @@
+[package]
+name = "sfctl"
+description = "Kommandozeile für STARFACE: Status, Profil, Wählen"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+sf-auth.workspace = true
+sf-onehub.workspace = true
+anyhow.workspace = true
+tokio.workspace = true
+url.workspace = true
+clap = { version = "4", features = ["derive", "env"] }

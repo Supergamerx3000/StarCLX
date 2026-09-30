@@ -1,0 +1,19 @@
+syntax = "proto3";
+package gamma.onehub.api.v1.aiconfigpermission;
+import "google/protobuf/empty.proto";
+
+service AiConfigPermissionService {
+  rpc GetPermissions(.google.protobuf.Empty) returns (.gamma.onehub.api.v1.aiconfigpermission.GetPermissionsResponse);
+}
+
+enum Permission {
+  PERMISSION_UNSPECIFIED = 0;
+  PERMISSION_TRANSCRIPTION = 1;
+  PERMISSION_TRANSCRIPTION_TASK_EXTRACTION = 2;
+  PERMISSION_VOICEMAIL_TRANSCRIPTION = 3;
+  PERMISSION_VOICEMAIL_TRANSCRIPTION_TASK_EXTRACTION = 4;
+}
+message GetPermissionsResponse {
+  repeated .gamma.onehub.api.v1.aiconfigpermission.Permission permissions = 1;
+}
+

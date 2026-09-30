@@ -1,0 +1,103 @@
+syntax = "proto3";
+package gamma.onehub.api.v1.types;
+import "typedefs/file_chunk.proto";
+import "typedefs/order_direction.proto";
+import "typedefs/phone_number.proto";
+import "typedefs/phone_number_id.proto";
+import "typedefs/user_id.proto";
+
+enum UserOrderBy {
+  USER_ORDER_BY_UNSPECIFIED = 0;
+  USER_ORDER_BY_FIRST_NAME = 1;
+  USER_ORDER_BY_LAST_NAME = 2;
+}
+enum UserSearchType {
+  USER_SEARCH_TYPE_UNSPECIFIED = 0;
+  USER_SEARCH_TYPE_NAME = 1;
+  USER_SEARCH_TYPE_EMAIL = 2;
+  USER_SEARCH_TYPE_PHONE_NUMBER = 3;
+  USER_SEARCH_TYPE_CHAT_ID = 4;
+  USER_SEARCH_TYPE_USER_ID = 5;
+}
+message User {
+  .gamma.onehub.api.v1.types.UserId user_id = 1;
+  string first_name = 2;
+  string last_name = 3;
+  string email = 4;
+  string avatar_hash = 5;
+  optional .gamma.onehub.api.v1.types.PhoneNumberId primary_internal_phone_number_id = 6;
+  optional .gamma.onehub.api.v1.types.PhoneNumberId primary_external_phone_number_id = 7;
+  repeated .gamma.onehub.api.v1.types.PhoneNumber phone_numbers = 8;
+  string edge_node_name = 9;
+}
+
+message GetUserResponse {
+  .gamma.onehub.api.v1.types.User user = 1;
+}
+
+message GetUserRequest {
+  .gamma.onehub.api.v1.types.UserId user_id = 1;
+}
+
+message GetUsersRequest {
+  int32 limit = 1;
+  int32 offset = 2;
+  .gamma.onehub.api.v1.types.UserOrderBy order_by = 3;
+  .gamma.onehub.api.v1.types.OrderDirection order_direction = 4;
+}
+
+message SearchUsersRequest {
+  string search_term = 1;
+  repeated .gamma.onehub.api.v1.types.UserSearchType user_search_types = 2;
+}
+
+message GetAvatarRequest {
+  .gamma.onehub.api.v1.types.UserId user_id = 1;
+}
+
+message GetUsersResponse {
+  repeated .gamma.onehub.api.v1.types.User users = 1;
+}
+
+message SearchUsersResponse {
+  repeated .gamma.onehub.api.v1.types.User users = 1;
+}
+
+message GetAvatarResponse {
+  .gamma.onehub.api.v1.types.FileChunk avatar_chunk = 1;
+}
+
+message UserEventResponse {
+  oneof user_event {
+    .gamma.onehub.api.v1.types.UserCreatedEvent user_created = 1;
+    .gamma.onehub.api.v1.types.UserNameChangedEvent user_name_changed = 2;
+    .gamma.onehub.api.v1.types.UserEmailChangedEvent user_email_changed = 3;
+    .gamma.onehub.api.v1.types.UserAvatarChangedEvent user_avatar_changed = 4;
+    .gamma.onehub.api.v1.types.UserDeletedEvent user_deleted = 5;
+  }
+}
+
+message UserCreatedEvent {
+  .gamma.onehub.api.v1.types.User user = 1;
+}
+
+message UserNameChangedEvent {
+  .gamma.onehub.api.v1.types.UserId user_id = 1;
+  string first_name = 2;
+  string last_name = 3;
+}
+
+message UserEmailChangedEvent {
+  .gamma.onehub.api.v1.types.UserId user_id = 1;
+  string email = 2;
+}
+
+message UserAvatarChangedEvent {
+  .gamma.onehub.api.v1.types.UserId user_id = 1;
+  string avatar_hash = 2;
+}
+
+message UserDeletedEvent {
+  .gamma.onehub.api.v1.types.UserId user_id = 1;
+}
+

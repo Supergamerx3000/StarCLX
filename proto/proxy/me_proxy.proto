@@ -1,0 +1,139 @@
+syntax = "proto3";
+package gamma.onehub.api.v1.me;
+import "google/protobuf/empty.proto";
+import "typedefs/user.proto";
+import "typedefs/file_chunk.proto";
+import "typedefs/group_id.proto";
+import "typedefs/phone_id.proto";
+import "typedefs/phone.proto";
+import "typedefs/phone_number.proto";
+import "typedefs/phone_number_id.proto";
+
+service MeService {
+  rpc GetUser(.google.protobuf.Empty) returns (.gamma.onehub.api.v1.types.GetUserResponse);
+  rpc GetPhones(.google.protobuf.Empty) returns (.gamma.onehub.api.v1.me.GetPhonesResponse);
+  rpc GetPrimaryPhone(.google.protobuf.Empty) returns (.gamma.onehub.api.v1.me.GetPrimaryPhoneResponse);
+  rpc GetSignalingPhoneNumbers(.google.protobuf.Empty) returns (.gamma.onehub.api.v1.me.GetSignalingPhoneNumbersResponse);
+  rpc GetPhoneNumbersConfig(.google.protobuf.Empty) returns (.gamma.onehub.api.v1.me.GetPhoneNumbersConfigResponse);
+  rpc CheckLoginPermission(.google.protobuf.Empty) returns (.gamma.onehub.api.v1.me.CheckLoginPermissionResponse);
+  rpc GetPermissions(.google.protobuf.Empty) returns (.gamma.onehub.api.v1.me.GetPermissionsResponse);
+  rpc RequestPermission(.gamma.onehub.api.v1.me.RequestPermissionRequest) returns (.google.protobuf.Empty);
+  rpc SetPrimaryPhone(.gamma.onehub.api.v1.me.SetPrimaryPhoneRequest) returns (.google.protobuf.Empty);
+  rpc SetSignalingPhoneNumber(.gamma.onehub.api.v1.me.SetSignalingPhoneNumberRequest) returns (.google.protobuf.Empty);
+  rpc UpdateAvatar(stream .gamma.onehub.api.v1.me.UpdateAvatarRequest) returns (.google.protobuf.Empty);
+  rpc DeleteAvatar(.google.protobuf.Empty) returns (.google.protobuf.Empty);
+  rpc SetDoNotDisturb(.gamma.onehub.api.v1.me.SetDoNotDisturbRequest) returns (.google.protobuf.Empty);
+  rpc SetChatPresenceMessage(.gamma.onehub.api.v1.me.SetChatPresenceMessageRequest) returns (.google.protobuf.Empty);
+  rpc GetCallWaitingIndication(.google.protobuf.Empty) returns (.gamma.onehub.api.v1.me.GetCallWaitingIndicationResponse);
+  rpc SetCallWaitingIndication(.gamma.onehub.api.v1.me.SetCallWaitingIndicationRequest) returns (.google.protobuf.Empty);
+  rpc SubscribeMeEvents(.google.protobuf.Empty) returns (stream .gamma.onehub.api.v1.me.MeEventResponse);
+}
+
+message SetPrimaryPhoneRequest {
+  .gamma.onehub.api.v1.types.PhoneId phone_id = 1;
+}
+
+message SetSignalingPhoneNumberRequest {
+  .gamma.onehub.api.v1.types.PhoneNumberId phone_number_id = 1;
+}
+
+message UpdateAvatarRequest {
+  .gamma.onehub.api.v1.types.FileChunk avatar_chunk = 1;
+}
+
+message SetDoNotDisturbRequest {
+  bool enabled = 1;
+}
+
+message SetChatPresenceMessageRequest {
+  string message = 1;
+}
+
+message SetCallWaitingIndicationRequest {
+  bool enabled = 1;
+}
+
+message RequestPermissionRequest {
+  string permission = 1;
+}
+
+message GetPhonesResponse {
+  repeated .gamma.onehub.api.v1.types.Phone phones = 1;
+}
+
+message GetPrimaryPhoneResponse {
+  .gamma.onehub.api.v1.types.Phone phone = 1;
+}
+
+message GetSignalingPhoneNumbersResponse {
+  repeated .gamma.onehub.api.v1.me.SignalingPhoneNumber signaling_phone_numbers = 1;
+}
+
+message SignalingPhoneNumber {
+  .gamma.onehub.api.v1.types.PhoneNumber phone_number = 1;
+  .gamma.onehub.api.v1.types.GroupId group_id = 2;
+  bool visible = 3;
+  bool read_only = 4;
+}
+
+message GetPhoneNumbersConfigResponse {
+  .gamma.onehub.api.v1.types.PhoneNumber internal_phone_number = 1;
+  .gamma.onehub.api.v1.types.PhoneNumber external_phone_number = 2;
+  .gamma.onehub.api.v1.me.SignalingPhoneNumber signaling_phone_number = 3;
+}
+
+message CheckLoginPermissionResponse {
+  bool has_permission = 1;
+}
+
+message GetPermissionsResponse {
+  repeated string permissions = 1;
+}
+
+message GetCallWaitingIndicationResponse {
+  bool enabled = 1;
+}
+
+message MeEventResponse {
+  oneof me_events {
+    .gamma.onehub.api.v1.me.AvatarChangedEvent avatar_changed = 1;
+    .gamma.onehub.api.v1.me.PermissionChangedEvent permission_changed = 2;
+    .gamma.onehub.api.v1.me.PhoneAddedEvent phone_added = 3;
+    .gamma.onehub.api.v1.me.PhoneRemovedEvent phone_removed = 4;
+    .gamma.onehub.api.v1.me.PrimaryPhoneChangedEvent primary_phone_changed = 5;
+    .gamma.onehub.api.v1.me.SignalingPhoneNumberChangedEvent signaling_phone_number_changed = 6;
+    .gamma.onehub.api.v1.me.SignalingPhoneNumberVisibilityChangedEvent signaling_phone_number_visibility_changed = 7;
+  }
+}
+
+message AvatarChangedEvent {
+  string avatar_hash = 1;
+}
+
+message PermissionChangedEvent {
+  string permission = 1;
+  bool granted = 2;
+}
+
+message PhoneAddedEvent {
+  .gamma.onehub.api.v1.types.Phone phone = 1;
+}
+
+message PhoneRemovedEvent {
+  .gamma.onehub.api.v1.types.PhoneId phone_id = 1;
+}
+
+message PrimaryPhoneChangedEvent {
+  .gamma.onehub.api.v1.types.Phone phone = 1;
+}
+
+message SignalingPhoneNumberChangedEvent {
+  .gamma.onehub.api.v1.types.PhoneNumberId phone_number_id = 1;
+}
+
+message SignalingPhoneNumberVisibilityChangedEvent {
+  .gamma.onehub.api.v1.types.PhoneNumberId phone_number_id = 1;
+  bool is_visible = 2;
+  bool is_read_only = 3;
+}
+

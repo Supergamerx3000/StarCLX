@@ -1,0 +1,8 @@
+syntax = "proto3";
+package gamma.onehub.api.v1.types;
+
+enum BotConfigStatus {
+  DRAFT = 0;
+  INACTIVE = 1;
+  ACTIVE = 2;
+}

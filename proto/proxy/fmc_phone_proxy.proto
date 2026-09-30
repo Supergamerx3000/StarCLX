@@ -1,0 +1,97 @@
+syntax = "proto3";
+package gamma.onehub.api.v1.fmcphone;
+import "google/protobuf/empty.proto";
+import "typedefs/weekday.proto";
+import "typedefs/time.proto";
+
+service FmcPhoneService {
+  rpc GetFmcPhones(.google.protobuf.Empty) returns (.gamma.onehub.api.v1.fmcphone.GetFmcPhonesResponse);
+  rpc CreateFmcPhone(.gamma.onehub.api.v1.fmcphone.CreateFmcPhoneRequest) returns (.google.protobuf.Empty);
+  rpc UpdateFmcPhone(.gamma.onehub.api.v1.fmcphone.UpdateFmcPhoneRequest) returns (.google.protobuf.Empty);
+  rpc EnableFmcPhone(.gamma.onehub.api.v1.fmcphone.EnableFmcPhoneRequest) returns (.google.protobuf.Empty);
+  rpc DisableFmcPhone(.gamma.onehub.api.v1.fmcphone.DisableFmcPhoneRequest) returns (.google.protobuf.Empty);
+  rpc DeleteFmcPhone(.gamma.onehub.api.v1.fmcphone.DeleteFmcPhoneRequest) returns (.google.protobuf.Empty);
+  rpc SubscribeFmcPhoneEvents(.google.protobuf.Empty) returns (stream .gamma.onehub.api.v1.fmcphone.FmcPhoneEventResponse);
+}
+
+message CreateFmcPhoneRequest {
+  .gamma.onehub.api.v1.fmcphone.FmcPhone fmc_phone = 1;
+}
+
+message UpdateFmcPhoneRequest {
+  .gamma.onehub.api.v1.fmcphone.FmcPhoneId fmc_phone_id = 1;
+  string number = 2;
+  int32 delay = 3;
+  bool confirm_by_keypress = 4;
+  repeated .gamma.onehub.api.v1.fmcphone.FmcPhoneSchedule fmc_phone_schedules = 5;
+}
+
+message EnableFmcPhoneRequest {
+  .gamma.onehub.api.v1.fmcphone.FmcPhoneId fmc_phone_id = 1;
+}
+
+message DisableFmcPhoneRequest {
+  .gamma.onehub.api.v1.fmcphone.FmcPhoneId fmc_phone_id = 1;
+}
+
+message DeleteFmcPhoneRequest {
+  .gamma.onehub.api.v1.fmcphone.FmcPhoneId fmc_phone_id = 1;
+}
+
+message GetFmcPhonesResponse {
+  repeated .gamma.onehub.api.v1.fmcphone.FmcPhone fmc_phones = 1;
+}
+
+message FmcPhoneEventResponse {
+  oneof fmc_phone_events {
+    .gamma.onehub.api.v1.fmcphone.FmcPhoneCreatedEvent fmc_phone_created = 1;
+    .gamma.onehub.api.v1.fmcphone.FmcPhoneChangedEvent fmc_phone_changed = 2;
+    .gamma.onehub.api.v1.fmcphone.FmcPhoneEnabledEvent fmc_phone_enabled = 3;
+    .gamma.onehub.api.v1.fmcphone.FmcPhoneDisabledEvent fmc_phone_disabled = 4;
+    .gamma.onehub.api.v1.fmcphone.FmcPhoneDeletedEvent fmc_phone_deleted = 5;
+  }
+}
+
+message FmcPhoneCreatedEvent {
+  repeated .gamma.onehub.api.v1.fmcphone.FmcPhone fmc_phones = 1;
+}
+
+message FmcPhoneChangedEvent {
+  .gamma.onehub.api.v1.fmcphone.FmcPhoneId fmc_phone_id = 1;
+  string number = 2;
+  int32 delay = 3;
+  bool confirm_by_keypress = 4;
+  repeated .gamma.onehub.api.v1.fmcphone.FmcPhoneSchedule fmc_phone_schedules = 5;
+}
+
+message FmcPhoneEnabledEvent {
+  .gamma.onehub.api.v1.fmcphone.FmcPhoneId fmc_phone_id = 1;
+}
+
+message FmcPhoneDisabledEvent {
+  .gamma.onehub.api.v1.fmcphone.FmcPhoneId fmc_phone_id = 1;
+}
+
+message FmcPhoneDeletedEvent {
+  .gamma.onehub.api.v1.fmcphone.FmcPhoneId fmc_phone_id = 1;
+}
+
+message FmcPhoneId {
+  string id = 1;
+}
+
+message FmcPhone {
+  .gamma.onehub.api.v1.fmcphone.FmcPhoneId fmc_phone_id = 1;
+  string number = 2;
+  int32 delay = 3;
+  bool enabled = 4;
+  bool confirm_by_keypress = 5;
+  repeated .gamma.onehub.api.v1.fmcphone.FmcPhoneSchedule fmc_phone_schedules = 6;
+}
+
+message FmcPhoneSchedule {
+  repeated .gamma.onehub.api.v1.types.Weekday weekday = 1;
+  .gamma.onehub.api.v1.types.Time from = 2;
+  .gamma.onehub.api.v1.types.Time to = 3;
+}
+

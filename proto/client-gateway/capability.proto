@@ -1,0 +1,9 @@
+syntax = "proto3";
+package gamma.onehub.api.v1.capability;
+import "google/protobuf/empty.proto";
+import "typedefs/capability.proto";
+
+service CapabilityService {
+  rpc GetCapabilities(.google.protobuf.Empty) returns (.gamma.onehub.api.v1.types.GetCapabilitiesResponse);
+}
+
