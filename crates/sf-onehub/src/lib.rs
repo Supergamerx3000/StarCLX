@@ -16,10 +16,14 @@ pub use sf_proto;
 
 pub const DEFAULT_PORT: u16 = 9092;
 
-/// Geräte-ID, mit der auch die Windows-App ihr Softphone anmeldet. Die
-/// Anlage legt dazu ein Telefon `SIP/<nr>.WinClient` an; dessen Typ lässt
-/// sich in der Verwaltung auf "UCC Client for Linux" stellen.
-pub const SIP_DEVICE_ID: &str = "163C00A2-C2F1-4FFE-9474-49283C379852";
+/// Softphone-ID für RegisterSipDevice. Die Anlage leitet daraus den
+/// Telefontyp ab (Enum `StarfaceType` im Anlagen-Code) und legt ein
+/// passendes App-Telefon an. Bekannte IDs: Windows
+/// 163C00A2-C2F1-4FFE-9474-49283C379852, Mac
+/// E22FF5B3-38ED-4A5E-966A-80B4785A2FF7, iPhone
+/// FFFDF5C8-E74F-4B18-B258-4B66C3FFFFAB, Android
+/// 244C5E4C-4011-4F76-A7E1-52D40F399C6B. Hier: "UCC Client for Linux".
+pub const SIP_DEVICE_ID: &str = "D4CC1516-EC90-42C7-8F70-B0853B173232";
 
 fn phone_matches_sip_user(phone_name: &str, sip_user: &str) -> bool {
     phone_name.strip_prefix("SIP/").unwrap_or(phone_name) == sip_user
