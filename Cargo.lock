@@ -4250,6 +4250,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "sf-sip"
+version = "0.1.0"
+dependencies = [
+ "cmake",
+ "pkg-config",
+ "thiserror 2.0.21",
+ "tokio",
+ "tracing",
+]
+
+[[package]]
 name = "sfctl"
 version = "0.1.0"
 dependencies = [
@@ -4257,6 +4268,7 @@ dependencies = [
  "clap",
  "sf-auth",
  "sf-onehub",
+ "sf-sip",
  "tokio",
  "url",
 ]
