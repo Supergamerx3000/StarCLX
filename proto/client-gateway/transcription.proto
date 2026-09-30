@@ -1,0 +1,237 @@
+syntax = "proto3";
+package gamma.onehub.api.v1.ai.transcription;
+import "google/protobuf/empty.proto";
+import "google/protobuf/timestamp.proto";
+import "typedefs/caller_info.proto";
+import "typedefs/ai_session_id.proto";
+import "typedefs/call_id.proto";
+import "typedefs/organization_id.proto";
+import "typedefs/edge_node_id.proto";
+import "typedefs/ai_stream_id.proto";
+import "typedefs/user_id.proto";
+import "typedefs/transcription_id.proto";
+
+service TranscriptionService {
+  rpc DeleteTranscription(.gamma.onehub.api.v1.ai.transcription.DeleteTranscriptionRequest) returns (.google.protobuf.Empty);
+  rpc DeleteParticipantTranscriptions(.gamma.onehub.api.v1.ai.transcription.DeleteParticipantTranscriptionsRequest) returns (.google.protobuf.Empty);
+  rpc GetTranscription(.gamma.onehub.api.v1.ai.transcription.GetTranscriptionRequest) returns (.gamma.onehub.api.v1.ai.transcription.Transcription);
+  rpc StreamTranscriptions(.gamma.onehub.api.v1.ai.transcription.StreamTranscriptionsRequest) returns (stream .gamma.onehub.api.v1.ai.transcription.StreamTranscriptionsResponse);
+  rpc UpdateTranscriptionIsRead(.gamma.onehub.api.v1.ai.transcription.UpdateTranscriptionIsReadRequest) returns (.google.protobuf.Empty);
+  rpc UpdateParticipantIsRead(.gamma.onehub.api.v1.ai.transcription.UpdateParticipantIsReadRequest) returns (.google.protobuf.Empty);
+  rpc UpdateAllTranscriptionsIsRead(.gamma.onehub.api.v1.ai.transcription.UpdateAllTranscriptionIsReadRequest) returns (.google.protobuf.Empty);
+  rpc GroupByUser(.gamma.onehub.api.v1.ai.transcription.GroupByUserRequest) returns (stream .gamma.onehub.api.v1.ai.transcription.GroupByUserResponse);
+  rpc UpdateSummary(.gamma.onehub.api.v1.ai.transcription.UpdateSummaryRequest) returns (.gamma.onehub.api.v1.ai.transcription.Transcription);
+  rpc EnrichSummary(.gamma.onehub.api.v1.ai.transcription.EnrichSummaryRequest) returns (.gamma.onehub.api.v1.ai.transcription.Transcription);
+}
+
+service SummaryTaskService {
+  rpc GenerateTasks(.gamma.onehub.api.v1.ai.transcription.GenerateTasksRequest) returns (.gamma.onehub.api.v1.ai.transcription.GenerateTasksResponse);
+  rpc UpdateList(.gamma.onehub.api.v1.ai.transcription.UpdateTaskListRequest) returns (.gamma.onehub.api.v1.ai.transcription.ListTaskResponse);
+  rpc UpdateState(.gamma.onehub.api.v1.ai.transcription.UpdateTaskStateRequest) returns (.gamma.onehub.api.v1.ai.transcription.Task);
+  rpc ListByParticipant(.gamma.onehub.api.v1.ai.transcription.ListByParticipantRequest) returns (.gamma.onehub.api.v1.ai.transcription.ListTaskResponse);
+  rpc ListByTranscription(.gamma.onehub.api.v1.ai.transcription.ListByTranscriptionRequest) returns (.gamma.onehub.api.v1.ai.transcription.ListTaskResponse);
+}
+
+enum SortDirection {
+  SORT_DIRECTION_UNSPECIFIED = 0;
+  SORT_DIRECTION_ASCENDING = 1;
+  SORT_DIRECTION_DESCENDING = 2;
+}
+enum TranscriptionType {
+  CALL = 0;
+  VOICEMAIL = 1;
+}
+enum TranscriptionState {
+  TRANSCRIPTION_STATE_UNSPECIFIED = 0;
+  TRANSCRIPTION_STATE_PENDING = 1;
+  TRANSCRIPTION_STATE_READY = 2;
+  TRANSCRIPTION_STATE_ERROR = 3;
+}
+enum TextLength {
+  SHORT = 0;
+  MEDIUM = 1;
+  LARGE = 2;
+}
+enum TextFormat {
+  BODY_TEXT = 0;
+  ENUMERATION = 1;
+  BOTH = 2;
+}
+message GroupByUserRequest {
+  int32 page_size = 1;
+  string page_token = 2;
+  .gamma.onehub.api.v1.ai.transcription.SortDirection sort = 3;
+}
+
+message GroupByUserResponse {
+  oneof result {
+    .gamma.onehub.api.v1.ai.transcription.LastTranscription item = 1;
+    string next_page_token = 2;
+  }
+}
+
+message LastTranscription {
+  string participant_key = 1;
+  string title = 2;
+  .google.protobuf.Timestamp created_at = 3;
+  optional .gamma.onehub.api.v1.types.CallerInfo caller_info = 4;
+  optional .gamma.onehub.api.v1.types.UserId user_id = 5;
+  optional .gamma.onehub.api.v1.ai.transcription.TaskCount task_count = 6;
+  optional .gamma.onehub.api.v1.ai.transcription.TranscriptionCount transcription_count = 7;
+}
+
+message TaskCount {
+  int32 all = 1;
+  int32 completed = 2;
+}
+
+message TranscriptionCount {
+  uint32 all = 1;
+  uint32 read = 2;
+}
+
+message StreamTranscriptionsRequest {
+  int32 page_size = 1;
+  string page_token = 2;
+  string participant_key = 3;
+  .gamma.onehub.api.v1.ai.transcription.SortDirection sort = 4;
+  optional .gamma.onehub.api.v1.ai.transcription.TranscriptionType type = 5;
+  optional .gamma.onehub.api.v1.ai.transcription.TranscriptionState state = 6;
+}
+
+message StreamTranscriptionsResponse {
+  oneof result {
+    .gamma.onehub.api.v1.ai.transcription.Transcription item = 1;
+    string next_page_token = 2;
+  }
+}
+
+message UpdateTranscriptionIsReadRequest {
+  .gamma.onehub.api.v1.types.TranscriptionId transcription_id = 1;
+  bool isRead = 2;
+}
+
+message UpdateParticipantIsReadRequest {
+  string participant_key = 1;
+  bool isRead = 2;
+}
+
+message UpdateAllTranscriptionIsReadRequest {
+  bool isRead = 1;
+}
+
+message UpdateSummaryRequest {
+  optional .gamma.onehub.api.v1.types.AiSessionId session_id = 1;
+  optional string title = 2;
+  optional string text = 3;
+  optional .gamma.onehub.api.v1.ai.transcription.KeywordList keywords = 4;
+  .gamma.onehub.api.v1.types.TranscriptionId transcription_id = 5;
+}
+
+message KeywordList {
+  repeated string items = 1;
+}
+
+message TaskList {
+  repeated .gamma.onehub.api.v1.ai.transcription.Task items = 1;
+}
+
+message DeleteTranscriptionRequest {
+  optional .gamma.onehub.api.v1.types.AiSessionId session_id = 1;
+  .gamma.onehub.api.v1.types.TranscriptionId transcription_id = 2;
+}
+
+message DeleteParticipantTranscriptionsRequest {
+  string participant_key = 1;
+}
+
+message GetTranscriptionRequest {
+  optional .gamma.onehub.api.v1.types.AiSessionId session_id = 1;
+  .gamma.onehub.api.v1.types.TranscriptionId transcription_id = 2;
+}
+
+message Transcription {
+  optional .gamma.onehub.api.v1.types.AiSessionId session_id = 1;
+  .gamma.onehub.api.v1.types.CallId call_id = 2;
+  .gamma.onehub.api.v1.types.EdgeNodeId edge_node_id = 3;
+  repeated .gamma.onehub.api.v1.ai.transcription.Streamer streamers = 4;
+  .gamma.onehub.api.v1.types.AiStreamId creator = 5;
+  .google.protobuf.Timestamp created_at = 6;
+  repeated .gamma.onehub.api.v1.ai.transcription.TranscriptionSnippet messages = 7;
+  optional string title = 8;
+  optional .gamma.onehub.api.v1.ai.transcription.Summary summary = 9;
+  .gamma.onehub.api.v1.types.TranscriptionId transcription_id = 10;
+  optional .gamma.onehub.api.v1.ai.transcription.TranscriptionType type = 11;
+  .gamma.onehub.api.v1.ai.transcription.TranscriptionState state = 12;
+  optional string cause = 13;
+  optional bool isRead = 14;
+}
+
+message Summary {
+  string text = 1;
+  repeated string keywords = 2;
+  repeated .gamma.onehub.api.v1.ai.transcription.Task tasks = 3;
+}
+
+message Task {
+  .gamma.onehub.api.v1.ai.transcription.TaskId task_id = 1;
+  string description = 2;
+  optional .google.protobuf.Timestamp deadline = 3;
+  bool isCompleted = 4;
+}
+
+message TranscriptionSnippet {
+  .google.protobuf.Timestamp timestamp = 1;
+  string snippet = 2;
+  .gamma.onehub.api.v1.types.AiStreamId stream_id = 3;
+}
+
+message Streamer {
+  .gamma.onehub.api.v1.types.AiStreamId stream_id = 1;
+  .gamma.onehub.api.v1.types.CallerInfo caller_info = 2;
+  .gamma.onehub.api.v1.types.UserId user_id = 3;
+}
+
+message EnrichSummaryRequest {
+  optional .gamma.onehub.api.v1.types.AiSessionId session_id = 1;
+  .gamma.onehub.api.v1.ai.transcription.TextLength length = 2;
+  string keyword = 3;
+  .gamma.onehub.api.v1.ai.transcription.TextFormat text_format = 4;
+  .gamma.onehub.api.v1.types.TranscriptionId transcription_id = 5;
+}
+
+message GenerateTasksRequest {
+  .gamma.onehub.api.v1.types.TranscriptionId transcription_id = 1;
+}
+
+message GenerateTasksResponse {
+  .gamma.onehub.api.v1.ai.transcription.TaskList tasks = 1;
+}
+
+message UpdateTaskListRequest {
+  .gamma.onehub.api.v1.types.TranscriptionId transcription_id = 1;
+  .gamma.onehub.api.v1.ai.transcription.TaskList tasks = 2;
+}
+
+message UpdateTaskStateRequest {
+  .gamma.onehub.api.v1.ai.transcription.TaskId task_id = 1;
+  .gamma.onehub.api.v1.types.TranscriptionId transcription_id = 2;
+  optional bool isCompleted = 3;
+}
+
+message ListByTranscriptionRequest {
+  .gamma.onehub.api.v1.types.TranscriptionId transcription_id = 1;
+}
+
+message ListByParticipantRequest {
+  string participant_key = 1;
+}
+
+message ListTaskResponse {
+  repeated .gamma.onehub.api.v1.ai.transcription.Task items = 1;
+}
+
+message TaskId {
+  string id = 1;
+}
+

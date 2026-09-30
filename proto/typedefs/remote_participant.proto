@@ -1,0 +1,10 @@
+syntax = "proto3";
+package gamma.onehub.api.v1.types;
+import "typedefs/user_id.proto";
+
+message RemoteParticipant {
+  string number = 1;
+  string name = 2;
+  optional .gamma.onehub.api.v1.types.UserId user_id = 3;
+}
+

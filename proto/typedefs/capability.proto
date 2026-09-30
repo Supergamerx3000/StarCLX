@@ -1,0 +1,43 @@
+syntax = "proto3";
+package gamma.onehub.api.v1.types;
+import "typedefs/feature_capabilities.proto";
+
+enum ServiceType {
+  SERVICE_TYPE_UNSPECIFIED = 0;
+  SERVICE_TYPE_TRANSCRIPTION = 1;
+  SERVICE_TYPE_AUDIO_RECORD = 2;
+  SERVICE_TYPE_CALL = 3;
+  SERVICE_TYPE_CALL_BACK_ON_BUSY = 4;
+  SERVICE_TYPE_CHAT = 5;
+  SERVICE_TYPE_CONFERENCE = 6;
+  SERVICE_TYPE_CONFERENCE_CALL = 7;
+  SERVICE_TYPE_CONTACT = 8;
+  SERVICE_TYPE_FAVORITE = 9;
+  SERVICE_TYPE_FAX = 10;
+  SERVICE_TYPE_FMC_PHONE = 11;
+  SERVICE_TYPE_GROUP = 12;
+  SERVICE_TYPE_JOURNAL = 13;
+  SERVICE_TYPE_ME = 14;
+  SERVICE_TYPE_MODULE = 15;
+  SERVICE_TYPE_NEON = 16;
+  SERVICE_TYPE_PRESENCE = 17;
+  SERVICE_TYPE_PUSH_NOTIFICATION = 18;
+  SERVICE_TYPE_QUEUE = 19;
+  SERVICE_TYPE_REDIRECT = 20;
+  SERVICE_TYPE_SIMPLE_CONTACT = 21;
+  SERVICE_TYPE_SIP_DEVICE = 22;
+  SERVICE_TYPE_SYSTEM = 23;
+  SERVICE_TYPE_USER = 24;
+  SERVICE_TYPE_VOICEMAIL = 25;
+}
+message GetCapabilitiesResponse {
+  repeated .gamma.onehub.api.v1.types.ServiceCapability service_capabilities = 1;
+}
+
+message ServiceCapability {
+  .gamma.onehub.api.v1.types.ServiceType service_type = 1;
+  optional string description = 2;
+  optional .gamma.onehub.api.v1.types.FeatureCapabilities feature_capabilities = 3;
+  bool is_deprecated = 4;
+}
+

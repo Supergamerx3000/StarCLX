@@ -1,0 +1,13 @@
+syntax = "proto3";
+package gamma.onehub.api.v1.user;
+import "google/protobuf/empty.proto";
+import "typedefs/user.proto";
+
+service UserService {
+  rpc GetUser(.gamma.onehub.api.v1.types.GetUserRequest) returns (.gamma.onehub.api.v1.types.GetUserResponse);
+  rpc GetUsers(.gamma.onehub.api.v1.types.GetUsersRequest) returns (.gamma.onehub.api.v1.types.GetUsersResponse);
+  rpc SearchUsers(.gamma.onehub.api.v1.types.SearchUsersRequest) returns (.gamma.onehub.api.v1.types.SearchUsersResponse);
+  rpc GetAvatar(.gamma.onehub.api.v1.types.GetAvatarRequest) returns (stream .gamma.onehub.api.v1.types.GetAvatarResponse);
+  rpc SubscribeUserEvents(.google.protobuf.Empty) returns (stream .gamma.onehub.api.v1.types.UserEventResponse);
+}
+

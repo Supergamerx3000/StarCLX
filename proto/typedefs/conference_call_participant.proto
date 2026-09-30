@@ -1,0 +1,22 @@
+syntax = "proto3";
+package gamma.onehub.api.v1.types;
+import "google/protobuf/timestamp.proto";
+import "typedefs/call_state.proto";
+import "typedefs/call_id.proto";
+import "typedefs/user_id.proto";
+
+message ConferenceCallParticipant {
+  .gamma.onehub.api.v1.types.CallId call_id = 1;
+  string number = 2;
+  string name = 3;
+  bool listening = 4;
+  bool muted = 5;
+  bool talking = 6;
+  bool wants_to_speak = 7;
+  bool is_moderator = 8;
+  .gamma.onehub.api.v1.types.CallState call_state = 9;
+  .google.protobuf.Timestamp entered_timestamp = 10;
+  optional string avatar_hash = 11;
+  optional .gamma.onehub.api.v1.types.UserId user_id = 12;
+}
+

@@ -1,0 +1,18 @@
+syntax = "proto3";
+package gamma.onehub.api.v1.ccbs;
+import "google/protobuf/empty.proto";
+import "typedefs/call_id.proto";
+
+service CallBackOnBusyService {
+  rpc ActivateCallBackOnBusy(.gamma.onehub.api.v1.ccbs.ActivateCallBackOnBusyRequest) returns (.google.protobuf.Empty);
+  rpc DeactivateCallBackOnBusy(.gamma.onehub.api.v1.ccbs.DeactivateCallBackOnBusyRequest) returns (.google.protobuf.Empty);
+}
+
+message ActivateCallBackOnBusyRequest {
+  .gamma.onehub.api.v1.types.CallId call_id = 1;
+}
+
+message DeactivateCallBackOnBusyRequest {
+  .gamma.onehub.api.v1.types.CallId call_id = 1;
+}
+

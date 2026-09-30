@@ -1,0 +1,94 @@
+syntax = "proto3";
+package gamma.onehub.api.v1.redirect;
+import "google/protobuf/empty.proto";
+import "google/protobuf/duration.proto";
+import "typedefs/group_id.proto";
+import "typedefs/phone_number_id.proto";
+import "typedefs/redirect_id.proto";
+import "typedefs/mailbox.proto";
+import "typedefs/order_direction.proto";
+import "typedefs/redirect.proto";
+
+service RedirectService {
+  rpc GetRedirects(.gamma.onehub.api.v1.redirect.GetRedirectsRequest) returns (.gamma.onehub.api.v1.redirect.GetRedirectsResponse);
+  rpc UpdateRedirect(.gamma.onehub.api.v1.redirect.UpdateRedirectRequest) returns (.google.protobuf.Empty);
+  rpc EnableRedirect(.gamma.onehub.api.v1.redirect.EnableRedirectRequest) returns (.google.protobuf.Empty);
+  rpc DisableRedirect(.gamma.onehub.api.v1.redirect.DisableRedirectRequest) returns (.google.protobuf.Empty);
+  rpc SubscribeRedirectEvents(.google.protobuf.Empty) returns (stream .gamma.onehub.api.v1.redirect.RedirectEventResponse);
+}
+
+enum RedirectOrderBy {
+  REDIRECT_ORDER_BY_UNSPECIFIED = 0;
+  REDIRECT_ORDER_BY_TYPE = 1;
+  REDIRECT_ORDER_BY_CALLED_NUMBER = 2;
+  REDIRECT_ORDER_BY_GROUP_ID = 3;
+  REDIRECT_ORDER_BY_ENABLED = 4;
+  REDIRECT_ORDER_BY_DESTINATION_TYPE = 5;
+}
+message GetRedirectsRequest {
+  .gamma.onehub.api.v1.types.RedirectType redirect_type = 1;
+  .gamma.onehub.api.v1.types.GroupId group_id = 2;
+  .gamma.onehub.api.v1.redirect.RedirectOrderBy redirect_order_by = 3;
+  .gamma.onehub.api.v1.types.OrderDirection order_direction = 4;
+}
+
+message UpdateRedirectRequest {
+  .gamma.onehub.api.v1.types.RedirectId redirect_id = 1;
+  .gamma.onehub.api.v1.types.RedirectTarget redirect_target = 3;
+  .google.protobuf.Duration timeout = 4;
+}
+
+message EnableRedirectRequest {
+  .gamma.onehub.api.v1.types.RedirectId redirect_id = 1;
+}
+
+message DisableRedirectRequest {
+  .gamma.onehub.api.v1.types.RedirectId redirect_id = 1;
+}
+
+message GetRedirectsResponse {
+  repeated .gamma.onehub.api.v1.redirect.RedirectResponse redirects = 1;
+}
+
+message RedirectResponse {
+  .gamma.onehub.api.v1.types.Redirect redirect = 1;
+  bool visible = 2;
+  bool read_only = 3;
+}
+
+message RedirectEventResponse {
+  oneof redirect_events {
+    .gamma.onehub.api.v1.redirect.RedirectAssignmentsChangedEvent redirect_assignments_changed = 1;
+    .gamma.onehub.api.v1.redirect.RedirectChangedEvent redirect_changed = 2;
+    .gamma.onehub.api.v1.redirect.RedirectEnabledEvent redirect_enabled = 3;
+    .gamma.onehub.api.v1.redirect.RedirectDisabledEvent redirect_disabled = 4;
+    .gamma.onehub.api.v1.redirect.RedirectVisibilityChangedEvent visibility_changed = 5;
+  }
+}
+
+message RedirectAssignmentsChangedEvent {
+  repeated .gamma.onehub.api.v1.redirect.RedirectResponse redirects = 1;
+}
+
+message RedirectChangedEvent {
+  .gamma.onehub.api.v1.types.RedirectId redirect_id = 1;
+  .gamma.onehub.api.v1.types.RedirectTarget redirect_target = 2;
+  .gamma.onehub.api.v1.types.Mailbox last_destination_mailbox = 3;
+  string last_destination_number = 4;
+  .google.protobuf.Duration timeout = 5;
+}
+
+message RedirectEnabledEvent {
+  .gamma.onehub.api.v1.types.RedirectId redirect_id = 1;
+}
+
+message RedirectDisabledEvent {
+  .gamma.onehub.api.v1.types.RedirectId redirect_id = 1;
+}
+
+message RedirectVisibilityChangedEvent {
+  .gamma.onehub.api.v1.types.RedirectId redirect_id = 1;
+  bool is_visible = 2;
+  bool is_read_only = 3;
+}
+

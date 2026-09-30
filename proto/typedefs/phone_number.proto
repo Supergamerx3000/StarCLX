@@ -1,0 +1,23 @@
+syntax = "proto3";
+package gamma.onehub.api.v1.types;
+import "typedefs/phone_number_id.proto";
+
+message InternationalNumber {
+  string country_code = 1;
+  string national_destination_code = 2;
+  string subscriber_number = 3;
+}
+
+message InternalNumber {
+  string extension = 1;
+}
+
+message PhoneNumber {
+  .gamma.onehub.api.v1.types.PhoneNumberId phone_number_id = 1;
+  bool isFax = 2;
+  oneof number {
+    .gamma.onehub.api.v1.types.InternationalNumber international_number = 3;
+    .gamma.onehub.api.v1.types.InternalNumber internal_number = 4;
+  }
+}
+

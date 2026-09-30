@@ -1,0 +1,11 @@
+syntax = "proto3";
+package gamma.onehub.api.v1.types;
+
+message FileChunkResponse {
+  .gamma.onehub.api.v1.types.FileChunk file_chunk = 1;
+}
+
+message FileChunk {
+  bytes data = 1;
+}
+

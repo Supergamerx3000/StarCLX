@@ -1,0 +1,24 @@
+[package]
+name = "starface-desktop"
+description = "Desktop-App (Tauri 2)"
+version.workspace = true
+edition.workspace = true
+
+[lib]
+name = "starface_desktop_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+sf-auth.workspace = true
+sf-onehub.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+url.workspace = true
+tokio = { workspace = true, features = ["sync"] }
+tauri = { version = "2", features = [] }
+tauri-plugin-opener = "2"
+tauri-plugin-deep-link = "2"
+tauri-plugin-single-instance = { version = "2", features = ["deep-link"] }

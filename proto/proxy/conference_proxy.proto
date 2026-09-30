@@ -1,0 +1,118 @@
+syntax = "proto3";
+package gamma.onehub.api.v1.conference;
+import "google/protobuf/empty.proto";
+import "google/protobuf/timestamp.proto";
+import "typedefs/conference_id.proto";
+import "typedefs/conference_types.proto";
+import "typedefs/order_direction.proto";
+import "typedefs/phone_id.proto";
+
+service ConferenceService {
+  rpc GetConference(.gamma.onehub.api.v1.conference.GetConferenceRequest) returns (.gamma.onehub.api.v1.conference.ConferenceResponse);
+  rpc GetConferences(.gamma.onehub.api.v1.conference.GetConferencesRequest) returns (.gamma.onehub.api.v1.conference.ConferencesResponse);
+  rpc CreateConference(.gamma.onehub.api.v1.conference.CreateConferenceRequest) returns (.google.protobuf.Empty);
+  rpc UpdateConference(.gamma.onehub.api.v1.conference.UpdateConferenceRequest) returns (.google.protobuf.Empty);
+  rpc DeleteConference(.gamma.onehub.api.v1.conference.DeleteConferenceRequest) returns (.google.protobuf.Empty);
+  rpc StartConference(.gamma.onehub.api.v1.conference.StartConferenceRequest) returns (.google.protobuf.Empty);
+  rpc CreateAndStartConference(.gamma.onehub.api.v1.conference.CreateAndStartConferenceRequest) returns (.google.protobuf.Empty);
+  rpc SubscribeConferenceEvents(.google.protobuf.Empty) returns (stream .gamma.onehub.api.v1.conference.ConferenceEventResponse);
+}
+
+enum ConferenceOrderBy {
+  CONFERENCE_ORDER_BY_UNDEFINED = 0;
+  CONFERENCE_ORDER_BY_ID = 1;
+  CONFERENCE_ORDER_BY_NAME = 2;
+  CONFERENCE_ORDER_BY_START_TIME = 3;
+}
+message GetConferenceRequest {
+  .gamma.onehub.api.v1.types.ConferenceId conference_id = 1;
+}
+
+message GetConferencesRequest {
+  int32 limit = 1;
+  int32 offset = 2;
+  .gamma.onehub.api.v1.conference.ConferenceOrderBy order_by = 3;
+  .gamma.onehub.api.v1.types.OrderDirection order_direction = 4;
+}
+
+message CreateConferenceRequest {
+  string name = 1;
+  .google.protobuf.Timestamp start_time = 2;
+  .gamma.onehub.api.v1.types.Recurrence recurrence = 3;
+  repeated .gamma.onehub.api.v1.types.ConferenceParticipant conference_participants = 4;
+}
+
+message UpdateConferenceRequest {
+  .gamma.onehub.api.v1.types.ConferenceId conference_id = 1;
+  string name = 2;
+  .google.protobuf.Timestamp start_time = 3;
+  .gamma.onehub.api.v1.types.Recurrence recurrence = 4;
+  repeated .gamma.onehub.api.v1.types.ConferenceParticipant conference_participants = 5;
+}
+
+message DeleteConferenceRequest {
+  .gamma.onehub.api.v1.types.ConferenceId conference_id = 1;
+}
+
+message StartConferenceRequest {
+  .gamma.onehub.api.v1.types.ConferenceId conference_id = 1;
+  .gamma.onehub.api.v1.types.PhoneId phone_id = 2;
+}
+
+message CreateAndStartConferenceRequest {
+  .gamma.onehub.api.v1.types.PhoneId phone_id = 1;
+}
+
+message ConferenceResponse {
+  .gamma.onehub.api.v1.types.Conference conference = 1;
+}
+
+message ConferencesResponse {
+  repeated .gamma.onehub.api.v1.types.Conference conferences = 1;
+}
+
+message ConferenceEventResponse {
+  oneof conference_events {
+    .gamma.onehub.api.v1.conference.ConferenceCreatedEvent conference_created = 1;
+    .gamma.onehub.api.v1.conference.ConferenceDeletedEvent conference_deleted = 2;
+    .gamma.onehub.api.v1.conference.ConferenceNameChangedEvent conference_name_changed = 3;
+    .gamma.onehub.api.v1.conference.ConferenceScheduleChangedEvent conference_schedule_changed = 4;
+    .gamma.onehub.api.v1.conference.ConferenceParticipantsChangedEvent conference_participants_changed = 5;
+    .gamma.onehub.api.v1.conference.ConferenceStartedEvent conference_call_started = 6;
+    .gamma.onehub.api.v1.conference.ConferenceEndedEvent conference_call_ended = 7;
+  }
+}
+
+message ConferenceCreatedEvent {
+  .gamma.onehub.api.v1.types.Conference conference = 1;
+}
+
+message ConferenceDeletedEvent {
+  .gamma.onehub.api.v1.types.ConferenceId conference_id = 1;
+}
+
+message ConferenceNameChangedEvent {
+  .gamma.onehub.api.v1.types.ConferenceId conference_id = 1;
+  string name = 2;
+}
+
+message ConferenceScheduleChangedEvent {
+  .gamma.onehub.api.v1.types.ConferenceId conference_id = 1;
+  .google.protobuf.Timestamp start_time = 2;
+  .gamma.onehub.api.v1.types.Recurrence recurrence = 3;
+}
+
+message ConferenceParticipantsChangedEvent {
+  .gamma.onehub.api.v1.types.ConferenceId conference_id = 1;
+  repeated .gamma.onehub.api.v1.types.ConferenceParticipant conference_participants = 2;
+}
+
+message ConferenceStartedEvent {
+  .gamma.onehub.api.v1.types.ConferenceId conference_id = 1;
+  repeated .gamma.onehub.api.v1.types.ConferenceParticipant conference_participants = 2;
+}
+
+message ConferenceEndedEvent {
+  .gamma.onehub.api.v1.types.ConferenceId conference_id = 1;
+}
+

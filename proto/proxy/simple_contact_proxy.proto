@@ -1,0 +1,54 @@
+syntax = "proto3";
+package gamma.onehub.api.v1.contact.phonenumber;
+import "typedefs/contact.proto";
+import "typedefs/contact_id.proto";
+import "typedefs/order_direction.proto";
+
+service SimpleContactService {
+  rpc GetSimpleContacts(.gamma.onehub.api.v1.contact.phonenumber.GetSimpleContactsRequest) returns (.gamma.onehub.api.v1.contact.phonenumber.GetSimpleContactsResponse);
+  rpc GetSimpleContact(.gamma.onehub.api.v1.contact.phonenumber.GetSimpleContactRequest) returns (.gamma.onehub.api.v1.contact.phonenumber.GetSimpleContactResponse);
+}
+
+enum PhoneNumberType {
+  PHONE_NUMBER_TYPE_UNSPECIFIED = 0;
+  PHONE_NUMBER_TYPE_FAX = 1;
+  PHONE_NUMBER_TYPE_HOME = 2;
+  PHONE_NUMBER_TYPE_MOBILE = 3;
+  PHONE_NUMBER_TYPE_PHONE = 4;
+}
+message GetSimpleContactsRequest {
+  string search_term = 1;
+  .gamma.onehub.api.v1.types.ContactOrderBy order_by = 2;
+  .gamma.onehub.api.v1.types.OrderDirection order_direction = 3;
+  int32 limit = 4;
+  int32 offset = 5;
+}
+
+message GetSimpleContactRequest {
+  .gamma.onehub.api.v1.types.ContactId contact_id = 1;
+}
+
+message GetSimpleContactsResponse {
+  repeated .gamma.onehub.api.v1.contact.phonenumber.SimpleContact contacts = 1;
+  int32 total_count = 2;
+}
+
+message GetSimpleContactResponse {
+  .gamma.onehub.api.v1.contact.phonenumber.SimpleContact contact = 1;
+}
+
+message SimpleContact {
+  .gamma.onehub.api.v1.types.ContactId id = 1;
+  string first_name = 2;
+  string last_name = 3;
+  string company = 4;
+  repeated .gamma.onehub.api.v1.contact.phonenumber.SimpleContactPhoneNumber phone_numbers = 5;
+  string internal_phone_number = 6;
+  string external_phone_number = 7;
+}
+
+message SimpleContactPhoneNumber {
+  string number = 1;
+  .gamma.onehub.api.v1.contact.phonenumber.PhoneNumberType type = 2;
+}
+

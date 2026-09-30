@@ -1,0 +1,159 @@
+syntax = "proto3";
+package gamma.onehub.api.v1.fax;
+import "google/protobuf/empty.proto";
+import "google/protobuf/timestamp.proto";
+import "typedefs/file_chunk.proto";
+import "typedefs/group_id.proto";
+import "typedefs/local_participant.proto";
+import "typedefs/order_direction.proto";
+import "typedefs/remote_participant.proto";
+
+service FaxService {
+  rpc GetOutgoingFaxes(.google.protobuf.Empty) returns (.gamma.onehub.api.v1.fax.GetOutgoingFaxesResponse);
+  rpc SendFax(stream .gamma.onehub.api.v1.fax.SendFaxRequest) returns (.gamma.onehub.api.v1.fax.SendFaxResponse);
+  rpc GetFaxes(.gamma.onehub.api.v1.fax.GetFaxesRequest) returns (.gamma.onehub.api.v1.fax.GetFaxesResponse);
+  rpc DownloadFaxFile(.gamma.onehub.api.v1.fax.DownloadFaxFileRequest) returns (stream .gamma.onehub.api.v1.types.FileChunkResponse);
+  rpc DeleteFax(.gamma.onehub.api.v1.fax.DeleteFaxRequest) returns (.google.protobuf.Empty);
+  rpc DeleteFaxes(.gamma.onehub.api.v1.fax.DeleteFaxesRequest) returns (.google.protobuf.Empty);
+  rpc MoveFax(.gamma.onehub.api.v1.fax.MoveFaxRequest) returns (.google.protobuf.Empty);
+  rpc MoveFaxes(.gamma.onehub.api.v1.fax.MoveFaxesRequest) returns (.google.protobuf.Empty);
+  rpc SubscribeFaxEvents(.google.protobuf.Empty) returns (stream .gamma.onehub.api.v1.fax.FaxEventResponse);
+  rpc SubscribeOutgoingFaxEvents(.google.protobuf.Empty) returns (stream .gamma.onehub.api.v1.fax.OutgoingFaxEventResponse);
+}
+
+enum OutgoingFaxState {
+  OUTGOING_FAX_STATE_UNSPECIFIED = 0;
+  OUTGOING_FAX_STATE_WAITING = 1;
+  OUTGOING_FAX_STATE_NO_FILE = 2;
+  OUTGOING_FAX_STATE_PROCEEDING = 3;
+  OUTGOING_FAX_STATE_NO_ANSWER = 4;
+  OUTGOING_FAX_STATE_BUSY = 5;
+  OUTGOING_FAX_STATE_SENDING = 6;
+  OUTGOING_FAX_STATE_NO_FAX = 7;
+  OUTGOING_FAX_STATE_SENT = 8;
+  OUTGOING_FAX_STATE_FAILED = 9;
+}
+enum FaxFolder {
+  FAX_FOLDER_UNSPECIFIED = 0;
+  FAX_FOLDER_NEW = 1;
+  FAX_FOLDER_OLD = 2;
+  FAX_FOLDER_PRIVATE = 3;
+  FAX_FOLDER_SENT = 4;
+}
+enum FaxOrderBy {
+  FAX_ORDER_BY_UNSPECIFIED = 0;
+  FAX_ORDER_BY_ID = 1;
+  FAX_ORDER_BY_TIME = 2;
+  FAX_ORDER_BY_PARTIAL = 3;
+}
+message SendFaxRequest {
+  string fax_number = 1;
+  .gamma.onehub.api.v1.types.FileChunk file_chunk = 2;
+}
+
+message GetFaxesRequest {
+  .google.protobuf.Timestamp filter_from = 1;
+  .google.protobuf.Timestamp filter_until = 2;
+  .gamma.onehub.api.v1.fax.FaxFolder folder_filter = 3;
+  .gamma.onehub.api.v1.fax.FaxOrderBy fax_order_by = 4;
+  .gamma.onehub.api.v1.types.OrderDirection order_direction = 5;
+  .gamma.onehub.api.v1.types.GroupId group_id = 6;
+  int32 limit = 7;
+  int32 offset = 8;
+}
+
+message DownloadFaxFileRequest {
+  .gamma.onehub.api.v1.fax.FaxId fax_id = 1;
+}
+
+message DeleteFaxRequest {
+  .gamma.onehub.api.v1.fax.FaxId fax_id = 1;
+}
+
+message DeleteFaxesRequest {
+  repeated .gamma.onehub.api.v1.fax.FaxId fax_ids = 1;
+}
+
+message MoveFaxRequest {
+  .gamma.onehub.api.v1.fax.FaxId fax_id = 1;
+  .gamma.onehub.api.v1.fax.FaxFolder fax_folder = 2;
+}
+
+message MoveFaxesRequest {
+  repeated .gamma.onehub.api.v1.fax.FaxId fax_ids = 1;
+  .gamma.onehub.api.v1.fax.FaxFolder fax_folder = 2;
+}
+
+message GetOutgoingFaxesResponse {
+  repeated .gamma.onehub.api.v1.fax.OutgoingFax outgoing_faxes = 1;
+}
+
+message SendFaxResponse {
+  .gamma.onehub.api.v1.fax.FaxId fax_id = 1;
+}
+
+message GetFaxesResponse {
+  repeated .gamma.onehub.api.v1.fax.Fax faxes = 1;
+  uint32 total_count = 2;
+}
+
+message FaxEventResponse {
+  oneof fax_event {
+    .gamma.onehub.api.v1.fax.FaxCreatedEvent fax_created = 1;
+    .gamma.onehub.api.v1.fax.FaxMovedEvent fax_moved = 2;
+    .gamma.onehub.api.v1.fax.FaxDeletedEvent fax_deleted = 3;
+  }
+}
+
+message OutgoingFaxEventResponse {
+  .gamma.onehub.api.v1.fax.OutgoingFaxUpdatedEvent outgoing_fax_updated = 1;
+}
+
+message OutgoingFax {
+  .gamma.onehub.api.v1.fax.FaxId fax_id = 1;
+  .gamma.onehub.api.v1.fax.OutgoingFaxState outgoing_fax_state = 2;
+  .google.protobuf.Timestamp state_changed = 3;
+  string receiving_number = 4;
+  uint32 sent_pages = 5;
+  uint32 total_pages = 6;
+}
+
+message Fax {
+  .gamma.onehub.api.v1.fax.FaxId fax_id = 1;
+  .gamma.onehub.api.v1.types.LocalParticipant local_participant = 2;
+  .gamma.onehub.api.v1.types.RemoteParticipant remote_participant = 3;
+  .gamma.onehub.api.v1.fax.FaxFolder folder = 4;
+  .google.protobuf.Timestamp fax_time = 5;
+  bool partial = 6;
+  .gamma.onehub.api.v1.fax.GroupFaxInfo group_fax_info = 7;
+}
+
+message FaxId {
+  string id = 1;
+}
+
+message FaxCreatedEvent {
+  .gamma.onehub.api.v1.fax.Fax fax = 1;
+}
+
+message FaxMovedEvent {
+  .gamma.onehub.api.v1.fax.FaxId fax_id = 1;
+  .gamma.onehub.api.v1.fax.FaxFolder fax_folder = 2;
+}
+
+message FaxDeletedEvent {
+  .gamma.onehub.api.v1.fax.FaxId fax_id = 1;
+}
+
+message OutgoingFaxUpdatedEvent {
+  .gamma.onehub.api.v1.fax.FaxId outgoing_fax_id = 1;
+  .gamma.onehub.api.v1.fax.OutgoingFaxState outgoing_fax_state = 2;
+  uint32 sent_pages = 3;
+  uint32 total_pages = 4;
+}
+
+message GroupFaxInfo {
+  .gamma.onehub.api.v1.types.GroupId group_id = 1;
+  string group_name = 2;
+}
+

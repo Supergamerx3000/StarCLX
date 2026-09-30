@@ -1,0 +1,43 @@
+syntax = "proto3";
+package gamma.onehub.api.v1.types;
+import "google/protobuf/timestamp.proto";
+import "typedefs/conference_id.proto";
+import "typedefs/user_id.proto";
+
+enum ConferenceState {
+  CONFERENCE_STATE_UNSPECIFIED = 0;
+  CONFERENCE_STATE_PLANNED = 1;
+  CONFERENCE_STATE_ACTIVE = 2;
+  CONFERENCE_STATE_CONCLUDED = 3;
+}
+enum Recurrence {
+  RECURRENCE_UNSPECIFIED = 0;
+  RECURRENCE_ONCE = 1;
+  RECURRENCE_DAILY = 2;
+  RECURRENCE_WEEKLY = 3;
+  RECURRENCE_MONTHLY = 4;
+}
+message ConferenceParticipantId {
+  string id = 1;
+}
+
+message Conference {
+  .gamma.onehub.api.v1.types.ConferenceId conference_id = 1;
+  string name = 2;
+  bool is_moderator = 3;
+  .gamma.onehub.api.v1.types.ConferenceState conference_state = 4;
+  .google.protobuf.Timestamp start_time = 5;
+  .gamma.onehub.api.v1.types.Recurrence recurrence = 6;
+  repeated .gamma.onehub.api.v1.types.ConferenceParticipant participants = 7;
+}
+
+message ConferenceParticipant {
+  .gamma.onehub.api.v1.types.ConferenceParticipantId participant_id = 1;
+  .gamma.onehub.api.v1.types.UserId user_id = 2;
+  string display_name = 3;
+  string phone_number = 4;
+  bool is_moderator = 5;
+  bool call_on_start = 6;
+  string email_address = 7;
+}
+

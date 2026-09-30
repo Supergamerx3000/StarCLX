@@ -1,0 +1,56 @@
+syntax = "proto3";
+package gamma.onehub.api.v1.system;
+import "google/protobuf/empty.proto";
+
+service SystemService {
+  rpc GetServerVersion(.google.protobuf.Empty) returns (.gamma.onehub.api.v1.system.ServerVersionResponse);
+  rpc GetWebServerConfiguration(.google.protobuf.Empty) returns (.gamma.onehub.api.v1.system.WebServerConfigurationResponse);
+  rpc GetGlobalLineConfiguration(.google.protobuf.Empty) returns (.gamma.onehub.api.v1.system.GlobalLineConfigurationResponse);
+  rpc GetOAuthConfiguration(.gamma.onehub.api.v1.system.GetOAuthConfigurationRequest) returns (.gamma.onehub.api.v1.system.GetOAuthConfigurationResponse);
+}
+
+enum OAuthServiceType {
+  OAUTH_SERVICE_TYPE_UNSPECIFIED = 0;
+  OAUTH_SERVICE_TYPE_UCC = 1;
+  OAUTH_SERVICE_TYPE_OUTLOOK = 2;
+}
+message GetOAuthConfigurationRequest {
+  .gamma.onehub.api.v1.system.OAuthServiceType oauth_service_type = 1;
+}
+
+message ServerVersionResponse {
+  string version = 1;
+}
+
+message WebServerConfigurationResponse {
+  int32 http_port = 1;
+  int32 https_port = 2;
+  bool http_active = 3;
+  bool https_active = 4;
+  bool redirect_http_to_https_active = 5;
+}
+
+message GlobalLineConfigurationResponse {
+  string country_code = 1;
+  string area_code = 2;
+  string deposit = 3;
+  string external_prefix = 4;
+  string country = 5;
+  repeated .gamma.onehub.api.v1.system.InternalNumberBlock local_internal_number_blocks = 6;
+  repeated .gamma.onehub.api.v1.system.InternalNumberBlock federation_internal_number_blocks = 7;
+  repeated string service_numbers = 8;
+}
+
+message InternalNumberBlock {
+  string prefix = 1;
+  uint32 internal_number_range_start = 2;
+  uint32 internal_number_range_end = 3;
+}
+
+message GetOAuthConfigurationResponse {
+  string client_id = 1;
+  string auth_flow = 2;
+  string issuer = 3;
+  bool disabled = 4;
+}
+

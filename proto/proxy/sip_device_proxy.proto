@@ -1,0 +1,49 @@
+syntax = "proto3";
+package gamma.onehub.api.v1.sipdevice;
+import "google/protobuf/empty.proto";
+import "typedefs/sip_device_id.proto";
+
+service SipDeviceService {
+  rpc RegisterSipDevice(.gamma.onehub.api.v1.sipdevice.RegisterSipDeviceRequest) returns (.gamma.onehub.api.v1.sipdevice.RegisterSipDeviceResponse);
+  rpc IsSipDeviceActive(.gamma.onehub.api.v1.sipdevice.IsSipDeviceActiveRequest) returns (.gamma.onehub.api.v1.sipdevice.IsSipDeviceActiveResponse);
+  rpc SubscribeSipDeviceEvents(.google.protobuf.Empty) returns (stream .gamma.onehub.api.v1.sipdevice.SipDeviceEventResponse);
+}
+
+message RegisterSipDeviceRequest {
+  .gamma.onehub.api.v1.types.SipDeviceId sip_device_id = 1;
+  string app_version = 2;
+}
+
+message IsSipDeviceActiveRequest {
+  .gamma.onehub.api.v1.types.SipDeviceId sip_device_id = 1;
+}
+
+message RegisterSipDeviceResponse {
+  .gamma.onehub.api.v1.sipdevice.SipDeviceConfig sip_device_config = 1;
+}
+
+message IsSipDeviceActiveResponse {
+  bool is_active = 1;
+}
+
+message SipDeviceEventResponse {
+  oneof sip_device_event {
+    .gamma.onehub.api.v1.sipdevice.SipDeviceRegisteredEvent sip_device_registered = 1;
+  }
+}
+
+message SipDeviceRegisteredEvent {
+  .gamma.onehub.api.v1.sipdevice.SipUserId sip_user_id = 1;
+}
+
+message SipUserId {
+  string id = 1;
+}
+
+message SipDeviceConfig {
+  .gamma.onehub.api.v1.sipdevice.SipUserId sip_user_id = 1;
+  string password = 2;
+  string realm = 3;
+  int32 port = 4;
+}
+

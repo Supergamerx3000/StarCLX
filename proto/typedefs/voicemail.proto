@@ -1,0 +1,34 @@
+syntax = "proto3";
+package gamma.onehub.api.v1.types;
+import "google/protobuf/duration.proto";
+import "google/protobuf/timestamp.proto";
+import "typedefs/call_direction.proto";
+import "typedefs/cdr_id.proto";
+import "typedefs/group_call_info.proto";
+import "typedefs/local_participant.proto";
+import "typedefs/mailbox.proto";
+import "typedefs/remote_participant.proto";
+import "typedefs/voicemail_id.proto";
+import "typedefs/transcription_id.proto";
+
+enum VoicemailFolder {
+  VOICEMAIL_FOLDER_UNSPECIFIED = 0;
+  VOICEMAIL_FOLDER_INBOX = 1;
+  VOICEMAIL_FOLDER_PRIVATE = 2;
+  VOICEMAIL_FOLDER_OLD = 3;
+}
+message Voicemail {
+  .gamma.onehub.api.v1.types.VoicemailId voicemail_id = 1;
+  .gamma.onehub.api.v1.types.CdrId cdr_id = 2;
+  .gamma.onehub.api.v1.types.Mailbox mailbox = 3;
+  .gamma.onehub.api.v1.types.VoicemailFolder voicemail_folder = 4;
+  .gamma.onehub.api.v1.types.LocalParticipant local_participant = 5;
+  .gamma.onehub.api.v1.types.RemoteParticipant remote_participant = 6;
+  .gamma.onehub.api.v1.types.CallDirection call_direction = 7;
+  .google.protobuf.Timestamp start_time = 8;
+  .google.protobuf.Timestamp end_time = 9;
+  .google.protobuf.Duration duration = 10;
+  .gamma.onehub.api.v1.types.GroupCallInfo group_info = 11;
+  optional .gamma.onehub.api.v1.types.TranscriptionId transcription_id = 12;
+}
+

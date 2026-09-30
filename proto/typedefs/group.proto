@@ -1,0 +1,15 @@
+syntax = "proto3";
+package gamma.onehub.api.v1.types;
+import "typedefs/group_id.proto";
+import "typedefs/phone_number.proto";
+import "typedefs/phone_number_id.proto";
+
+message Group {
+  .gamma.onehub.api.v1.types.GroupId group_id = 1;
+  string name = 2;
+  string logon_id = 3;
+  optional .gamma.onehub.api.v1.types.PhoneNumberId primary_internal_phone_number_id = 4;
+  optional .gamma.onehub.api.v1.types.PhoneNumberId primary_external_phone_number_id = 5;
+  repeated .gamma.onehub.api.v1.types.PhoneNumber phoneNumbers = 6;
+}
+

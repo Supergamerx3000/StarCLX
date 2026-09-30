@@ -1,0 +1,14 @@
+syntax = "proto3";
+package gamma.onehub.api.v1.types;
+
+message EdgeNode {
+  string id = 1;
+  string name = 2;
+  string gateway_id = 3;
+  string secondary_gateway_id = 4;
+  string external_id = 5;
+  string version = 6;
+  string type = 7;
+  string license = 8;
+}
+

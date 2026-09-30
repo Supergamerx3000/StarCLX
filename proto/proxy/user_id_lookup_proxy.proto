@@ -1,0 +1,39 @@
+syntax = "proto3";
+package gamma.onehub.api.v1.useridlookup;
+import "typedefs/user_id.proto";
+
+service UserIdLookupService {
+  rpc GetUserIdentifiers(.gamma.onehub.api.v1.useridlookup.GetUserIdentifiersRequest) returns (.gamma.onehub.api.v1.useridlookup.GetUserIdentifiersResponse);
+  rpc BatchGetUserIdentifiers(.gamma.onehub.api.v1.useridlookup.BatchGetUserIdentifiersRequest) returns (.gamma.onehub.api.v1.useridlookup.BatchGetUserIdentifiersResponse);
+}
+
+message GetUserIdentifiersRequest {
+  .gamma.onehub.api.v1.useridlookup.UserIdentifier user_identifier = 1;
+}
+
+message BatchGetUserIdentifiersRequest {
+  repeated .gamma.onehub.api.v1.useridlookup.UserIdentifier user_identifiers = 1;
+}
+
+message GetUserIdentifiersResponse {
+  .gamma.onehub.api.v1.useridlookup.UserIdentifiers user_identifiers = 1;
+}
+
+message BatchGetUserIdentifiersResponse {
+  repeated .gamma.onehub.api.v1.useridlookup.UserIdentifiers user_identifiers_list = 1;
+}
+
+message UserIdentifiers {
+  string account_id = 1;
+  .gamma.onehub.api.v1.types.UserId user_id = 2;
+  .gamma.onehub.api.v1.types.UserId one_hub_user_id = 3;
+}
+
+message UserIdentifier {
+  oneof identifier {
+    string account_id = 1;
+    .gamma.onehub.api.v1.types.UserId user_id = 2;
+    .gamma.onehub.api.v1.types.UserId one_hub_user_id = 3;
+  }
+}
+

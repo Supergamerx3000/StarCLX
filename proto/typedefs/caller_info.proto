@@ -1,0 +1,10 @@
+syntax = "proto3";
+package gamma.onehub.api.v1.types;
+import "google/protobuf/struct.proto";
+
+message CallerInfo {
+  optional string name = 1;
+  optional string phone_number = 2;
+  map<string, string> metadata = 3;
+}
+

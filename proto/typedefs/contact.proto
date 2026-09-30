@@ -1,0 +1,9 @@
+syntax = "proto3";
+package gamma.onehub.api.v1.types;
+
+enum ContactOrderBy {
+  CONTACT_ORDER_BY_UNSPECIFIED = 0;
+  CONTACT_ORDER_BY_FIRST_NAME = 1;
+  CONTACT_ORDER_BY_LAST_NAME = 2;
+  CONTACT_ORDER_BY_COMPANY = 3;
+}

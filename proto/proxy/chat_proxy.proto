@@ -1,0 +1,29 @@
+syntax = "proto3";
+package gamma.onehub.api.v1.chat;
+import "typedefs/user_id.proto";
+
+service ChatService {
+  rpc GetChatId(.gamma.onehub.api.v1.chat.GetChatIdRequest) returns (.gamma.onehub.api.v1.chat.GetChatIdResponse);
+  rpc GetUserId(.gamma.onehub.api.v1.chat.GetUserIdRequest) returns (.gamma.onehub.api.v1.chat.GetUserIdResponse);
+}
+
+message GetChatIdRequest {
+  .gamma.onehub.api.v1.types.UserId user_id = 1;
+}
+
+message GetChatIdResponse {
+  .gamma.onehub.api.v1.chat.ChatId chat_id = 1;
+}
+
+message GetUserIdRequest {
+  .gamma.onehub.api.v1.chat.ChatId chat_id = 1;
+}
+
+message GetUserIdResponse {
+  .gamma.onehub.api.v1.types.UserId user_id = 1;
+}
+
+message ChatId {
+  string id = 1;
+}
+

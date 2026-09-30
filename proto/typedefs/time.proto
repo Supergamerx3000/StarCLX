@@ -1,0 +1,9 @@
+syntax = "proto3";
+package gamma.onehub.api.v1.types;
+
+message Time {
+  int32 hours = 1;
+  int32 minutes = 2;
+  int32 seconds = 3;
+}
+

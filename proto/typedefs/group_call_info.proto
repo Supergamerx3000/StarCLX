@@ -1,0 +1,10 @@
+syntax = "proto3";
+package gamma.onehub.api.v1.types;
+import "typedefs/group_id.proto";
+
+message GroupCallInfo {
+  .gamma.onehub.api.v1.types.GroupId group_id = 1;
+  string name = 2;
+  string answered_by = 3;
+}
+

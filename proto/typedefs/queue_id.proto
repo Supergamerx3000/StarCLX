@@ -1,0 +1,7 @@
+syntax = "proto3";
+package gamma.onehub.api.v1.types;
+
+message QueueId {
+  string id = 1;
+}
+

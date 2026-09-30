@@ -1,0 +1,156 @@
+syntax = "proto3";
+package gamma.onehub.api.v1.sfpbx.neon;
+import "google/protobuf/empty.proto";
+import "typedefs/user_id.proto";
+
+service NeonService {
+  rpc GetNeonToken(.google.protobuf.Empty) returns (.gamma.onehub.api.v1.sfpbx.neon.GetNeonTokenResponse);
+  rpc AcquireMeetingAccess(.gamma.onehub.api.v1.sfpbx.neon.AcquireMeetingAccessRequest) returns (.google.protobuf.Empty);
+  rpc GetParticipants(.gamma.onehub.api.v1.sfpbx.neon.GetParticipantsRequest) returns (.gamma.onehub.api.v1.sfpbx.neon.GetParticipantsResponse);
+  rpc GetParticipant(.gamma.onehub.api.v1.sfpbx.neon.GetParticipantRequest) returns (.gamma.onehub.api.v1.sfpbx.neon.GetParticipantResponse);
+  rpc InviteToMeeting(.gamma.onehub.api.v1.sfpbx.neon.InviteToMeetingRequest) returns (.google.protobuf.Empty);
+  rpc CancelInvitation(.gamma.onehub.api.v1.sfpbx.neon.CancelInvitationRequest) returns (.google.protobuf.Empty);
+  rpc AcceptInvitation(.gamma.onehub.api.v1.sfpbx.neon.AcceptInvitationRequest) returns (.google.protobuf.Empty);
+  rpc DeclineInvitation(.gamma.onehub.api.v1.sfpbx.neon.DeclineInvitationRequest) returns (.google.protobuf.Empty);
+  rpc SubscribeMeetingInvitationEvents(.google.protobuf.Empty) returns (stream .gamma.onehub.api.v1.sfpbx.neon.MeetingInvitationEventResponse);
+  rpc SubscribeWaitingRoomEvents(.google.protobuf.Empty) returns (stream .gamma.onehub.api.v1.sfpbx.neon.WaitingRoomEventResponse);
+}
+
+enum ParticipantFilter {
+  PARTICIPANT_FILTER_UNSPECIFIED = 0;
+  PARTICIPANT_FILTER_ALL = 1;
+  PARTICIPANT_FILTER_ONLINE = 2;
+  PARTICIPANT_FILTER_OFFLINE = 3;
+}
+enum Presence {
+  PRESENCE_UNSPECIFIED = 0;
+  PRESENCE_ONLINE = 1;
+  PRESENCE_OFFLINE = 2;
+  PRESENCE_MEETING = 3;
+  PRESENCE_DND = 4;
+  PRESENCE_PHONE_CALL = 5;
+}
+enum InvitationStatus {
+  INVITATION_STATUS_UNSPECIFIED = 0;
+  INVITATION_STATUS_ACCEPTED = 1;
+  INVITATION_STATUS_FAILED = 2;
+}
+enum InvitationFailedReason {
+  INVITATION_FAILED_REASON_UNSPECIFIED = 0;
+  INVITATION_FAILED_REASON_DECLINED = 1;
+  INVITATION_FAILED_REASON_TIMED_OUT = 2;
+  INVITATION_FAILED_REASON_CANCELLED = 3;
+}
+message AcquireMeetingAccessRequest {
+  .gamma.onehub.api.v1.sfpbx.neon.AccessToken access_token = 1;
+}
+
+message GetParticipantsRequest {
+  .gamma.onehub.api.v1.sfpbx.neon.ParticipantFilter participant_filter = 1;
+}
+
+message GetParticipantRequest {
+  .gamma.onehub.api.v1.types.UserId user_id = 1;
+}
+
+message InviteToMeetingRequest {
+  .gamma.onehub.api.v1.types.UserId user_id = 1;
+  optional .gamma.onehub.api.v1.sfpbx.neon.MeetingId meeting_id = 2;
+}
+
+message CancelInvitationRequest {
+  .gamma.onehub.api.v1.sfpbx.neon.MeetingId meeting_id = 1;
+}
+
+message AcceptInvitationRequest {
+  .gamma.onehub.api.v1.sfpbx.neon.MeetingId meeting_id = 1;
+}
+
+message DeclineInvitationRequest {
+  .gamma.onehub.api.v1.sfpbx.neon.MeetingId meeting_id = 1;
+}
+
+message GetNeonTokenResponse {
+  string token = 1;
+}
+
+message LoginResponse {
+  .gamma.onehub.api.v1.sfpbx.neon.AccessToken access_token = 1;
+  .gamma.onehub.api.v1.sfpbx.neon.PbxId pbx_id = 2;
+}
+
+message GetParticipantsResponse {
+  repeated .gamma.onehub.api.v1.sfpbx.neon.Participant participants = 1;
+}
+
+message GetParticipantResponse {
+  .gamma.onehub.api.v1.sfpbx.neon.Participant participant = 1;
+}
+
+message MeetingInvitationEventResponse {
+  .gamma.onehub.api.v1.sfpbx.neon.MeetingId meeting_id = 1;
+  oneof meeting_invitation_events {
+    .gamma.onehub.api.v1.sfpbx.neon.MeetingInvitationSentEvent meeting_invitation_sent = 2;
+    .gamma.onehub.api.v1.sfpbx.neon.MeetingInvitationReceivedEvent meeting_invitation_received = 3;
+    .gamma.onehub.api.v1.sfpbx.neon.MeetingInvitationStatusChangedEvent meeting_invitation_status_changed = 4;
+  }
+}
+
+message MeetingInvitationSentEvent {
+  .gamma.onehub.api.v1.sfpbx.neon.AccessToken access_token = 1;
+  .gamma.onehub.api.v1.sfpbx.neon.Participant invited_participant = 2;
+}
+
+message MeetingInvitationReceivedEvent {
+  .gamma.onehub.api.v1.sfpbx.neon.AccessToken access_token = 1;
+  .gamma.onehub.api.v1.sfpbx.neon.Participant inviting_participant = 2;
+}
+
+message MeetingInvitationStatusChangedEvent {
+  .gamma.onehub.api.v1.sfpbx.neon.InvitationStatus invitation_status = 1;
+  optional .gamma.onehub.api.v1.sfpbx.neon.InvitationFailedReason invite_failed_reason = 2;
+}
+
+message WaitingRoomEventResponse {
+  .gamma.onehub.api.v1.sfpbx.neon.MeetingId meeting_id = 1;
+  oneof waiting_room_events {
+    .gamma.onehub.api.v1.sfpbx.neon.GuestLeftEvent guest_left = 2;
+    .gamma.onehub.api.v1.sfpbx.neon.GuestJoinedEvent guest_joined = 3;
+    .gamma.onehub.api.v1.sfpbx.neon.ConfigUpdatedEvent config_updated = 4;
+  }
+}
+
+message GuestLeftEvent {
+  .gamma.onehub.api.v1.types.UserId user_id = 1;
+}
+
+message GuestJoinedEvent {
+  .gamma.onehub.api.v1.types.UserId user_id = 1;
+  string name = 2;
+  bool is_phone_participant = 3;
+}
+
+message ConfigUpdatedEvent {
+  bool enabled = 1;
+}
+
+message PbxId {
+  string id = 1;
+}
+
+message MeetingId {
+  string id = 1;
+}
+
+message AccessToken {
+  string token = 1;
+}
+
+message Participant {
+  .gamma.onehub.api.v1.types.UserId user_id = 1;
+  string first_name = 2;
+  string last_name = 3;
+  string email = 4;
+  .gamma.onehub.api.v1.sfpbx.neon.Presence presence = 5;
+}
+

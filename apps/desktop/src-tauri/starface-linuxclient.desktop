@@ -1,0 +1,10 @@
+[Desktop Entry]
+Categories={{categories}}
+Comment={{comment}}
+Exec={{exec}} %u
+StartupWMClass={{exec}}
+Icon={{icon}}
+Name=STARFACE Linux-Client
+Terminal=false
+Type=Application
+{{#if mime_type}}MimeType={{mime_type}}{{/if}}

@@ -1,0 +1,146 @@
+syntax = "proto3";
+package gamma.onehub.api.v1.voicemail;
+import "google/protobuf/empty.proto";
+import "google/protobuf/timestamp.proto";
+import "typedefs/call_id.proto";
+import "typedefs/phone_id.proto";
+import "typedefs/mailbox_id.proto";
+import "typedefs/file_chunk.proto";
+import "typedefs/order_direction.proto";
+import "typedefs/mailbox.proto";
+import "typedefs/voicemail.proto";
+import "typedefs/voicemail_id.proto";
+import "typedefs/transcription_id.proto";
+
+service VoiceMailService {
+  rpc DownloadVoicemailFile(.gamma.onehub.api.v1.voicemail.DownloadVoicemailRequest) returns (stream .gamma.onehub.api.v1.types.FileChunkResponse);
+  rpc GetVoicemails(.gamma.onehub.api.v1.voicemail.GetVoicemailsRequest) returns (.gamma.onehub.api.v1.voicemail.GetVoicemailsResponse);
+  rpc GetVoicemail(.gamma.onehub.api.v1.voicemail.GetVoicemailRequest) returns (.gamma.onehub.api.v1.voicemail.GetVoicemailResponse);
+  rpc GetMailboxes(.google.protobuf.Empty) returns (.gamma.onehub.api.v1.voicemail.MailboxesResponse);
+  rpc DeleteVoicemail(.gamma.onehub.api.v1.voicemail.DeleteVoicemailRequest) returns (.google.protobuf.Empty);
+  rpc DeleteVoicemails(.gamma.onehub.api.v1.voicemail.DeleteVoicemailsRequest) returns (.google.protobuf.Empty);
+  rpc MoveVoicemail(.gamma.onehub.api.v1.voicemail.MoveVoicemailRequest) returns (.google.protobuf.Empty);
+  rpc MoveVoicemails(.gamma.onehub.api.v1.voicemail.MoveVoicemailsRequest) returns (.google.protobuf.Empty);
+  rpc CallMailboxViaNumber(.gamma.onehub.api.v1.voicemail.CallMailboxViaNumberRequest) returns (.google.protobuf.Empty);
+  rpc CallMailboxViaPhone(.gamma.onehub.api.v1.voicemail.CallMailboxViaPhoneRequest) returns (.google.protobuf.Empty);
+  rpc CallVoicemailViaNumber(.gamma.onehub.api.v1.voicemail.CallVoicemailViaNumberRequest) returns (.google.protobuf.Empty);
+  rpc CallVoicemailViaPhone(.gamma.onehub.api.v1.voicemail.CallVoicemailViaPhoneRequest) returns (.google.protobuf.Empty);
+  rpc GrabVoicemailBoxCall(.gamma.onehub.api.v1.voicemail.GrabVoicemailBoxCallRequest) returns (.google.protobuf.Empty);
+  rpc TransferCallToVoicemailBox(.gamma.onehub.api.v1.voicemail.TransferCallToVoicemailBoxRequest) returns (.google.protobuf.Empty);
+  rpc SubscribeVoicemailEvents(.google.protobuf.Empty) returns (stream .gamma.onehub.api.v1.voicemail.VoicemailEventResponse);
+}
+
+enum VoicemailOrderBy {
+  VOICEMAIL_ORDER_BY_UNSPECIFIED = 0;
+  VOICEMAIL_ORDER_BY_ID = 1;
+  VOICEMAIL_ORDER_BY_REMOTE_PARTICIPANT_NAME = 4;
+  VOICEMAIL_ORDER_BY_START_TIME = 5;
+  VOICEMAIL_ORDER_BY_DURATION = 6;
+}
+message DownloadVoicemailRequest {
+  .gamma.onehub.api.v1.types.VoicemailId voicemail_id = 1;
+}
+
+message GetVoicemailsRequest {
+  .google.protobuf.Timestamp filter_from = 1;
+  .google.protobuf.Timestamp filter_until = 2;
+  .gamma.onehub.api.v1.types.MailboxId mailbox_id = 3;
+  .gamma.onehub.api.v1.types.VoicemailFolder voicemail_folder = 4;
+  .gamma.onehub.api.v1.voicemail.VoicemailOrderBy order_by = 5;
+  .gamma.onehub.api.v1.types.OrderDirection order_direction = 6;
+  int32 limit = 7;
+  int32 offset = 8;
+}
+
+message GetVoicemailRequest {
+  .gamma.onehub.api.v1.types.VoicemailId voicemail_id = 1;
+}
+
+message DeleteVoicemailRequest {
+  .gamma.onehub.api.v1.types.VoicemailId voicemail_id = 1;
+}
+
+message DeleteVoicemailsRequest {
+  repeated .gamma.onehub.api.v1.types.VoicemailId voicemail_ids = 1;
+}
+
+message MoveVoicemailRequest {
+  .gamma.onehub.api.v1.types.VoicemailId voicemail_id = 1;
+  .gamma.onehub.api.v1.types.VoicemailFolder destination_folder = 2;
+}
+
+message MoveVoicemailsRequest {
+  repeated .gamma.onehub.api.v1.types.VoicemailId voicemail_ids = 1;
+  .gamma.onehub.api.v1.types.VoicemailFolder destination_folder = 2;
+}
+
+message CallMailboxViaNumberRequest {
+  .gamma.onehub.api.v1.types.MailboxId mailbox_id = 1;
+  string phone_number = 2;
+}
+
+message CallMailboxViaPhoneRequest {
+  .gamma.onehub.api.v1.types.MailboxId mailbox_id = 1;
+  .gamma.onehub.api.v1.types.PhoneId phone_id = 2;
+}
+
+message CallVoicemailViaNumberRequest {
+  .gamma.onehub.api.v1.types.VoicemailId voicemail_id = 1;
+  string phone_number = 2;
+}
+
+message CallVoicemailViaPhoneRequest {
+  .gamma.onehub.api.v1.types.VoicemailId voicemail_id = 1;
+  .gamma.onehub.api.v1.types.PhoneId phone_id = 2;
+}
+
+message GetVoicemailsResponse {
+  int32 total_count = 1;
+  repeated .gamma.onehub.api.v1.types.Voicemail voicemails = 2;
+}
+
+message GrabVoicemailBoxCallRequest {
+  .gamma.onehub.api.v1.types.CallId call_id = 1;
+  .gamma.onehub.api.v1.types.PhoneId phone_id = 2;
+}
+
+message TransferCallToVoicemailBoxRequest {
+  .gamma.onehub.api.v1.types.CallId call_id = 1;
+  .gamma.onehub.api.v1.types.MailboxId mailbox_id = 2;
+}
+
+message GetVoicemailResponse {
+  .gamma.onehub.api.v1.types.Voicemail voicemail = 1;
+}
+
+message MailboxesResponse {
+  repeated .gamma.onehub.api.v1.types.Mailbox mailboxes = 1;
+}
+
+message VoicemailEventResponse {
+  oneof voicemail_event {
+    .gamma.onehub.api.v1.voicemail.VoicemailCreatedEvent voicemail_created = 1;
+    .gamma.onehub.api.v1.voicemail.VoicemailDeletedEvent voicemail_deleted = 2;
+    .gamma.onehub.api.v1.voicemail.VoicemailMovedEvent voicemail_moved = 3;
+    .gamma.onehub.api.v1.voicemail.VoicemailTranscribedEvent voicemail_transcribed_event = 4;
+  }
+}
+
+message VoicemailCreatedEvent {
+  .gamma.onehub.api.v1.types.Voicemail voicemail = 1;
+}
+
+message VoicemailDeletedEvent {
+  .gamma.onehub.api.v1.types.VoicemailId voicemail_id = 1;
+}
+
+message VoicemailMovedEvent {
+  .gamma.onehub.api.v1.types.VoicemailId voicemail_id = 1;
+  .gamma.onehub.api.v1.types.VoicemailFolder new_folder = 2;
+}
+
+message VoicemailTranscribedEvent {
+  .gamma.onehub.api.v1.types.VoicemailId voicemail_id = 1;
+  .gamma.onehub.api.v1.types.TranscriptionId transcription_id = 2;
+}
+

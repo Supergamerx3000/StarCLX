@@ -1,0 +1,168 @@
+syntax = "proto3";
+package gamma.onehub.api.v1.favorite;
+import "google/protobuf/empty.proto";
+import "typedefs/group.proto";
+import "typedefs/group_id.proto";
+import "typedefs/user.proto";
+import "typedefs/user_id.proto";
+
+service FavoriteService {
+  rpc GetFavorites(.google.protobuf.Empty) returns (.gamma.onehub.api.v1.favorite.GetFavoritesResponse);
+  rpc CreateFavorite(.gamma.onehub.api.v1.favorite.CreateFavoriteRequest) returns (.google.protobuf.Empty);
+  rpc CreateFavoriteGroup(.gamma.onehub.api.v1.favorite.CreateFavoriteGroupRequest) returns (.google.protobuf.Empty);
+  rpc RenameFavorite(.gamma.onehub.api.v1.favorite.RenameFavoriteRequest) returns (.google.protobuf.Empty);
+  rpc RenameFavoriteGroup(.gamma.onehub.api.v1.favorite.RenameFavoriteGroupRequest) returns (.google.protobuf.Empty);
+  rpc MoveFavorite(.gamma.onehub.api.v1.favorite.MoveFavoriteRequest) returns (.google.protobuf.Empty);
+  rpc MoveFavoriteGroup(.gamma.onehub.api.v1.favorite.MoveFavoriteGroupRequest) returns (.google.protobuf.Empty);
+  rpc DeleteFavorite(.gamma.onehub.api.v1.favorite.DeleteFavoriteRequest) returns (.google.protobuf.Empty);
+  rpc DeleteFavoriteGroup(.gamma.onehub.api.v1.favorite.DeleteFavoriteGroupRequest) returns (.google.protobuf.Empty);
+  rpc SubscribeFavoritesEvents(.google.protobuf.Empty) returns (stream .gamma.onehub.api.v1.favorite.FavoriteEventResponse);
+}
+
+message CreateFavoriteRequest {
+  .gamma.onehub.api.v1.favorite.FavoriteGroupId favorite_group_id = 1;
+  .gamma.onehub.api.v1.favorite.NewFavorite new_favorite = 2;
+}
+
+message CreateFavoriteGroupRequest {
+  string name = 1;
+  int32 position = 2;
+  repeated .gamma.onehub.api.v1.favorite.NewFavorite favorites = 3;
+}
+
+message NewFavorite {
+  string name = 1;
+  int32 position = 2;
+  oneof type {
+    .gamma.onehub.api.v1.types.UserId user_id = 3;
+    string direct_call_phone_number = 4;
+    .gamma.onehub.api.v1.types.GroupId group_id = 5;
+  }
+}
+
+message RenameFavoriteRequest {
+  .gamma.onehub.api.v1.favorite.FavoriteId favorite_id = 1;
+  string name = 2;
+}
+
+message RenameFavoriteGroupRequest {
+  .gamma.onehub.api.v1.favorite.FavoriteGroupId favorite_group_id = 1;
+  string name = 2;
+}
+
+message MoveFavoriteRequest {
+  .gamma.onehub.api.v1.favorite.FavoriteId favorite_id = 1;
+  oneof new_position {
+    .gamma.onehub.api.v1.favorite.NewGroupPosition group_position = 2;
+    int32 position = 3;
+  }
+}
+
+message NewGroupPosition {
+  .gamma.onehub.api.v1.favorite.FavoriteGroupId favorite_group_id = 1;
+  int32 position = 2;
+}
+
+message MoveFavoriteGroupRequest {
+  .gamma.onehub.api.v1.favorite.FavoriteGroupId favorite_group_id = 1;
+  int32 position = 2;
+}
+
+message DeleteFavoriteRequest {
+  .gamma.onehub.api.v1.favorite.FavoriteId favorite_id = 1;
+}
+
+message DeleteFavoriteGroupRequest {
+  .gamma.onehub.api.v1.favorite.FavoriteGroupId favorite_group_id = 1;
+}
+
+message GetFavoritesResponse {
+  repeated .gamma.onehub.api.v1.favorite.FavoriteGroup favorite_groups = 1;
+}
+
+message FavoriteEventResponse {
+  oneof favorite_event {
+    .gamma.onehub.api.v1.favorite.FavoriteCreatedEvent favorite_created = 1;
+    .gamma.onehub.api.v1.favorite.FavoriteGroupCreatedEvent favorite_group_created = 2;
+    .gamma.onehub.api.v1.favorite.FavoriteNameChangedEvent favorite_name_changed = 3;
+    .gamma.onehub.api.v1.favorite.FavoriteGroupNameChangedEvent favorite_group_name_changed = 4;
+    .gamma.onehub.api.v1.favorite.FavoritePositionChangedEvent favorite_position_changed = 5;
+    .gamma.onehub.api.v1.favorite.FavoriteGroupPositionChangedEvent favorite_group_position_changed = 6;
+    .gamma.onehub.api.v1.favorite.FavoriteDeletedEvent favorite_deleted = 7;
+    .gamma.onehub.api.v1.favorite.FavoriteGroupDeletedEvent favorite_group_deleted = 8;
+    .gamma.onehub.api.v1.favorite.FavoritesReplacedEvent favorites_replaced = 9;
+  }
+}
+
+message FavoriteGroup {
+  .gamma.onehub.api.v1.favorite.FavoriteGroupId favorite_group_id = 1;
+  string name = 2;
+  int32 position = 3;
+  repeated .gamma.onehub.api.v1.favorite.Favorite favorites = 4;
+}
+
+message Favorite {
+  .gamma.onehub.api.v1.favorite.FavoriteId favorite_id = 1;
+  string name = 2;
+  int32 position = 3;
+  .gamma.onehub.api.v1.favorite.FavoriteContent favorite_content = 4;
+}
+
+message FavoriteContent {
+  oneof favorite_type {
+    .gamma.onehub.api.v1.types.User user = 1;
+    string direct_call_phone_number = 2;
+    .gamma.onehub.api.v1.types.Group group = 3;
+  }
+}
+
+message FavoriteId {
+  string id = 1;
+}
+
+message FavoriteGroupId {
+  string id = 1;
+}
+
+message FavoriteCreatedEvent {
+  .gamma.onehub.api.v1.favorite.Favorite favorite = 1;
+  .gamma.onehub.api.v1.favorite.FavoriteGroupId favorite_group_id = 2;
+}
+
+message FavoriteGroupCreatedEvent {
+  repeated .gamma.onehub.api.v1.favorite.FavoriteGroup favorite_groups = 1;
+}
+
+message FavoriteNameChangedEvent {
+  .gamma.onehub.api.v1.favorite.FavoriteId favorite_id = 1;
+  string name = 2;
+}
+
+message FavoriteGroupNameChangedEvent {
+  .gamma.onehub.api.v1.favorite.FavoriteGroupId favorite_group_id = 1;
+  string name = 2;
+}
+
+message FavoritePositionChangedEvent {
+  .gamma.onehub.api.v1.favorite.FavoriteId favorite_id = 1;
+  .gamma.onehub.api.v1.favorite.FavoriteGroupId favorite_group_id = 2;
+  int32 position = 3;
+}
+
+message FavoriteGroupPositionChangedEvent {
+  .gamma.onehub.api.v1.favorite.FavoriteGroupId favorite_group_id = 1;
+  int32 position = 2;
+}
+
+message FavoriteDeletedEvent {
+  .gamma.onehub.api.v1.favorite.FavoriteId favorite_id = 1;
+}
+
+message FavoriteGroupDeletedEvent {
+  .gamma.onehub.api.v1.favorite.FavoriteGroupId favorite_group_id = 1;
+}
+
+message FavoritesReplacedEvent {
+  repeated .gamma.onehub.api.v1.favorite.FavoriteGroup favorite_groups = 1;
+}
+

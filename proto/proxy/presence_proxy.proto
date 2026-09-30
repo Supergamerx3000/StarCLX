@@ -1,0 +1,171 @@
+syntax = "proto3";
+package gamma.onehub.api.v1.presence;
+import "google/protobuf/empty.proto";
+import "google/protobuf/duration.proto";
+import "typedefs/user_id.proto";
+import "typedefs/group_id.proto";
+import "typedefs/redirect.proto";
+import "typedefs/call_state.proto";
+
+service PresenceService {
+  rpc SubscribePresenceStates(.gamma.onehub.api.v1.presence.SubscribePresenceStatesRequest) returns (.gamma.onehub.api.v1.presence.SubscribePresenceStatesResponse);
+  rpc UnsubscribePresenceStates(.gamma.onehub.api.v1.presence.UnsubscribePresenceStatesRequest) returns (.google.protobuf.Empty);
+  rpc GetPresenceDetails(.gamma.onehub.api.v1.presence.GetPresenceDetailsRequest) returns (.gamma.onehub.api.v1.presence.GetPresenceDetailsResponse);
+  rpc SubscribePresenceEvents(.google.protobuf.Empty) returns (stream .gamma.onehub.api.v1.presence.PresenceEventResponse);
+}
+
+enum TelephonyState {
+  TELEPHONY_STATE_UNSPECIFIED = 0;
+  TELEPHONY_STATE_UNAVAILABLE = 1;
+  TELEPHONY_STATE_AVAILABLE = 2;
+  TELEPHONY_STATE_RINGING = 3;
+  TELEPHONY_STATE_ACTIVE = 4;
+  TELEPHONY_STATE_QUEUE_PAUSE = 5;
+}
+enum ChatState {
+  CHAT_STATE_UNSPECIFIED = 0;
+  CHAT_STATE_UNAVAILABLE = 1;
+  CHAT_STATE_AVAILABLE = 2;
+  CHAT_STATE_FREE_FOR_CHAT = 3;
+  CHAT_STATE_AWAY = 4;
+  CHAT_STATE_EXTENDED_AWAY = 5;
+  CHAT_STATE_DO_NOT_DISTURB = 6;
+}
+enum PresenceDetailType {
+  PRESENCE_DETAIL_TYPE_UNSPECIFIED = 0;
+  PRESENCE_DETAIL_TYPE_TELEPHONY = 1;
+  PRESENCE_DETAIL_TYPE_REDIRECT = 2;
+}
+message SubscribePresenceStatesRequest {
+  oneof presence_ids {
+    .gamma.onehub.api.v1.presence.UserIdList user_id_list = 1;
+    .gamma.onehub.api.v1.presence.GroupIdList group_id_list = 2;
+  }
+  bool return_presence_states = 3;
+}
+
+message UnsubscribePresenceStatesRequest {
+  oneof presence_ids {
+    .gamma.onehub.api.v1.presence.UserIdList user_id_list = 1;
+    .gamma.onehub.api.v1.presence.GroupIdList group_id_list = 2;
+  }
+}
+
+message GetPresenceDetailsRequest {
+  oneof target {
+    .gamma.onehub.api.v1.types.UserId user_id = 1;
+    .gamma.onehub.api.v1.types.GroupId group_id = 2;
+  }
+  .gamma.onehub.api.v1.presence.PresenceDetailType presence_detail_type = 3;
+}
+
+message SubscribePresenceStatesResponse {
+  repeated .gamma.onehub.api.v1.presence.PresenceState presence_states = 1;
+}
+
+message GetPresenceDetailsResponse {
+  oneof presence_detail {
+    .gamma.onehub.api.v1.presence.TelephonyDetails telephony_details = 1;
+    .gamma.onehub.api.v1.presence.RedirectDetails redirect_details = 2;
+  }
+}
+
+message PresenceEventResponse {
+  oneof presence_event {
+    .gamma.onehub.api.v1.presence.PresenceStateSubscribedEvent presence_state_subscribed = 2;
+    .gamma.onehub.api.v1.presence.TelephonyStateChangedEvent telephony_state_changed = 3;
+    .gamma.onehub.api.v1.presence.ChatStateChangedEvent chat_state_changed = 4;
+    .gamma.onehub.api.v1.presence.ChatStateMessageChangedEvent chat_state_message_changed = 5;
+    .gamma.onehub.api.v1.presence.DoNotDisturbStatusChangedEvent do_not_disturb_status_changed = 6;
+    .gamma.onehub.api.v1.presence.RedirectStatusChangedEvent redirect_status_changed = 7;
+    .gamma.onehub.api.v1.presence.PresenceStateUnsubscribedEvent presence_state_unsubscribed = 8;
+  }
+}
+
+message PresenceStateSubscribedEvent {
+  .gamma.onehub.api.v1.presence.PresenceState presence_state = 1;
+}
+
+message TelephonyStateChangedEvent {
+  oneof target {
+    .gamma.onehub.api.v1.types.UserId user_id = 1;
+    .gamma.onehub.api.v1.types.GroupId group_id = 2;
+  }
+  .gamma.onehub.api.v1.presence.TelephonyState telephony_state = 3;
+}
+
+message ChatStateChangedEvent {
+  .gamma.onehub.api.v1.types.UserId user_id = 1;
+  .gamma.onehub.api.v1.presence.ChatState chat_state = 2;
+}
+
+message ChatStateMessageChangedEvent {
+  .gamma.onehub.api.v1.types.UserId user_id = 1;
+  string chat_state_message = 2;
+}
+
+message DoNotDisturbStatusChangedEvent {
+  .gamma.onehub.api.v1.types.UserId user_id = 1;
+  bool dnd_enabled = 2;
+}
+
+message RedirectStatusChangedEvent {
+  oneof target {
+    .gamma.onehub.api.v1.types.UserId user_id = 1;
+    .gamma.onehub.api.v1.types.GroupId group_id = 2;
+  }
+  bool redirect_enabled = 3;
+}
+
+message PresenceStateUnsubscribedEvent {
+  oneof target {
+    .gamma.onehub.api.v1.types.UserId user_id = 1;
+    .gamma.onehub.api.v1.types.GroupId group_id = 2;
+  }
+}
+
+message PresenceState {
+  oneof presence_state {
+    .gamma.onehub.api.v1.presence.UserPresenceState user_presence_state = 1;
+    .gamma.onehub.api.v1.presence.GroupPresenceState group_presence_state = 2;
+  }
+}
+
+message UserPresenceState {
+  .gamma.onehub.api.v1.types.UserId user_id = 1;
+  .gamma.onehub.api.v1.presence.TelephonyState telephony_state = 2;
+  .gamma.onehub.api.v1.presence.ChatState chat_state = 3;
+  string chat_state_message = 4;
+  bool dnd_enabled = 5;
+  bool redirect_enabled = 6;
+}
+
+message GroupPresenceState {
+  .gamma.onehub.api.v1.types.GroupId group_id = 1;
+  .gamma.onehub.api.v1.presence.TelephonyState telephony_state = 2;
+  bool redirect_enabled = 3;
+}
+
+message TelephonyDetails {
+  repeated .gamma.onehub.api.v1.presence.TelephonyDetail telephony_details = 1;
+}
+
+message TelephonyDetail {
+  string description = 1;
+  string number = 2;
+  .gamma.onehub.api.v1.types.CallState call_state = 3;
+  .google.protobuf.Duration duration = 4;
+}
+
+message RedirectDetails {
+  repeated .gamma.onehub.api.v1.types.Redirect redirects = 1;
+}
+
+message UserIdList {
+  repeated .gamma.onehub.api.v1.types.UserId user_ids = 1;
+}
+
+message GroupIdList {
+  repeated .gamma.onehub.api.v1.types.GroupId group_ids = 1;
+}
+

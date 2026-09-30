@@ -1,0 +1,95 @@
+syntax = "proto3";
+package gamma.onehub.api.v1.types;
+
+enum CallCapabilityType {
+  CALL_CAPABILITY_UNSPECIFIED = 0;
+  CALL_CAPABILITY_GET_CALLS = 1;
+  CALL_CAPABILITY_PLACE_CALL = 2;
+  CALL_CAPABILITY_HANGUP_CALL = 3;
+  CALL_CAPABILITY_HOLD_CALL = 4;
+  CALL_CAPABILITY_RESUME_CALL = 5;
+  CALL_CAPABILITY_FORWARD_CALL = 6;
+  CALL_CAPABILITY_TRANSFER_CALL = 7;
+  CALL_CAPABILITY_PLACE_CONSULTATION_CALL = 8;
+  CALL_CAPABILITY_TRANSFER_CONSULTATION_CALL = 9;
+  CALL_CAPABILITY_ACCEPT_CALL_ELSEWHERE = 10;
+  CALL_CAPABILITY_RECORD_CALL = 11;
+  CALL_CAPABILITY_SWITCH_PHONE = 12;
+  CALL_CAPABILITY_PARK_AND_ORBIT = 13;
+  CALL_CAPABILITY_SEND_DTMF = 14;
+  CALL_CAPABILITY_SET_CALL_DATA = 15;
+}
+enum ConferenceCallCapabilityType {
+  CONFERENCE_CALL_CAPABILITY_UNSPECIFIED = 0;
+  CONFERENCE_CALL_CAPABILITY_GET_CONFERENCE_CALLS = 1;
+  CONFERENCE_CALL_CAPABILITY_JOIN_TO_CONFERENCE = 2;
+  CONFERENCE_CALL_CAPABILITY_REQUEST_TO_SPEAK = 3;
+  CONFERENCE_CALL_CAPABILITY_LEAVE_CONFERENCE = 4;
+  CONFERENCE_CALL_CAPABILITY_QUIT_CONFERENCE = 5;
+  CONFERENCE_CALL_CAPABILITY_MUTE = 6;
+  CONFERENCE_CALL_CAPABILITY_UNMUTE = 7;
+  CONFERENCE_CALL_CAPABILITY_ENABLE_LISTENING = 8;
+  CONFERENCE_CALL_CAPABILITY_DISABLE_LISTENING = 9;
+  CONFERENCE_CALL_CAPABILITY_ENABLE_LISTENING_ALL = 10;
+  CONFERENCE_CALL_CAPABILITY_ENABLE_SPEAKING_ALL = 11;
+  CONFERENCE_CALL_CAPABILITY_DISABLE_SPEAKING_ALL_EXCEPT_MODERATOR = 12;
+  CONFERENCE_CALL_CAPABILITY_TRANSFER_TO_CONFERENCE = 13;
+  CONFERENCE_CALL_CAPABILITY_CALL_NUMBER_TO_CONFERENCE = 14;
+  CONFERENCE_CALL_CAPABILITY_TRANSFER_TO_CONFERENCE_CONSULTATION_CALL = 15;
+  CONFERENCE_CALL_CAPABILITY_INITIATE_CONFERENCE = 16;
+}
+enum MeCapabilityType {
+  ME_CAPABILITY_UNSPECIFIED = 0;
+  ME_CAPABILITY_GET_USER = 1;
+  ME_CAPABILITY_GET_PHONES = 2;
+  ME_CAPABILITY_GET_PRIMARY_PHONE = 3;
+  ME_CAPABILITY_GET_SIGNALING_PHONE_NUMBERS = 4;
+  ME_CAPABILITY_GET_PHONE_NUMBERS_CONFIG = 5;
+  ME_CAPABILITY_GET_PERMISSIONS = 6;
+  ME_CAPABILITY_REQUEST_PERMISSION = 7;
+  ME_CAPABILITY_SET_PRIMARY_PHONE = 8;
+  ME_CAPABILITY_SET_SIGNALING_PHONE_NUMBER = 9;
+  ME_CAPABILITY_UPDATE_AVATAR = 10;
+  ME_CAPABILITY_DELETE_AVATAR = 11;
+  ME_CAPABILITY_SET_DO_NOT_DISTURB = 12;
+  ME_CAPABILITY_SET_CHAT_PRESENCE_MESSAGE = 13;
+  ME_CAPABILITY_SET_CALL_WAITING_INDICATION = 14;
+}
+message FeatureCapabilities {
+  oneof feature_capabilities_type {
+    .gamma.onehub.api.v1.types.CallCapabilities call_capabilities = 1;
+    .gamma.onehub.api.v1.types.ConferenceCallCapabilities conference_call_capabilities = 2;
+    .gamma.onehub.api.v1.types.MeCapabilities me_capabilities = 3;
+  }
+}
+
+message CallCapabilities {
+  repeated .gamma.onehub.api.v1.types.CallCapability call_capabilities = 1;
+}
+
+message CallCapability {
+  string display_name = 1;
+  optional string description = 2;
+  .gamma.onehub.api.v1.types.CallCapabilityType call_capability_type = 3;
+}
+
+message ConferenceCallCapabilities {
+  repeated .gamma.onehub.api.v1.types.ConferenceCallCapability conference_call_capabilities = 1;
+}
+
+message ConferenceCallCapability {
+  string display_name = 1;
+  optional string description = 2;
+  .gamma.onehub.api.v1.types.ConferenceCallCapabilityType conference_call_capability_type = 3;
+}
+
+message MeCapabilities {
+  repeated .gamma.onehub.api.v1.types.MeCapability me_capabilities = 1;
+}
+
+message MeCapability {
+  string display_name = 1;
+  optional string description = 2;
+  .gamma.onehub.api.v1.types.MeCapabilityType me_capability_type = 3;
+}
+

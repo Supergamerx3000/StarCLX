@@ -1,0 +1,12 @@
+syntax = "proto3";
+package gamma.onehub.api.v1.types;
+
+enum AiTranscriptionState {
+  UNSPECIFIED = 0;
+  RUNNING = 1;
+  PAUSED = 2;
+  STREAMING_FINISHED = 3;
+  POSTPROCESSING = 4;
+  TRANSCRIPTION_READY = 5;
+  ERROR = 6;
+}

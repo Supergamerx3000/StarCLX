@@ -1,0 +1,9 @@
+syntax = "proto3";
+package gamma.onehub.api.v1.types;
+import "typedefs/mailbox_id.proto";
+
+message Mailbox {
+  .gamma.onehub.api.v1.types.MailboxId mailbox_id = 1;
+  string name = 2;
+}
+

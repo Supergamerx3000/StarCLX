@@ -1,0 +1,8 @@
+syntax = "proto3";
+package gamma.onehub.api.v1.types;
+
+enum OrderDirection {
+  ORDER_DIRECTION_UNSPECIFIED = 0;
+  ORDER_DIRECTION_ASCENDING = 1;
+  ORDER_DIRECTION_DESCENDING = 2;
+}

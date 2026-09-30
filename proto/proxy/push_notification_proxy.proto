@@ -1,0 +1,49 @@
+syntax = "proto3";
+package gamma.onehub.api.v1.pushnotification;
+import "google/protobuf/empty.proto";
+import "typedefs/sip_device_id.proto";
+import "typedefs/phone_id.proto";
+
+service PushNotificationService {
+  rpc RequestPushNotifications(.gamma.onehub.api.v1.pushnotification.RequestPushNotificationsRequest) returns (.google.protobuf.Empty);
+  rpc EnableCallPushNotifications(.gamma.onehub.api.v1.pushnotification.EnableCallPushNotificationsRequest) returns (.google.protobuf.Empty);
+  rpc DisableCallPushNotifications(.gamma.onehub.api.v1.pushnotification.DisableCallPushNotificationsRequest) returns (.google.protobuf.Empty);
+  rpc UpdatePushNotificationSettings(.gamma.onehub.api.v1.pushnotification.UpdatePushNotificationSettingsRequest) returns (.google.protobuf.Empty);
+}
+
+message RequestPushNotificationsRequest {
+  .gamma.onehub.api.v1.types.SipDeviceId sip_device_id = 1;
+  string service = 2;
+  .gamma.onehub.api.v1.types.PhoneId phone_id = 3;
+  .gamma.onehub.api.v1.pushnotification.PushNotificationSettings push_notification_settings = 4;
+  bool enable_call_push_notifications = 5;
+}
+
+message UpdatePushNotificationSettingsRequest {
+  .gamma.onehub.api.v1.types.PhoneId phone_id = 1;
+  .gamma.onehub.api.v1.pushnotification.PushNotificationSettings push_notification_settings = 2;
+}
+
+message EnableCallPushNotificationsRequest {
+  .gamma.onehub.api.v1.types.SipDeviceId sip_device_id = 1;
+  string service = 2;
+  .gamma.onehub.api.v1.pushnotification.PushNotificationToken push_notification_token = 3;
+}
+
+message DisableCallPushNotificationsRequest {
+  string phone_name = 1;
+}
+
+message PushNotificationToken {
+  string token = 1;
+}
+
+message PushNotificationSettings {
+  .gamma.onehub.api.v1.pushnotification.PushNotificationToken push_notification_token = 1;
+  bool unread_chat_messages = 2;
+  bool missed_calls = 3;
+  bool missed_group_calls = 4;
+  bool new_voicemail = 5;
+  bool new_group_voicemail = 6;
+}
+

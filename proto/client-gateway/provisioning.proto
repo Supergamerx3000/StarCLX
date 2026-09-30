@@ -1,0 +1,75 @@
+syntax = "proto3";
+package gamma.onehub.api.v1.provisioning;
+import "google/protobuf/timestamp.proto";
+import "google/protobuf/empty.proto";
+
+service Query {
+  rpc QueryVersion(.gamma.onehub.api.v1.provisioning.QueryRequest) returns (.gamma.onehub.api.v1.provisioning.QueryResponse);
+}
+
+service QueryVersionCollection {
+  rpc queryVersionCollectionRequestByName(.gamma.onehub.api.v1.provisioning.QueryVersionCollectionRequestByName) returns (.gamma.onehub.api.v1.provisioning.QueryVersionCollectionResponse);
+  rpc queryVersionCollectionRequestById(.gamma.onehub.api.v1.provisioning.QueryVersionCollectionRequestById) returns (.gamma.onehub.api.v1.provisioning.QueryVersionCollectionResponse);
+}
+
+service FeatureFlagsService {
+  rpc GetActiveFlags(.gamma.onehub.api.v1.provisioning.FeatureFlagRequest) returns (.gamma.onehub.api.v1.provisioning.ActiveFeatureFlags);
+}
+
+message FeatureFlagRequest {
+  string subjectId = 1;
+}
+
+message ActiveFeatureFlags {
+  repeated string activeFlags = 1;
+}
+
+message VersionWithId {
+  string version_string = 1;
+  string microfrontend = 2;
+  .google.protobuf.Timestamp creation_date = 3;
+  map<string, string> config = 4;
+  string id = 5;
+}
+
+message QueryRequest {
+  string microfrontend = 1;
+  .gamma.onehub.api.v1.provisioning.HostInfo host_info = 2;
+  optional .gamma.onehub.api.v1.provisioning.EdgeNodeInfo edge_node_info = 3;
+  map<string, string> metadata = 4;
+}
+
+message QueryResponse {
+  .gamma.onehub.api.v1.provisioning.VersionWithId version = 1;
+  string url = 2;
+}
+
+message HostInfo {
+  string name = 1;
+  string version = 2;
+  map<string, string> metadata = 3;
+}
+
+message EdgeNodeInfo {
+  string name = 1;
+  string version = 2;
+}
+
+message QueryVersionCollectionRequestByName {
+  string name = 1;
+  optional .gamma.onehub.api.v1.provisioning.EdgeNodeInfo edge_node_info = 2;
+  map<string, string> metadata = 3;
+}
+
+message QueryVersionCollectionRequestById {
+  string id = 1;
+  optional .gamma.onehub.api.v1.provisioning.EdgeNodeInfo edge_node_info = 2;
+  map<string, string> metadata = 3;
+}
+
+message QueryVersionCollectionResponse {
+  string id = 1;
+  string name = 2;
+  repeated .gamma.onehub.api.v1.provisioning.QueryResponse query_responses = 4;
+}
+

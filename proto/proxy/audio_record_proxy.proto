@@ -1,0 +1,81 @@
+syntax = "proto3";
+package gamma.onehub.api.v1.audiorecord;
+import "google/protobuf/duration.proto";
+import "google/protobuf/empty.proto";
+import "google/protobuf/timestamp.proto";
+import "typedefs/cdr_id.proto";
+import "typedefs/file_chunk.proto";
+import "typedefs/order_direction.proto";
+
+service AudioRecordService {
+  rpc DownloadAudioRecordFile(.gamma.onehub.api.v1.audiorecord.DownloadAudioRecordRequest) returns (stream .gamma.onehub.api.v1.types.FileChunkResponse);
+  rpc GetAudioRecords(.gamma.onehub.api.v1.audiorecord.GetAudioRecordsRequest) returns (.gamma.onehub.api.v1.audiorecord.AudioRecordsResponse);
+  rpc DeleteAudioRecord(.gamma.onehub.api.v1.audiorecord.DeleteAudioRecordRequest) returns (.google.protobuf.Empty);
+  rpc DeleteAudioRecords(.gamma.onehub.api.v1.audiorecord.DeleteAudioRecordsRequest) returns (.google.protobuf.Empty);
+  rpc SubscribeAudioRecordEvents(.google.protobuf.Empty) returns (stream .gamma.onehub.api.v1.audiorecord.AudioRecordEventResponse);
+}
+
+enum AudioRecordOrderBy {
+  AUDIO_RECORD_ORDER_BY_UNSPECIFIED = 0;
+  AUDIO_RECORD_ORDER_BY_ID = 1;
+  AUDIO_RECORD_ORDER_BY_CALLBACKNUMBER = 2;
+  AUDIO_RECORD_ORDER_BY_AUDIO_RECORD_START = 3;
+  AUDIO_RECORD_ORDER_BY_AUDIO_RECORD_END = 4;
+  AUDIO_RECORD_ORDER_BY_DURATION = 5;
+}
+message DownloadAudioRecordRequest {
+  .gamma.onehub.api.v1.audiorecord.AudioRecordId audio_record_id = 1;
+}
+
+message GetAudioRecordsRequest {
+  .google.protobuf.Timestamp filter_from = 1;
+  .google.protobuf.Timestamp filter_until = 2;
+  .gamma.onehub.api.v1.audiorecord.AudioRecordOrderBy order_by = 3;
+  .gamma.onehub.api.v1.types.OrderDirection order_direction = 4;
+  int32 limit = 5;
+  int32 offset = 6;
+}
+
+message DeleteAudioRecordRequest {
+  .gamma.onehub.api.v1.audiorecord.AudioRecordId audio_record_id = 1;
+}
+
+message DeleteAudioRecordsRequest {
+  repeated .gamma.onehub.api.v1.audiorecord.AudioRecordId audio_record_ids = 1;
+}
+
+message AudioRecordsResponse {
+  int32 total_count = 1;
+  repeated .gamma.onehub.api.v1.audiorecord.AudioRecord audio_records = 2;
+}
+
+message AudioRecordEventResponse {
+  oneof audio_record_events {
+    .gamma.onehub.api.v1.audiorecord.AudioRecordCreatedEvent audio_record_created = 1;
+    .gamma.onehub.api.v1.audiorecord.AudioRecordDeletedEvent audio_record_deleted = 2;
+  }
+}
+
+message AudioRecord {
+  .gamma.onehub.api.v1.audiorecord.AudioRecordId audio_record_id = 1;
+  .gamma.onehub.api.v1.types.CdrId cdr_id = 2;
+  string caller_info = 3;
+  string callee_info = 4;
+  string call_back_number = 5;
+  .google.protobuf.Timestamp audio_record_start_time = 6;
+  .google.protobuf.Timestamp audio_record_end_time = 7;
+  .google.protobuf.Duration audio_record_duration = 8;
+}
+
+message AudioRecordId {
+  string id = 1;
+}
+
+message AudioRecordCreatedEvent {
+  .gamma.onehub.api.v1.audiorecord.AudioRecord audio_record = 1;
+}
+
+message AudioRecordDeletedEvent {
+  .gamma.onehub.api.v1.audiorecord.AudioRecordId audio_record_id = 1;
+}
+
