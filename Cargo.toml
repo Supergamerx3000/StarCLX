@@ -12,6 +12,7 @@ repository = "https://github.com/crazmoe/starface-linuxclient"
 sf-proto = { path = "crates/sf-proto" }
 sf-auth = { path = "crates/sf-auth" }
 sf-onehub = { path = "crates/sf-onehub" }
+sf-core = { path = "crates/sf-core" }
 anyhow = "1"
 thiserror = "2"
 tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
