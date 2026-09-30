@@ -1,10 +1,11 @@
 //! Desktop-App. Anmeldung im Systembrowser mit Rückkehr über
 //! `starface-app://login`, stilles Wiederanmelden mit dem Refresh-Token aus
-//! dem Schlüsselbund und ein Tray-Symbol.
+//! dem Schlüsselbund, ein Tray-Symbol und das Softphone.
 
 use std::path::PathBuf;
 
 use serde::{Deserialize, Serialize};
+use sf_core::phone::{CallPhase, Phone, PhoneEvent};
 use sf_core::{Session, SessionEvent};
 use tauri::menu::{Menu, MenuItem};
 use tauri::tray::TrayIconBuilder;
@@ -24,6 +25,18 @@ struct AppState {
     pending: Mutex<Option<PendingLogin>>,
     session: Mutex<Option<Session>>,
     events: mpsc::UnboundedSender<SessionEvent>,
+    phone: Mutex<Option<Phone>>,
+    /// Letzter Stand fürs Neuladen der Oberfläche
+    phone_status: std::sync::Mutex<PhoneStatus>,
+}
+
+#[derive(Clone, Default, Serialize)]
+struct PhoneStatus {
+    /// "off", "starting", "ready" oder "error"
+    state: String,
+    detail: String,
+    calls: Vec<sf_core::phone::CallView>,
+    muted: bool,
 }
 
 #[derive(Clone, Serialize)]
@@ -100,7 +113,96 @@ async fn set_session(app: &AppHandle, session: Option<Session>) {
     if let Some(tray) = app.tray_by_id("main") {
         let _ = tray.set_tooltip(Some(tooltip));
     }
-    *app.state::<AppState>().session.lock().await = session;
+    let state = app.state::<AppState>();
+    // Erst das alte Softphone beenden, dann ggf. ein neues starten.
+    state.phone.lock().await.take();
+    let host = session.as_ref().and_then(|s| {
+        url::Url::parse(&s.info().server)
+            .ok()
+            .and_then(|u| u.host_str().map(str::to_owned))
+    });
+    let hub = session.as_ref().map(|s| s.hub().clone());
+    *state.session.lock().await = session;
+    match (hub, host) {
+        (Some(hub), Some(host)) => {
+            let app = app.clone();
+            tauri::async_runtime::spawn(async move { start_phone(app, hub, host).await });
+        }
+        _ => update_phone_status(app, |s| *s = PhoneStatus::default()),
+    }
+}
+
+fn update_phone_status(app: &AppHandle, f: impl FnOnce(&mut PhoneStatus)) {
+    let status = {
+        let state = app.state::<AppState>();
+        let mut status = state.phone_status.lock().unwrap();
+        f(&mut status);
+        if status.state.is_empty() {
+            status.state = "off".into();
+        }
+        status.clone()
+    };
+    let _ = app.emit("phone", status);
+}
+
+async fn start_phone(app: AppHandle, hub: sf_onehub::OneHub, host: String) {
+    update_phone_status(&app, |s| {
+        *s = PhoneStatus {
+            state: "starting".into(),
+            ..Default::default()
+        }
+    });
+    let (tx, mut rx) = mpsc::unbounded_channel();
+    let config = sf_sip::Config::default();
+    match Phone::start(hub, &host, &config, env!("CARGO_PKG_VERSION"), tx).await {
+        Ok(phone) => {
+            let state = app.state::<AppState>();
+            if state.session.lock().await.is_none() {
+                return; // inzwischen abgemeldet
+            }
+            *state.phone.lock().await = Some(phone);
+            update_phone_status(&app, |s| s.state = "ready".into());
+        }
+        Err(e) => {
+            tracing::warn!(error = %e, "Softphone nicht gestartet");
+            update_phone_status(&app, |s| {
+                s.state = "error".into();
+                s.detail = e.to_string();
+            });
+            return;
+        }
+    }
+    while let Some(ev) = rx.recv().await {
+        match ev {
+            PhoneEvent::Registered { ok, detail } => update_phone_status(&app, |s| {
+                s.state = if ok { "ready" } else { "error" }.into();
+                s.detail = detail;
+            }),
+            PhoneEvent::Calls { calls, muted } => {
+                let ringing = calls
+                    .iter()
+                    .any(|c| c.incoming && c.phase == CallPhase::Ringing);
+                let was_ringing = app
+                    .state::<AppState>()
+                    .phone_status
+                    .lock()
+                    .unwrap()
+                    .calls
+                    .iter()
+                    .any(|c| c.incoming && c.phase == CallPhase::Ringing);
+                update_phone_status(&app, |s| {
+                    s.calls = calls;
+                    s.muted = muted;
+                });
+                if ringing && !was_ringing {
+                    show_main_window(&app);
+                }
+            }
+            PhoneEvent::Error { message } => {
+                let _ = app.emit("phone-error", message);
+            }
+        }
+    }
 }
 
 /// Zuletzt benutzte Anlage, um das Anmeldefeld vorzubelegen.
@@ -161,6 +263,65 @@ async fn start_login(
     app.opener()
         .open_url(url.as_str(), None::<&str>)
         .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn phone_status(state: State<'_, AppState>) -> PhoneStatus {
+    let mut status = state.phone_status.lock().unwrap().clone();
+    if status.state.is_empty() {
+        status.state = "off".into();
+    }
+    status
+}
+
+#[tauri::command]
+async fn phone_dial(state: State<'_, AppState>, number: String) -> Result<(), String> {
+    let number: String = number
+        .chars()
+        .filter(|c| !c.is_whitespace() && !matches!(c, '-' | '/' | '(' | ')'))
+        .collect();
+    if number.is_empty() {
+        return Err("Keine Nummer".into());
+    }
+    with_phone(&state, async |p| p.dial(&number).await).await
+}
+
+#[tauri::command]
+async fn phone_answer(state: State<'_, AppState>, call_id: String) -> Result<(), String> {
+    with_phone(&state, async |p| p.answer(&call_id)).await
+}
+
+#[tauri::command]
+async fn phone_hangup(state: State<'_, AppState>, call_id: String) -> Result<(), String> {
+    with_phone(&state, async |p| p.hangup(&call_id).await).await
+}
+
+#[tauri::command]
+async fn phone_hold(state: State<'_, AppState>, call_id: String, hold: bool) -> Result<(), String> {
+    with_phone(&state, async |p| p.hold(&call_id, hold).await).await
+}
+
+#[tauri::command]
+async fn phone_mute(state: State<'_, AppState>, muted: bool) -> Result<(), String> {
+    with_phone(&state, async |p| p.set_mute(muted)).await
+}
+
+#[tauri::command]
+async fn phone_dtmf(
+    state: State<'_, AppState>,
+    call_id: String,
+    digits: String,
+) -> Result<(), String> {
+    with_phone(&state, async |p| p.send_dtmf(&call_id, &digits).await).await
+}
+
+async fn with_phone(
+    state: &AppState,
+    f: impl AsyncFnOnce(&Phone) -> sf_core::phone::PhoneResult<()>,
+) -> Result<(), String> {
+    let phone = state.phone.lock().await;
+    let phone = phone.as_ref().ok_or("Softphone ist nicht bereit")?;
+    f(phone).await.map_err(|e| e.to_string())
 }
 
 #[tauri::command]
@@ -272,6 +433,8 @@ pub fn run() {
             pending: Mutex::default(),
             session: Mutex::default(),
             events: events_tx,
+            phone: Mutex::default(),
+            phone_status: std::sync::Mutex::default(),
         })
         .setup(move |app| {
             // Registriert starface-app:// für das laufende Binary (wichtig für
@@ -315,7 +478,14 @@ pub fn run() {
             last_server,
             restore_session,
             start_login,
-            logout
+            logout,
+            phone_status,
+            phone_dial,
+            phone_answer,
+            phone_hangup,
+            phone_hold,
+            phone_mute,
+            phone_dtmf
         ])
         .run(tauri::generate_context!())
         .expect("Tauri-App konnte nicht starten");

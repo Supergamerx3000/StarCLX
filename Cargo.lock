@@ -4219,9 +4219,12 @@ name = "sf-core"
 version = "0.1.0"
 dependencies = [
  "keyring-core",
+ "prost-types",
+ "serde",
  "serde_json",
  "sf-auth",
  "sf-onehub",
+ "sf-sip",
  "thiserror 2.0.21",
  "tokio",
  "tracing",
@@ -4432,6 +4435,8 @@ dependencies = [
  "serde_json",
  "sf-auth",
  "sf-core",
+ "sf-onehub",
+ "sf-sip",
  "tauri",
  "tauri-build",
  "tauri-plugin-deep-link",
