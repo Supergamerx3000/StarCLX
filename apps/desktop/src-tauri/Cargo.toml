@@ -13,12 +13,14 @@ tauri-build = { version = "2", features = [] }
 
 [dependencies]
 sf-auth.workspace = true
-sf-onehub.workspace = true
+sf-core.workspace = true
+tracing.workspace = true
+tracing-subscriber.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 url.workspace = true
 tokio = { workspace = true, features = ["sync"] }
-tauri = { version = "2", features = [] }
+tauri = { version = "2", features = ["tray-icon"] }
 tauri-plugin-opener = "2"
 tauri-plugin-deep-link = "2"
 tauri-plugin-single-instance = { version = "2", features = ["deep-link"] }

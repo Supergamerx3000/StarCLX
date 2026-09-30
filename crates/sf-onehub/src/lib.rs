@@ -39,7 +39,7 @@ impl TokenHandle {
         *self.0.write().unwrap_or_else(|e| e.into_inner()) = token.into();
     }
 
-    fn get(&self) -> String {
+    pub fn get(&self) -> String {
         self.0.read().unwrap_or_else(|e| e.into_inner()).clone()
     }
 }

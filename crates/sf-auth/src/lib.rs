@@ -14,6 +14,8 @@ use serde::Deserialize;
 use sha2::{Digest, Sha256};
 use url::Url;
 
+pub mod secret;
+
 pub const CLIENT_ID: &str = "windows-app";
 pub const REDIRECT_URI: &str = "starface-app://login";
 pub const SCOPE: &str = "pbx-login";
@@ -26,6 +28,8 @@ pub enum Error {
     Http(#[from] reqwest::Error),
     #[error("Anlage lehnt ab: {error} {description}")]
     Rejected { error: String, description: String },
+    #[error("Schlüsselbund: {0}")]
+    Secret(#[from] keyring_core::Error),
     #[error("Zufallsgenerator nicht verfügbar: {0}")]
     Random(String),
 }
@@ -41,6 +45,8 @@ pub struct Discovery {
     /// Token-Anfrage `resource=edgenode://<id>`.
     #[serde(rename = "edgeNodeId", default)]
     pub edge_node_id: Option<String>,
+    #[serde(default)]
+    pub revocation_endpoint: Option<String>,
 }
 
 /// PKCE-Paar (RFC 7636, Methode S256).
@@ -165,6 +171,26 @@ impl Client {
         .await
     }
 
+    /// Widerruft ein Refresh-Token beim Abmelden. Fehlt der Endpunkt, ist das
+    /// kein Fehler: das Token wird dann nur lokal gelöscht.
+    pub async fn revoke(&self, refresh_token: &str) -> Result<()> {
+        let Some(endpoint) = &self.discovery.revocation_endpoint else {
+            return Ok(());
+        };
+        let form = [
+            ("client_id", CLIENT_ID),
+            ("token", refresh_token),
+            ("token_type_hint", "refresh_token"),
+        ];
+        self.http
+            .post(endpoint)
+            .form(&form)
+            .send()
+            .await?
+            .error_for_status()?;
+        Ok(())
+    }
+
     fn resource(&self) -> Option<String> {
         self.discovery
             .edge_node_id
@@ -247,6 +273,7 @@ mod tests {
                 authorization_endpoint: "https://pbx/auth/realms/pbx/oauth2/auth".into(),
                 token_endpoint: "https://pbx/auth/realms/pbx/oauth2/token".into(),
                 edge_node_id: Some("42".into()),
+                revocation_endpoint: None,
             },
         };
         let pkce = Pkce::from_verifier("v".repeat(43));

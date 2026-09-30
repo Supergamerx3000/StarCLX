@@ -23,10 +23,11 @@ Das Paket registriert den Link-Handler `starface-app://`, über den der Browser-
 | `crates/sf-proto` | Daraus generierte gRPC-Client-Stubs |
 | `crates/sf-auth` | OAuth2-Login (Authorization Code + PKCE, Refresh) |
 | `crates/sf-onehub` | Verbindung zur OneHub-API (Port 9092) mit Bearer-Token |
+| `crates/sf-core` | Sitzung: Refresh-Token im Schlüsselbund, automatische Token-Erneuerung |
 | `apps/desktop` | Desktop-App: Tauri 2, Oberfläche in Svelte 5 / TypeScript |
 | `apps/sfctl` | Kommandozeile für Tests und Skripte |
 
-Geplant: `sf-sip` (Softphone mit libbaresip), `sf-chat` (XMPP), `sf-store` (SQLCipher), `sf-core` (Sitzung und Zustand).
+Geplant: `sf-sip` (Softphone mit libbaresip), `sf-chat` (XMPP), `sf-store` (SQLCipher).
 
 ## Entwickeln
 

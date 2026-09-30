@@ -12,6 +12,11 @@ url.workspace = true
 base64 = "0.23"
 getrandom = "0.4"
 sha2 = "0.11"
+keyring-core = "1"
+
+[target.'cfg(target_os = "linux")'.dependencies]
+zbus-secret-service-keyring-store = { version = "1", features = ["rt-tokio-crypto-rust"] }
 
 [dev-dependencies]
 serde_json.workspace = true
+tokio = { workspace = true, features = ["rt"] }
