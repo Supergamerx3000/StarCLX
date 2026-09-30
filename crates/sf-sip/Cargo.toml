@@ -1,0 +1,18 @@
+[package]
+name = "sf-sip"
+description = "Softphone: libbaresip eingebettet (SIP über TLS, SRTP, Audio)"
+version.workspace = true
+edition.workspace = true
+links = "baresip"
+
+[dependencies]
+thiserror.workspace = true
+tokio = { workspace = true, features = ["sync"] }
+tracing.workspace = true
+
+[dev-dependencies]
+tokio = { workspace = true, features = ["time"] }
+
+[build-dependencies]
+cmake = "0.1"
+pkg-config = "0.3"

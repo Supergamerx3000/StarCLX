@@ -1,0 +1,8 @@
+[submodule "crates/sf-sip/vendor/re"]
+	path = crates/sf-sip/vendor/re
+	url = https://github.com/baresip/re
+	shallow = true
+[submodule "crates/sf-sip/vendor/baresip"]
+	path = crates/sf-sip/vendor/baresip
+	url = https://github.com/baresip/baresip
+	shallow = true
