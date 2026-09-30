@@ -4,6 +4,8 @@
 //! Schlüsselbund ab und erneuert das Access-Token (an der Testanlage 300 s
 //! gültig) im Hintergrund, bevor es abläuft.
 
+pub mod phone;
+
 use std::time::Duration;
 
 use sf_auth::Tokens;

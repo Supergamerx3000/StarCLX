@@ -7,6 +7,9 @@ edition.workspace = true
 [dependencies]
 sf-auth.workspace = true
 sf-onehub.workspace = true
+sf-sip = { path = "../sf-sip" }
+serde.workspace = true
+prost-types.workspace = true
 thiserror.workspace = true
 tracing.workspace = true
 url.workspace = true
