@@ -8,14 +8,7 @@ const MODULES: &str =
     "g711;g722;srtp;auconv;auresamp;pipewire;pulse;alsa;stun;netroam;ausine;aubridge";
 
 /// Systembibliotheken per pkg-config (Namen der .pc-Dateien).
-const SYSTEM_LIBS: &[&str] = &[
-    "openssl",
-    "zlib",
-    "spandsp",
-    "libpipewire-0.3",
-    "libpulse",
-    "alsa",
-];
+const SYSTEM_LIBS: &[&str] = &["openssl", "zlib", "libpipewire-0.3", "libpulse", "alsa"];
 
 fn main() {
     let root = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
@@ -75,6 +68,18 @@ fn main() {
     println!("cargo:rustc-link-lib=static=sfsip");
     println!("cargo:rustc-link-lib=static=baresip");
     println!("cargo:rustc-link-lib=static=re");
+
+    // spandsp (nur für G.722) statisch, damit das Paket auf dem Zielsystem
+    // nicht nachinstalliert werden muss. Die Fax-Teile, die libtiff
+    // bräuchten, werden nicht mitgelinkt.
+    let spandsp = pkg_config::Config::new()
+        .cargo_metadata(false)
+        .probe("spandsp")
+        .unwrap_or_else(|e| panic!("spandsp nicht gefunden (libspandsp-dev installieren): {e}"));
+    for dir in &spandsp.link_paths {
+        println!("cargo:rustc-link-search=native={}", dir.display());
+    }
+    println!("cargo:rustc-link-lib=static=spandsp");
 
     for lib in SYSTEM_LIBS {
         pkg_config::Config::new().probe(lib).unwrap_or_else(|e| {
