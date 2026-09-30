@@ -36,6 +36,11 @@ pub enum PhoneError {
     NotRinging,
     #[error("Keine Voicemailbox vorhanden")]
     NoMailbox,
+    #[error(
+        "Call2Go angefordert, aber kein aktives Mobiltelefon (iFMC) hinterlegt. \
+         Ohne weiteres Telefon passiert nichts."
+    )]
+    NoSwitchTarget,
 }
 
 pub type PhoneResult<T> = std::result::Result<T, PhoneError>;
@@ -323,6 +328,20 @@ impl Phone {
             .switch_phone(req)
             .await
             .map_err(sf_onehub::Error::from)?;
+        // Die Anlage nimmt den Auftrag auch ohne Ziel an und tut dann nichts.
+        // Ein Tischtelefon kann ebenfalls Ziel sein, daher nur ein Hinweis
+        // nach dem Auftrag, wenn kein aktives iFMC-Telefon existiert.
+        let fmc = self
+            .hub
+            .fmc_phone()
+            .get_fmc_phones(())
+            .await
+            .map_err(sf_onehub::Error::from)?
+            .into_inner()
+            .fmc_phones;
+        if !fmc.iter().any(|p| p.enabled) {
+            return Err(PhoneError::NoSwitchTarget);
+        }
         Ok(())
     }
 

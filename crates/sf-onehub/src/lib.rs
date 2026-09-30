@@ -149,6 +149,10 @@ impl OneHub {
         voicemail,
         v1::voicemail::voice_mail_service_client::VoiceMailServiceClient
     );
+    service!(
+        fmc_phone,
+        v1::fmcphone::fmc_phone_service_client::FmcPhoneServiceClient
+    );
 
     /// Holt die SIP-Zugangsdaten für das App-Telefon zu `device_id` (siehe
     /// [`SIP_DEVICE_ID`]). Legt das Telefon bei Bedarf auf der Anlage an.
