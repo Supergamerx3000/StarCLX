@@ -58,6 +58,10 @@ enum Command {
         /// TLS-Zertifikat der Anlage für SIP nicht prüfen
         #[arg(long)]
         insecure_sip: bool,
+        /// Geräte-ID für RegisterSipDevice; bestimmt, welches App-Telefon
+        /// die Anlage verwendet
+        #[arg(long, env = "SF_SIP_DEVICE_ID", default_value = sf_onehub::SIP_DEVICE_ID)]
+        sip_device_id: String,
     },
 }
 
@@ -123,7 +127,17 @@ async fn main() -> Result<()> {
             answer_all,
             seconds,
             insecure_sip,
-        } => softphone(&hub, &host, call, answer_all, seconds, insecure_sip).await?,
+            sip_device_id,
+        } => {
+            let opts = SoftphoneOpts {
+                number: call,
+                answer_all,
+                seconds,
+                insecure_sip,
+                sip_device_id,
+            };
+            softphone(&hub, &host, opts).await?
+        }
     }
     Ok(())
 }
@@ -132,16 +146,26 @@ async fn main() -> Result<()> {
 /// der Anlage gilt und automatisch angenommen wird.
 const PLACE_CALL_WINDOW: Duration = Duration::from_secs(20);
 
-async fn softphone(
-    hub: &OneHub,
-    host: &str,
+struct SoftphoneOpts {
     number: Option<String>,
     answer_all: bool,
     seconds: Option<u64>,
     insecure_sip: bool,
-) -> Result<()> {
+    sip_device_id: String,
+}
+
+async fn softphone(hub: &OneHub, host: &str, opts: SoftphoneOpts) -> Result<()> {
+    let SoftphoneOpts {
+        number,
+        answer_all,
+        seconds,
+        insecure_sip,
+        sip_device_id,
+    } = opts;
+    let deadline = seconds.map(|s| Instant::now() + Duration::from_secs(s));
+
     let creds = hub
-        .register_sip_device(env!("CARGO_PKG_VERSION"))
+        .register_sip_device(&sip_device_id, env!("CARGO_PKG_VERSION"))
         .await
         .context("RegisterSipDevice")?;
     let phone_id = hub.phone_id_for_sip_user(&creds.user).await?;
@@ -152,6 +176,14 @@ async fn softphone(
         creds.port,
         phone_id.as_deref().unwrap_or("unbekannt")
     );
+    // Ohne Telefon-ID würde PlaceCall das Primärtelefon nehmen, also nicht
+    // dieses Softphone.
+    if number.is_some() && phone_id.is_none() {
+        bail!(
+            "App-Telefon SIP/{} nicht in `sfctl phones` gefunden; kein Anruf gestartet",
+            creds.user
+        );
+    }
 
     let config = sf_sip::Config {
         verify_server: !insecure_sip,
@@ -181,7 +213,29 @@ async fn softphone(
     .await;
     registered.context("keine SIP-Registrierung innerhalb von 15 s")??;
 
-    let mut events = hub.call().subscribe_call_events(()).await?.into_inner();
+    // Der Ereignisstrom liefert seine Antwort-Header erst mit dem ersten
+    // Ereignis; deshalb nebenher lesen und nicht darauf warten.
+    let (events_tx, mut events) = tokio::sync::mpsc::unbounded_channel();
+    let events_hub = hub.clone();
+    tokio::spawn(async move {
+        let result = async {
+            let mut stream = events_hub
+                .call()
+                .subscribe_call_events(())
+                .await?
+                .into_inner();
+            while let Some(ev) = stream.message().await? {
+                if events_tx.send(ev.call_event).is_err() {
+                    break;
+                }
+            }
+            Ok::<_, anyhow::Error>(())
+        }
+        .await;
+        if let Err(e) = result {
+            eprintln!("Anruf-Ereignisse der Anlage: {e}");
+        }
+    });
 
     let mut placed_at = None;
     if let Some(number) = number {
@@ -195,16 +249,12 @@ async fn softphone(
         placed_at = Some(Instant::now());
     }
 
-    let deadline = seconds.map(|s| Instant::now() + Duration::from_secs(s));
     let mut active: Option<String> = None;
     loop {
         tokio::select! {
             _ = tokio::signal::ctrl_c() => break,
             _ = sleep_until(deadline) => break,
-            ev = events.message() => match ev? {
-                Some(ev) => println!("Anlage: {:?}", ev.call_event),
-                None => bail!("Ereignisstrom der Anlage beendet"),
-            },
+            Some(ev) = events.recv() => println!("Anlage: {ev:?}"),
             ev = sip.recv() => {
                 let Some(ev) = ev else { bail!("Softphone beendet") };
                 println!("SIP: {ev:?}");
