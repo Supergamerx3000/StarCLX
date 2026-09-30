@@ -78,7 +78,7 @@ Die Dienste unter `proto/edge-node-gateway/`, `identity-service/` und `media-gat
 
 ## 5. Softphone (SIP)
 
-- Die SIP-Zugangsdaten kommen aus `SipDeviceService.RegisterSipDevice`. Der Aufruf übergibt eine feste Geräte-ID `163C00A2-C2F1-4FFE-9474-49283C379852` und die App-Version. Die Antwort enthält `sip_user_id`, `password`, `realm` und `port`.
+- Die SIP-Zugangsdaten kommen aus `SipDeviceService.RegisterSipDevice`. Der Aufruf übergibt eine feste Geräte-ID `163C00A2-C2F1-4FFE-9474-49283C379852` und die App-Version. Die Antwort enthält `sip_user_id`, `password`, `realm` und `port`. Die Geräte-ID bestimmt den Telefontyp auf der Anlage (Server-Enum `StarfaceType`): Windows `163C00A2-…`, Mac `E22FF5B3-38ED-4A5E-966A-80B4785A2FF7`, **Linux `D4CC1516-EC90-42C7-8F70-B0853B173232`**, iPhone `FFFDF5C8-E74F-4B18-B258-4B66C3FFFFAB`, Android `244C5E4C-4011-4F76-A7E1-52D40F399C6B`. Der Linux-Client meldet sich mit der Linux-ID an.
 - Registriert wird am Anlagen-Host mit **TLS**, einem Registrierungs-Timeout von 3600 s und Re-INVITE/UPDATE bei IP-Wechsel. Die SIP-Zertifikate prüft die App selbst.
 - **Die Anrufsteuerung läuft nicht über SIP.** Ausgehende Anrufe startet die App per gRPC `PlaceCall(number, phone_id)`. Die Anlage ruft dann das Softphone an, und dieses nimmt automatisch an (`SetAutoAnswerCalls(true)`). Halten, Übergabe und Konferenz laufen ebenfalls per gRPC. Das Softphone ist also ein reines Audio-Endgerät, ähnlich wie ein per CTI gesteuertes Tischtelefon.
 - Codecs sind Opus, G.722, A-Law, µ-Law und GSM, die Prioritäten sind einstellbar. SRTP, STUN, BLF-/MWI-NOTIFY und lokale Aufzeichnung sind im Wrapper vorhanden.

@@ -16,10 +16,18 @@ pub use sf_proto;
 
 pub const DEFAULT_PORT: u16 = 9092;
 
-/// Geräte-ID, mit der auch die Windows-App ihr Softphone anmeldet. Die
-/// Anlage legt dazu ein Telefon `SIP/<nr>.WinClient` an; dessen Typ lässt
-/// sich in der Verwaltung auf "UCC Client for Linux" stellen.
-pub const SIP_DEVICE_ID: &str = "163C00A2-C2F1-4FFE-9474-49283C379852";
+/// Softphone-ID für RegisterSipDevice. Die Anlage leitet daraus den
+/// Telefontyp ab (Enum `StarfaceType` im Anlagen-Code) und legt ein
+/// passendes App-Telefon an. Bekannte IDs: Windows
+/// 163C00A2-C2F1-4FFE-9474-49283C379852, Mac
+/// E22FF5B3-38ED-4A5E-966A-80B4785A2FF7, iPhone
+/// FFFDF5C8-E74F-4B18-B258-4B66C3FFFFAB, Android
+/// 244C5E4C-4011-4F76-A7E1-52D40F399C6B. Hier: "UCC Client for Linux".
+pub const SIP_DEVICE_ID: &str = "D4CC1516-EC90-42C7-8F70-B0853B173232";
+
+fn phone_matches_sip_user(phone_name: &str, sip_user: &str) -> bool {
+    phone_name.strip_prefix("SIP/").unwrap_or(phone_name) == sip_user
+}
 
 /// Antwort von `SipDeviceService.RegisterSipDevice`.
 #[derive(Clone)]
@@ -134,12 +142,16 @@ impl OneHub {
     );
     service!(chat, v1::chat::chat_service_client::ChatServiceClient);
 
-    /// Holt die SIP-Zugangsdaten für das App-Telefon. Legt das Telefon bei
-    /// Bedarf auf der Anlage an.
-    pub async fn register_sip_device(&self, app_version: &str) -> Result<SipCredentials> {
+    /// Holt die SIP-Zugangsdaten für das App-Telefon zu `device_id` (siehe
+    /// [`SIP_DEVICE_ID`]). Legt das Telefon bei Bedarf auf der Anlage an.
+    pub async fn register_sip_device(
+        &self,
+        device_id: &str,
+        app_version: &str,
+    ) -> Result<SipCredentials> {
         let req = v1::sipdevice::RegisterSipDeviceRequest {
             sip_device_id: Some(v1::types::SipDeviceId {
-                id: SIP_DEVICE_ID.into(),
+                id: device_id.into(),
             }),
             app_version: app_version.into(),
         };
@@ -159,12 +171,13 @@ impl OneHub {
         })
     }
 
-    /// Telefon-ID des App-Telefons, das zu einem SIP-Benutzer gehört.
+    /// Telefon-ID des App-Telefons, das zu einem SIP-Benutzer gehört. Die
+    /// Anlage nennt es `SIP/<sip_user>`.
     pub async fn phone_id_for_sip_user(&self, sip_user: &str) -> Result<Option<String>> {
         let phones = self.me().get_phones(()).await?.into_inner().phones;
         Ok(phones
             .into_iter()
-            .find(|p| p.name == sip_user)
+            .find(|p| phone_matches_sip_user(&p.name, sip_user))
             .and_then(|p| p.phone_id)
             .map(|id| id.id))
     }
@@ -176,5 +189,23 @@ impl OneHub {
             .await?
             .into_inner()
             .version)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::phone_matches_sip_user;
+
+    #[test]
+    fn app_phone_name_carries_sip_prefix() {
+        assert!(phone_matches_sip_user(
+            "SIP/1006.WinClient",
+            "1006.WinClient"
+        ));
+        assert!(phone_matches_sip_user("1006.WinClient", "1006.WinClient"));
+        assert!(!phone_matches_sip_user(
+            "SIP/1004.WinClient",
+            "1006.WinClient"
+        ));
     }
 }
