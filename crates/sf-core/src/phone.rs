@@ -34,6 +34,8 @@ pub enum PhoneError {
     Register(String),
     #[error("Dieser Anruf klingelt nicht am Softphone")]
     NotRinging,
+    #[error("Keine Voicemailbox vorhanden")]
+    NoMailbox,
 }
 
 pub type PhoneResult<T> = std::result::Result<T, PhoneError>;
@@ -60,6 +62,12 @@ pub struct CallView {
     pub incoming: bool,
     pub remote_name: String,
     pub remote_number: String,
+    /// Eigene Nummer bzw. Gruppe, über die der Anruf kam
+    pub local_name: String,
+    pub local_number: String,
+    /// Bei einer Rückfrage: der gehaltene Anruf, zu dem sie gehört
+    pub consultation_of: Option<String>,
+    pub recording: bool,
     /// Unix-Zeit in Millisekunden
     pub connected_since: Option<i64>,
     #[serde(skip)]
@@ -254,6 +262,117 @@ impl Phone {
         Ok(())
     }
 
+    /// Leitet einen (klingelnden) Anruf an eine andere Nummer weiter.
+    pub async fn forward(&self, call_id: &str, number: &str) -> PhoneResult<()> {
+        let req = v1::call::ForwardCallRequest {
+            call_id: Some(call_id_of(call_id)),
+            number: number.to_owned(),
+        };
+        self.hub
+            .call()
+            .forward_call(req)
+            .await
+            .map_err(sf_onehub::Error::from)?;
+        Ok(())
+    }
+
+    /// Schickt einen Anruf auf die erste eigene Voicemailbox.
+    pub async fn to_voicemail(&self, call_id: &str) -> PhoneResult<()> {
+        let mut vm = self.hub.voicemail();
+        let mailbox = vm
+            .get_mailboxes(())
+            .await
+            .map_err(sf_onehub::Error::from)?
+            .into_inner()
+            .mailboxes
+            .into_iter()
+            .next()
+            .and_then(|m| m.mailbox_id)
+            .ok_or(PhoneError::NoMailbox)?;
+        let req = v1::voicemail::TransferCallToVoicemailBoxRequest {
+            call_id: Some(call_id_of(call_id)),
+            mailbox_id: Some(mailbox),
+        };
+        vm.transfer_call_to_voicemail_box(req)
+            .await
+            .map_err(sf_onehub::Error::from)?;
+        Ok(())
+    }
+
+    /// Startet oder beendet die Aufnahme auf der Anlage.
+    pub async fn record(&self, call_id: &str) -> PhoneResult<()> {
+        let req = v1::call::RecordCallRequest {
+            call_id: Some(call_id_of(call_id)),
+        };
+        self.hub
+            .call()
+            .record_call(req)
+            .await
+            .map_err(sf_onehub::Error::from)?;
+        Ok(())
+    }
+
+    /// Rufweitergabe (Call2Go): das Gespräch auf ein anderes eigenes Telefon
+    /// holen lassen.
+    pub async fn switch_phone(&self, call_id: &str) -> PhoneResult<()> {
+        let req = v1::call::SwitchPhoneRequest {
+            call_id: Some(call_id_of(call_id)),
+        };
+        self.hub
+            .call()
+            .switch_phone(req)
+            .await
+            .map_err(sf_onehub::Error::from)?;
+        Ok(())
+    }
+
+    /// Rückfrage: hält `call_id` und ruft `number` an.
+    pub async fn consult(&self, call_id: &str, number: &str) -> PhoneResult<()> {
+        self.inner.lock().unwrap().dial_until = Some(Instant::now() + DIAL_WINDOW);
+        let req = v1::call::PlaceConsultationCallRequest {
+            number: number.to_owned(),
+            call_id: Some(call_id_of(call_id)),
+            phone_id: Some(v1::types::PhoneId {
+                id: self.phone_id.clone(),
+            }),
+        };
+        if let Err(e) = self.hub.call().place_consultation_call(req).await {
+            self.inner.lock().unwrap().dial_until = None;
+            return Err(sf_onehub::Error::from(e).into());
+        }
+        Ok(())
+    }
+
+    /// Verbindet die Rückfrage mit dem gehaltenen Anruf und steigt aus.
+    pub async fn transfer_consultation(&self, call_id: &str) -> PhoneResult<()> {
+        let req = v1::call::TransferConsultationCallRequest {
+            call_id: Some(call_id_of(call_id)),
+        };
+        self.hub
+            .call()
+            .transfer_consultation_call(req)
+            .await
+            .map_err(sf_onehub::Error::from)?;
+        Ok(())
+    }
+
+    /// Startet eine Konferenz aus den angegebenen Anrufen (z. B. gehaltenes
+    /// Gespräch und Rückfrage).
+    pub async fn conference(&self, call_ids: &[String]) -> PhoneResult<()> {
+        let req = v1::conference::InitiateConferenceRequest {
+            call_ids: call_ids.iter().map(|id| call_id_of(id)).collect(),
+            phone_id: Some(v1::types::PhoneId {
+                id: self.phone_id.clone(),
+            }),
+        };
+        self.hub
+            .conference_call()
+            .initiate_conference(req)
+            .await
+            .map_err(sf_onehub::Error::from)?;
+        Ok(())
+    }
+
     /// Schaltet das Mikrofon für alle Gespräche am Softphone stumm.
     pub fn set_mute(&self, muted: bool) -> PhoneResult<()> {
         let active = {
@@ -425,6 +544,11 @@ fn apply(inner: &mut Inner, ev: v1::call::call_event_response::CallEvent) {
                 }
             }
         }
+        E::CallRecordingChanged(e) => {
+            if let Some(c) = inner.calls.get_mut(&id_of(&e.call_id)) {
+                c.recording = e.record_by != 0;
+            }
+        }
         E::CallMetadataChanged(e) => {
             if let Some(c) = inner.calls.get_mut(&id_of(&e.call_id)) {
                 c.sip_call_ids = e.sip_call_ids;
@@ -471,12 +595,21 @@ fn phase_of(state: v1::types::CallState) -> CallPhase {
 
 fn view_of(c: &v1::call::Call) -> CallView {
     let remote = c.remote_participant.clone().unwrap_or_default();
+    let local = c.local_participant.clone().unwrap_or_default();
     CallView {
         id: id_of(&c.call_id),
         phase: phase_of(c.call_state()),
         incoming: c.call_direction() == v1::types::CallDirection::Inbound,
         remote_name: remote.name,
         remote_number: remote.number,
+        local_name: local.name,
+        local_number: local.number,
+        consultation_of: c
+            .consultation_call_id
+            .as_ref()
+            .map(|id| id.id.clone())
+            .filter(|id| !id.is_empty()),
+        recording: c.record_by != 0,
         connected_since: c.connected_timestamp.as_ref().map(millis),
         sip_call_ids: c.sip_call_ids.clone(),
     }

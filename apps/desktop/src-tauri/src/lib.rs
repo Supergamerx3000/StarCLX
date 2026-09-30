@@ -276,10 +276,7 @@ fn phone_status(state: State<'_, AppState>) -> PhoneStatus {
 
 #[tauri::command]
 async fn phone_dial(state: State<'_, AppState>, number: String) -> Result<(), String> {
-    let number: String = number
-        .chars()
-        .filter(|c| !c.is_whitespace() && !matches!(c, '-' | '/' | '(' | ')'))
-        .collect();
+    let number = clean_number(&number);
     if number.is_empty() {
         return Err("Keine Nummer".into());
     }
@@ -313,6 +310,44 @@ async fn phone_dtmf(
     digits: String,
 ) -> Result<(), String> {
     with_phone(&state, async |p| p.send_dtmf(&call_id, &digits).await).await
+}
+
+/// Weitere Funktionen des Call Managers.
+#[tauri::command]
+async fn phone_action(
+    state: State<'_, AppState>,
+    action: String,
+    call_id: String,
+    number: Option<String>,
+) -> Result<(), String> {
+    // Bei "conference" enthält `number` die weiteren Anruf-IDs, kommagetrennt.
+    let raw = number.unwrap_or_default();
+    let number = clean_number(&raw);
+    with_phone(&state, async |p| match action.as_str() {
+        "forward" => p.forward(&call_id, &number).await,
+        "voicemail" => p.to_voicemail(&call_id).await,
+        "record" => p.record(&call_id).await,
+        "switch_phone" => p.switch_phone(&call_id).await,
+        "consult" => p.consult(&call_id, &number).await,
+        "transfer_consultation" => p.transfer_consultation(&call_id).await,
+        "conference" => {
+            let mut ids = vec![call_id.clone()];
+            ids.extend(
+                raw.split(',')
+                    .filter(|id| !id.is_empty())
+                    .map(str::to_owned),
+            );
+            p.conference(&ids).await
+        }
+        _ => Ok(()),
+    })
+    .await
+}
+
+fn clean_number(n: &str) -> String {
+    n.chars()
+        .filter(|c| !c.is_whitespace() && !matches!(c, '-' | '/' | '(' | ')'))
+        .collect()
 }
 
 async fn with_phone(
@@ -485,7 +520,8 @@ pub fn run() {
             phone_hangup,
             phone_hold,
             phone_mute,
-            phone_dtmf
+            phone_dtmf,
+            phone_action
         ])
         .run(tauri::generate_context!())
         .expect("Tauri-App konnte nicht starten");

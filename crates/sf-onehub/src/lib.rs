@@ -141,6 +141,14 @@ impl OneHub {
         v1::sipdevice::sip_device_service_client::SipDeviceServiceClient
     );
     service!(chat, v1::chat::chat_service_client::ChatServiceClient);
+    service!(
+        conference_call,
+        v1::conference::conference_call_service_client::ConferenceCallServiceClient
+    );
+    service!(
+        voicemail,
+        v1::voicemail::voice_mail_service_client::VoiceMailServiceClient
+    );
 
     /// Holt die SIP-Zugangsdaten für das App-Telefon zu `device_id` (siehe
     /// [`SIP_DEVICE_ID`]). Legt das Telefon bei Bedarf auf der Anlage an.
