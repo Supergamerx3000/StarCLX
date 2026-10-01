@@ -12,7 +12,14 @@
   let editing = $state<FunctionKey | null>(null);
   let busy = $state(false);
   let error = $state("");
-  let dragging: { kind: "type"; type: string } | { kind: "key"; id: string } | null = null;
+  // Ziehen mit Zeigerereignissen: HTML5-Drag&Drop kommt im Tauri-Fenster
+  // unter Linux nicht an (das Fenster fängt Drops für Dateien ab).
+  type Drag = { kind: "type"; type: string; label: string } | { kind: "key"; id: string; label: string };
+  let pending: { drag: Drag; x: number; y: number } | null = null;
+  let dragging = $state<Drag | null>(null);
+  let ghost = $state({ x: 0, y: 0 });
+  /** Nach einem Ziehen den folgenden Klick verschlucken */
+  let swallowClick = false;
   /** Platz, auf den eine neue Taste nach dem Anlegen kommt */
   let target: number | null = null;
   let over = $state<number | null>(null);
@@ -114,12 +121,37 @@
     if (await act("fkey_delete", { set: fkeys.setId, id: k.id })) editing = null;
   }
 
-  function drop(e: DragEvent, slot: number) {
+  function startDrag(e: PointerEvent, drag: Drag) {
+    if (e.button !== 0 || busy) return;
+    pending = { drag, x: e.clientX, y: e.clientY };
+  }
+
+  function slotAt(x: number, y: number) {
+    const el = document.elementFromPoint(x, y)?.closest<HTMLElement>("[data-slot]");
+    return el ? Number(el.dataset.slot) : null;
+  }
+
+  function onMove(e: PointerEvent) {
+    if (!pending) return;
+    if (!dragging) {
+      if (Math.hypot(e.clientX - pending.x, e.clientY - pending.y) < 6) return;
+      dragging = pending.drag;
+    }
     e.preventDefault();
-    over = null;
+    ghost = { x: e.clientX, y: e.clientY };
+    over = slotAt(e.clientX, e.clientY);
+  }
+
+  function onUp(e: PointerEvent) {
     const d = dragging;
+    pending = null;
     dragging = null;
-    if (!d || busy) return;
+    over = null;
+    if (!d) return;
+    swallowClick = true;
+    setTimeout(() => (swallowClick = false), 0);
+    const slot = slotAt(e.clientX, e.clientY);
+    if (slot === null) return;
     if (d.kind === "type") {
       target = slot;
       editing = blank(d.type);
@@ -128,6 +160,17 @@
     }
   }
 
+  function cancelDrag() {
+    pending = null;
+    dragging = null;
+    over = null;
+  }
+
+  /** Klick nur, wenn nicht gerade gezogen wurde */
+  const click = (f: () => void) => () => {
+    if (!swallowClick) f();
+  };
+
   const toggleNumber = (id: number) => {
     if (!editing) return;
     const ids = editing.redirectNumberIds;
@@ -135,7 +178,13 @@
   };
 </script>
 
-<div class="editor">
+<svelte:window onpointermove={onMove} onpointerup={onUp} onpointercancel={cancelDrag} onblur={cancelDrag} />
+
+{#if dragging}
+  <div class="ghost" style="left: {ghost.x}px; top: {ghost.y}px">{dragging.label}</div>
+{/if}
+
+<div class="editor" class:dragging={!!dragging}>
   <div class="left">
     <label class="cols">Anzahl der Spalten
       <select bind:value={columns}>{#each [1, 2, 3, 4, 5, 6] as n}<option value={n}>{n}</option>{/each}</select>
@@ -147,14 +196,18 @@
           class="slot"
           class:over={over === i}
           role="listitem"
-          ondragover={(e) => { e.preventDefault(); over = i; }}
-          ondragleave={() => over === i && (over = null)}
-          ondrop={(e) => drop(e, i)}
+          data-slot={i}
         >
           <span class="num">{String(i + 1).padStart(2, "0")}</span>
           {#if k}
-            <div class="keywrap" draggable="true" role="button" tabindex="-1" ondragstart={() => (dragging = { kind: "key", id: k.id })}>
-              <FkeyTile key={k} onclick={() => (editing = structuredClone($state.snapshot(k)) as FunctionKey)} />
+            <div
+              class="keywrap"
+              class:lifted={dragging?.kind === "key" && dragging.id === k.id}
+              role="button"
+              tabindex="-1"
+              onpointerdown={(e) => startDrag(e, { kind: "key", id: k.id, label: k.name || typeInfo(k.functionKeyType).label })}
+            >
+              <FkeyTile key={k} onclick={click(() => (editing = structuredClone($state.snapshot(k)) as FunctionKey))} />
             </div>
           {:else}
             <div class="empty"></div>
@@ -173,9 +226,8 @@
         <button
           class="type"
           class:unusable={!t.usable}
-          draggable="true"
-          ondragstart={() => (dragging = { kind: "type", type: t.type })}
-          onclick={() => { target = null; editing = blank(t.type); }}
+          onpointerdown={(e) => startDrag(e, { kind: "type", type: t.type, label: t.label })}
+          onclick={click(() => { target = null; editing = blank(t.type); })}
         >{t.label}</button>
       {/each}
     {/each}
@@ -271,13 +323,22 @@
   .grid { display: grid; gap: 0.4rem; }
   .slot { display: grid; grid-template-columns: 1.6rem 1fr; align-items: center; gap: 0.3rem; border-radius: 6px; }
   .slot.over { outline: 2px solid var(--accent); }
+  .dragging, .dragging * { cursor: grabbing !important; user-select: none; }
+  .keywrap { touch-action: none; }
+  .keywrap.lifted { opacity: 0.35; }
+  .ghost {
+    position: fixed; z-index: 40; pointer-events: none; transform: translate(-50%, -50%);
+    max-width: 14rem; padding: 0.35rem 0.7rem; border-radius: 6px; background: var(--panel-2);
+    border: 1px solid var(--accent); box-shadow: 0 4px 14px #0006; font-size: 0.9rem; font-weight: 600;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
   .num { color: var(--muted); font-size: 0.8rem; font-variant-numeric: tabular-nums; text-align: right; }
   .empty { min-height: 3.2rem; border: 1px dashed var(--line); border-radius: 6px; }
   .keywrap { min-width: 0; }
   .types { display: flex; flex-direction: column; gap: 0.25rem; }
   .types h4 { margin: 0 0 0.2rem; }
   .types h5 { margin: 0.6rem 0 0.1rem; font-size: 0.8rem; color: var(--muted); font-weight: 600; }
-  .type { text-align: left; padding: 0.35rem 0.6rem; cursor: grab; }
+  .type { text-align: left; padding: 0.35rem 0.6rem; cursor: grab; touch-action: none; }
   .type.unusable { opacity: 0.55; }
   .small { font-size: 0.85rem; }
   .muted { color: var(--muted); margin: 0.2rem 0; }
