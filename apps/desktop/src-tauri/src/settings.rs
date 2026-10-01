@@ -1,0 +1,136 @@
+//! Lokale Einstellungen als JSON im Konfigurationsordner. Geheimnisse liegen
+//! nie hier, sondern im Schlüsselbund.
+
+use std::path::PathBuf;
+
+use serde::{Deserialize, Serialize};
+use tauri::{AppHandle, Manager};
+
+#[derive(Default, Serialize, Deserialize)]
+pub struct Settings {
+    pub last_server: Option<String>,
+    #[serde(default)]
+    pub prefs: Prefs,
+}
+
+/// Benutzereinstellungen der Oberfläche, aufgebaut wie im Windows-Client.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct Prefs {
+    /// Softphone verwenden
+    pub softphone: bool,
+    /// Softphone bei der Anmeldung als primäres Telefon auswählen
+    pub primary_on_login: bool,
+    /// Bei Rufannahme das Softphone als primäres Telefon auswählen
+    pub primary_on_answer: bool,
+    /// Benachrichtigung über verpasste Anrufe (ohne Gruppenanrufe)
+    pub notify_missed: bool,
+    /// Benachrichtigung bei verpassten Gruppenanrufen
+    pub notify_missed_group: bool,
+    /// Bevorzugte Geräte in Reihenfolge (PipeWire-/Pulse-Namen). Leer heisst
+    /// Systemstandard.
+    pub speakers: Vec<String>,
+    pub microphones: Vec<String>,
+    pub ring_devices: Vec<String>,
+    pub ringtone: bool,
+    pub ringtone_internal: String,
+    pub ringtone_external: String,
+    /// Eigene Klingeltöne (WAV-Dateien)
+    pub custom_ringtones: Vec<String>,
+    /// Beim Empfang eines Anrufs die App in den Vordergrund bringen
+    pub bring_to_front: bool,
+    pub busylight: bool,
+    pub busylight_sound: String,
+    /// 0 bis 100
+    pub busylight_volume: u8,
+}
+
+impl Default for Prefs {
+    fn default() -> Self {
+        Self {
+            softphone: true,
+            primary_on_login: false,
+            primary_on_answer: false,
+            notify_missed: true,
+            notify_missed_group: true,
+            speakers: Vec::new(),
+            microphones: Vec::new(),
+            ring_devices: Vec::new(),
+            ringtone: true,
+            ringtone_internal: "Klassisch".into(),
+            ringtone_external: "Klassisch".into(),
+            custom_ringtones: Vec::new(),
+            bring_to_front: true,
+            busylight: false,
+            busylight_sound: String::new(),
+            busylight_volume: 50,
+        }
+    }
+}
+
+impl Prefs {
+    /// Änderungen, die einen Neustart des Softphones brauchen
+    pub fn softphone_changed(&self, other: &Prefs) -> bool {
+        self.softphone != other.softphone
+            || self.speakers != other.speakers
+            || self.microphones != other.microphones
+    }
+}
+
+fn settings_path(app: &AppHandle) -> Option<PathBuf> {
+    app.path()
+        .app_config_dir()
+        .ok()
+        .map(|d| d.join("settings.json"))
+}
+
+pub fn load(app: &AppHandle) -> Settings {
+    settings_path(app)
+        .and_then(|p| std::fs::read(p).ok())
+        .and_then(|b| serde_json::from_slice(&b).ok())
+        .unwrap_or_default()
+}
+
+pub fn save(app: &AppHandle, settings: &Settings) {
+    let Some(path) = settings_path(app) else {
+        return;
+    };
+    let result = path
+        .parent()
+        .map_or(Ok(()), std::fs::create_dir_all)
+        .and_then(|()| {
+            std::fs::write(
+                &path,
+                serde_json::to_vec_pretty(settings).unwrap_or_default(),
+            )
+        });
+    if let Err(e) = result {
+        tracing::warn!(error = %e, "Einstellungen nicht gespeichert");
+    }
+}
+
+/// Liest, ändert und speichert die Einstellungen in einem Schritt.
+pub fn update(app: &AppHandle, f: impl FnOnce(&mut Settings)) {
+    let mut s = load(app);
+    f(&mut s);
+    save(app, &s);
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn old_settings_file_gets_default_prefs() {
+        let s: Settings = serde_json::from_str(r#"{"last_server":"https://pbx"}"#).unwrap();
+        assert_eq!(s.last_server.as_deref(), Some("https://pbx"));
+        assert_eq!(s.prefs, Prefs::default());
+    }
+
+    #[test]
+    fn partial_prefs_keep_other_defaults() {
+        let s: Settings = serde_json::from_str(r#"{"prefs":{"ringtone":false}}"#).unwrap();
+        assert!(!s.prefs.ringtone);
+        assert!(s.prefs.softphone);
+    }
+}

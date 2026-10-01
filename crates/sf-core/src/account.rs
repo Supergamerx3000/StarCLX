@@ -1,0 +1,123 @@
+//! Benutzereinstellungen, die auf der Anlage liegen: signalisierte Rufnummer
+//! und primäres Telefon.
+
+use serde::Serialize;
+use sf_onehub::OneHub;
+use sf_onehub::sf_proto::v1;
+
+/// Eine Rufnummer, die bei ausgehenden Anrufen gezeigt werden kann.
+#[derive(Debug, Clone, Serialize, PartialEq, Eq)]
+pub struct SignalingNumber {
+    pub id: String,
+    /// Lesbare Nummer, leer bei unterdrückter Nummer
+    pub number: String,
+    /// Diese Wahl unterdrückt die Nummer
+    pub suppressed: bool,
+    pub read_only: bool,
+    pub selected: bool,
+}
+
+/// Formatiert eine Nummer der Anlage, z. B. `+41 71 7271616` oder `12`.
+pub fn format_number(n: &v1::types::PhoneNumber) -> String {
+    use v1::types::phone_number::Number;
+    match &n.number {
+        Some(Number::InternationalNumber(i)) => [
+            format!("+{}", i.country_code.trim_start_matches('+')),
+            i.national_destination_code.clone(),
+            i.subscriber_number.clone(),
+        ]
+        .into_iter()
+        .filter(|p| !p.is_empty() && p != "+")
+        .collect::<Vec<_>>()
+        .join(" "),
+        Some(Number::InternalNumber(i)) => i.extension.clone(),
+        None => String::new(),
+    }
+}
+
+/// Wählbare signalisierte Rufnummern; die aktuelle ist `selected`.
+pub async fn signaling_numbers(hub: &OneHub) -> sf_onehub::Result<Vec<SignalingNumber>> {
+    let mut me = hub.me();
+    let list = me
+        .get_signaling_phone_numbers(())
+        .await?
+        .into_inner()
+        .signaling_phone_numbers;
+    let current = me
+        .get_phone_numbers_config(())
+        .await?
+        .into_inner()
+        .signaling_phone_number
+        .and_then(|s| s.phone_number)
+        .and_then(|n| n.phone_number_id)
+        .map(|id| id.id);
+    Ok(list
+        .into_iter()
+        .filter_map(|s| {
+            let n = s.phone_number?;
+            let id = n.phone_number_id.as_ref()?.id.clone();
+            let number = format_number(&n);
+            Some(SignalingNumber {
+                selected: current.as_deref() == Some(id.as_str()),
+                suppressed: number.is_empty(),
+                id,
+                number,
+                read_only: s.read_only,
+            })
+        })
+        .collect())
+}
+
+pub async fn set_signaling_number(hub: &OneHub, id: &str) -> sf_onehub::Result<()> {
+    hub.me()
+        .set_signaling_phone_number(v1::me::SetSignalingPhoneNumberRequest {
+            phone_number_id: Some(v1::types::PhoneNumberId { id: id.to_owned() }),
+        })
+        .await?;
+    Ok(())
+}
+
+pub async fn set_primary_phone(hub: &OneHub, phone_id: &str) -> sf_onehub::Result<()> {
+    hub.me()
+        .set_primary_phone(v1::me::SetPrimaryPhoneRequest {
+            phone_id: Some(v1::types::PhoneId {
+                id: phone_id.to_owned(),
+            }),
+        })
+        .await?;
+    Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use v1::types::phone_number::Number;
+
+    #[test]
+    fn formats_numbers() {
+        let intl = v1::types::PhoneNumber {
+            phone_number_id: None,
+            is_fax: false,
+            number: Some(Number::InternationalNumber(
+                v1::types::InternationalNumber {
+                    country_code: "41".into(),
+                    national_destination_code: "71".into(),
+                    subscriber_number: "7271616".into(),
+                },
+            )),
+        };
+        assert_eq!(format_number(&intl), "+41 71 7271616");
+        let int = v1::types::PhoneNumber {
+            number: Some(Number::InternalNumber(v1::types::InternalNumber {
+                extension: "12".into(),
+            })),
+            ..intl.clone()
+        };
+        assert_eq!(format_number(&int), "12");
+        let none = v1::types::PhoneNumber {
+            number: None,
+            ..intl
+        };
+        assert_eq!(format_number(&none), "");
+    }
+}

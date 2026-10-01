@@ -179,6 +179,11 @@ impl Phone {
         Ok(phone)
     }
 
+    /// ID des App-Telefons auf der Anlage
+    pub fn phone_id(&self) -> &str {
+        &self.phone_id
+    }
+
     /// Wählt über die Anlage. Sie ruft zuerst das Softphone an.
     pub async fn dial(&self, number: &str) -> PhoneResult<()> {
         self.inner.lock().unwrap().dial_until = Some(Instant::now() + DIAL_WINDOW);

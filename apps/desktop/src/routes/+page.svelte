@@ -4,7 +4,9 @@
   import { onMount } from "svelte";
   import CallManager from "$lib/CallManager.svelte";
   import Icon, { type IconName } from "$lib/Icon.svelte";
+  import Settings from "$lib/Settings.svelte";
   import { initPhone, phone, run } from "$lib/phone.svelte";
+  import { loadPrefs } from "$lib/prefs.svelte";
 
   type SessionInfo = { server: string; server_version: string; display_name: string };
 
@@ -20,6 +22,7 @@
       listen<string>("logged-out", (e) => { session = null; notice = e.payload; phase = "login"; }),
     ];
     initPhone();
+    loadPrefs().catch(() => {});
     restore();
     return () => offs.forEach((p) => p.then((off) => off()));
   });
@@ -47,7 +50,19 @@
     }
   }
 
+  let menuOpen = $state(false);
+  let settingsOpen = $state(false);
+  type Tab = "journal" | "contacts" | "chat";
+  let tab = $state<Tab>("journal");
+  const tabs: { id: Tab; icon: IconName; label: string }[] = [
+    { id: "journal", icon: "history", label: "Rufliste" },
+    { id: "contacts", icon: "contacts", label: "Adressbuch" },
+    { id: "chat", icon: "chat", label: "Chat" },
+  ];
+
   async function logout() {
+    menuOpen = false;
+    settingsOpen = false;
     try {
       await invoke("logout");
       notice = "Abgemeldet";
@@ -73,15 +88,6 @@
     return name.split(/\s+/).filter(Boolean).slice(0, 2).map((w) => w[0]).join("").toUpperCase() || "?";
   }
 
-  const nav: { icon: IconName; label: string; ready: boolean }[] = [
-    { icon: "call", label: "Anrufe", ready: false },
-    { icon: "chat", label: "Chat", ready: false },
-    { icon: "meetings", label: "Meetings", ready: false },
-    { icon: "contacts", label: "Kontakte", ready: false },
-    { icon: "overview", label: "Übersicht", ready: false },
-    { icon: "list", label: "Listen", ready: false },
-    { icon: "workspace", label: "Workspace", ready: true },
-  ];
   const stateText = {
     off: "Softphone aus",
     starting: "Softphone startet …",
@@ -93,9 +99,25 @@
 {#if phase === "session" && session}
   <div class="shell">
     <header class="top">
-      <div class="me" title="{session.display_name} · STARFACE {session.server_version} · {session.server}">
-        {initials(session.display_name)}
-        <span class="reg {phone.status.state}" title={phone.status.detail || stateText[phone.status.state]}></span>
+      <div class="menuwrap">
+        <button class="me" title="{session.display_name} · {stateText[phone.status.state]}" onclick={() => (menuOpen = !menuOpen)} aria-expanded={menuOpen}>
+          {initials(session.display_name)}
+          <span class="reg {phone.status.state}"></span>
+        </button>
+        {#if menuOpen}
+          <button class="scrim" aria-label="Menü schliessen" onclick={() => (menuOpen = false)}></button>
+          <div class="menu">
+            <div class="who">
+              <strong>{session.display_name}</strong>
+              <span class="muted">STARFACE {session.server_version}</span>
+              <span class="muted">{session.server}</span>
+              <span class="state"><span class="reg {phone.status.state}"></span>{stateText[phone.status.state]}</span>
+              {#if phone.status.state === "error" && phone.status.detail}<span class="notice">{phone.status.detail}</span>{/if}
+            </div>
+            <button class="item" onclick={() => { menuOpen = false; settingsOpen = true; }}><Icon name="settings" size={20} /> Einstellungen</button>
+            <button class="item" onclick={logout}><Icon name="logout" size={20} /> Abmelden</button>
+          </div>
+        {/if}
       </div>
       <form class="dial" onsubmit={dial}>
         <label class="search">
@@ -117,30 +139,28 @@
       <div class="brand"><span class="star">✱</span> STARFACE</div>
     </header>
 
-    <nav class="rail">
-      {#each nav as item}
-        <button class="navitem" class:active={item.ready} disabled={!item.ready} title={item.ready ? item.label : `${item.label} (folgt)`}>
-          <Icon name={item.icon} size={26} />
-          <span>{item.label}</span>
+    <nav class="tabs">
+      {#each tabs as t}
+        <button class="tab" class:active={tab === t.id} onclick={() => (tab = t.id)}>
+          <Icon name={t.icon} size={20} /><span>{t.label}</span>
         </button>
       {/each}
-      <div class="spacer"></div>
-      <button class="navitem small" title="Abmelden" onclick={logout}>
-        <Icon name="logout" size={22} />
-      </button>
     </nav>
 
     <main class="work">
+      {#if phone.status.state === "error" || (phone.status.state === "off" && phone.status.detail)}
+        <p class="banner"><span class="reg {phone.status.state}"></span>{stateText[phone.status.state]}{#if phone.status.detail}: {phone.status.detail}{/if}</p>
+      {/if}
+      {#if notice}<p class="banner">{notice}</p>{/if}
       <section class="tile">
-        <h2>Willkommen, {session.display_name}</h2>
-        <p class="state"><span class="reg {phone.status.state}"></span>{stateText[phone.status.state]}{#if phone.status.state === "error" && phone.status.detail}: {phone.status.detail}{/if}</p>
-        <p>Nummer oben eingeben und mit dem Hörer wählen. Gespräche erscheinen im Call Manager oben rechts.</p>
-        <p class="muted">Favoriten, Adressbuch, Rufliste und Chat folgen als Nächstes.</p>
-        {#if phone.notice}<p class="notice">{phone.notice}</p>{/if}
-        {#if notice}<p class="notice">{notice}</p>{/if}
+        <h2>{tabs.find((t) => t.id === tab)?.label}</h2>
+        <p class="muted">Folgt in Kürze.</p>
       </section>
     </main>
   </div>
+  {#if settingsOpen}
+    <Settings onclose={() => (settingsOpen = false)} onlogout={logout} />
+  {/if}
 {:else}
 <main class="login">
   <div class="brand big"><span class="star">✱</span> STARFACE</div>
@@ -187,15 +207,16 @@
   :global(button:disabled) { cursor: default; }
 
   .shell {
-    display: grid; grid-template-columns: 5.5rem 1fr; grid-template-rows: auto 1fr;
+    display: grid; grid-template-rows: auto auto 1fr;
     height: 100vh; overflow: hidden;
   }
   .top {
-    grid-column: 1 / -1; display: flex; align-items: center; gap: 0.8rem;
+    display: flex; align-items: center; gap: 0.8rem;
     padding: 0.5rem 1rem 0.5rem 0.6rem; background: var(--bar);
   }
+  .menuwrap { position: relative; }
   .me {
-    position: relative; width: 3rem; height: 3rem; border-radius: 50%; flex: none;
+    position: relative; padding: 0; color: #fff; cursor: pointer; width: 3rem; height: 3rem; border-radius: 50%; flex: none;
     display: grid; place-items: center; font-weight: 600;
     background: linear-gradient(135deg, #3a7bd5, #00a37a); border: 3px solid var(--green);
   }
@@ -221,15 +242,20 @@
   .brand .star { display: inline-grid; place-items: center; width: 1.6rem; height: 1.6rem; background: var(--accent); color: #fff; border-radius: 5px; letter-spacing: 0; margin-right: 0.3rem; }
   .brand.big { font-size: 1.6rem; margin-bottom: 1.5rem; }
 
-  .rail { display: flex; flex-direction: column; gap: 0.2rem; background: var(--bar); padding: 0.4rem 0.35rem; }
-  .navitem {
-    display: flex; flex-direction: column; align-items: center; gap: 0.2rem; padding: 0.55rem 0.2rem;
-    background: none; border: none; border-radius: 4px; font-size: 0.78rem; color: var(--text);
+  .scrim { position: fixed; inset: 0; z-index: 14; background: transparent; border: none; padding: 0; cursor: default; }
+  .menu {
+    position: absolute; left: 0; top: calc(100% + 0.4rem); z-index: 15; min-width: 17rem;
+    background: var(--panel); border: 1px solid var(--line); border-radius: 8px; box-shadow: 0 8px 24px #000a;
+    display: flex; flex-direction: column; padding: 0.4rem;
   }
-  .navitem:disabled { opacity: 0.4; }
-  .navitem.active { background: var(--accent); }
-  .navitem.small { opacity: 0.8; }
-
+  .menu .who { display: flex; flex-direction: column; gap: 0.15rem; padding: 0.5rem 0.6rem 0.7rem; border-bottom: 1px solid var(--line); margin-bottom: 0.3rem; font-size: 0.9rem; }
+  .menu .who strong { font-size: 1rem; }
+  .item { display: flex; align-items: center; gap: 0.7rem; background: none; border: none; text-align: left; padding: 0.55rem 0.6rem; }
+  .item:hover { background: var(--panel-2); }
+  .tabs { display: flex; gap: 0.2rem; padding: 0 0.6rem; background: var(--bar); border-top: 1px solid var(--bar-2); }
+  .tab { display: flex; align-items: center; gap: 0.45rem; background: none; border: none; border-bottom: 3px solid transparent; border-radius: 0; padding: 0.55rem 0.9rem; color: var(--muted); }
+  .tab.active { color: var(--text); border-bottom-color: var(--accent); }
+  .banner { display: flex; align-items: center; gap: 0.5rem; margin: 0 0 0.4rem; padding: 0.5rem 0.8rem; background: var(--panel); border-left: 3px solid var(--accent); }
   .work { overflow: auto; padding: 0.4rem; }
   .tile { background: var(--panel); border-radius: 4px; padding: 1rem 1.25rem; max-width: 40rem; }
   .tile h2 { margin: 0 0 0.5rem; font-size: 1.2rem; }
