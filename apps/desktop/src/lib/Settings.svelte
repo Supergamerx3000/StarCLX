@@ -424,6 +424,18 @@
           </label>
           <p class="small muted">Weitere Sprachen folgen später.</p>
           <hr />
+          <label class="field">
+            <span>Arbeitsbereich</span>
+            <select bind:value={draft.workspace}>
+              <option value="tabs">Reiter</option>
+              <option value="free">Frei anordnen</option>
+            </select>
+          </label>
+          {#if draft.workspace === "free"}
+            <p class="small muted">Kacheln an der Titelleiste verschieben und an der Ecke unten rechts in der Grösse ändern. Über die Leiste oben blendest du Kacheln ein und aus.</p>
+            <button class="add" onclick={() => draft && (draft.workspace_tiles = null)}>Anordnung zurücksetzen</button>
+          {/if}
+          <hr />
           <Toggle bind:checked={draft.start_minimized} label="Programm minimiert starten" />
           <Toggle bind:checked={draft.minimize_to_tray} label="Beim Minimieren nur als Symbol im Infobereich anzeigen" />
           <Toggle bind:checked={draft.always_on_top} label="Immer im Vordergrund" />

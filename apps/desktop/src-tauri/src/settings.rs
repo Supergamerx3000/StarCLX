@@ -66,6 +66,10 @@ pub struct Prefs {
     pub hotkeys: crate::desktop::Hotkeys,
     /// Spalten im Funktionstasten-Raster (lokal, wie in Windows)
     pub fkey_columns: u8,
+    /// Arbeitsbereich: "tabs" (Reiter) oder "free" (frei angeordnete Kacheln)
+    pub workspace: String,
+    /// Lage der Kacheln im freien Arbeitsbereich; gehört der Oberfläche
+    pub workspace_tiles: serde_json::Value,
 }
 
 impl Default for Prefs {
@@ -102,6 +106,8 @@ impl Default for Prefs {
             always_on_top: false,
             hotkeys: crate::desktop::Hotkeys::default(),
             fkey_columns: 3,
+            workspace: "tabs".into(),
+            workspace_tiles: serde_json::Value::Null,
         }
     }
 }

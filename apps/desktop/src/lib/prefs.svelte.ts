@@ -33,7 +33,12 @@ export type Prefs = {
   always_on_top: boolean;
   hotkeys: Hotkeys;
   fkey_columns: number;
+  workspace: "tabs" | "free";
+  workspace_tiles: Tile[] | null;
 };
+
+/** Kachel im freien Arbeitsbereich: Lage in Rasterzellen (12 Spalten) */
+export type Tile = { id: string; x: number; y: number; w: number; h: number; visible: boolean };
 
 export type Hotkeys = {
   enabled: boolean;
