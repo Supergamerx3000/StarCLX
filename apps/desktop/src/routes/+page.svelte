@@ -122,6 +122,23 @@
   const meta = Object.fromEntries(tabs.map((t) => [t.id, t]));
   const free = $derived(prefs.value?.workspace === "free");
   let tiles = $state<Tile[]>([]);
+  /** Anordnung entsperrt; beim Start immer fixiert */
+  let editing = $state(false);
+  /** Stand vor dem Bearbeiten, für "Abbrechen" */
+  let before: Tile[] = [];
+
+  function editStart() {
+    before = $state.snapshot(tiles);
+    editing = true;
+  }
+  function editDone() {
+    editing = false;
+    saveLayout();
+  }
+  function editCancel() {
+    tiles = before.map((t) => ({ ...t }));
+    editing = false;
+  }
   $effect(() => {
     tiles = tilesOf(prefs.value?.workspace_tiles);
   });
@@ -134,8 +151,13 @@
   function tabClick(id: Tab) {
     if (!free) return void (tab = id);
     const t = tiles.find((t) => t.id === id);
-    if (t) t.visible = !t.visible;
-    saveLayout();
+    if (!t) return;
+    if (!editing) {
+      // Fixiert: ausgeblendete Kacheln bleiben aus, sichtbare kommen ins Bild
+      document.querySelector(`[data-tile="${id}"]`)?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+      return;
+    }
+    t.visible = !t.visible;
   }
 
   async function logout() {
@@ -197,7 +219,7 @@
         <button
           class="tab"
           class:active={free ? tiles.find((x) => x.id === t.id)?.visible : tab === t.id}
-          title={free ? "Kachel ein- oder ausblenden" : undefined}
+          title={free && editing ? "Kachel ein- oder ausblenden" : undefined}
           onclick={() => tabClick(t.id)}
         >
           <Icon name={t.icon} size={20} /><span>{t.label}</span>
@@ -205,6 +227,16 @@
           {#if t.id === "voicemail" && unheard()}<span class="unread">{unheard()}</span>{/if}
         </button>
       {/each}
+      {#if free}
+        <span class="spacer"></span>
+        {#if editing}
+          <button class="tab" title="Standardanordnung" onclick={() => (tiles = tilesOf(null))}><span>Standard</span></button>
+          <button class="tab" title="Änderungen verwerfen" onclick={editCancel}><Icon name="close" size={20} /><span>Abbrechen</span></button>
+          <button class="tab lock on" title="Anordnung speichern und fixieren" onclick={editDone}><Icon name="check" size={20} /><span>Fertig</span></button>
+        {:else}
+          <button class="tab" title="Anordnung bearbeiten" onclick={editStart}><Icon name="edit" size={20} /><span>Anordnung bearbeiten</span></button>
+        {/if}
+      {/if}
     </nav>
 
     <main class="work">
@@ -226,7 +258,7 @@
         {/if}
       {/snippet}
       {#if free}
-        <Workspace bind:tiles {meta} body={view} onchange={saveLayout} />
+        <Workspace bind:tiles {editing} {meta} body={view} />
       {:else}
         {@render view(tab)}
       {/if}
@@ -307,6 +339,7 @@
   .tabs { display: flex; gap: 0.2rem; padding: 0 0.6rem; background: var(--bar); border-top: 1px solid var(--bar-2); }
   .tab { display: flex; align-items: center; gap: 0.45rem; background: none; border: none; border-bottom: 3px solid transparent; border-radius: 0; padding: 0.55rem 0.9rem; color: var(--muted); }
   .unread { background: var(--accent); color: #111; border-radius: 999px; padding: 0 0.45rem; font-size: 0.78rem; font-weight: 700; }
+  .tab.lock.on { color: #111; background: var(--accent); border-radius: 6px 6px 0 0; }
   .tab.active { color: var(--text); border-bottom-color: var(--accent); }
   .banner { display: flex; align-items: center; gap: 0.5rem; margin: 0 0 0.4rem; padding: 0.5rem 0.8rem; background: var(--panel); border-left: 3px solid var(--accent); }
   .work { overflow: auto; padding: 0.5rem; display: flex; flex-direction: column; min-height: 0; }
