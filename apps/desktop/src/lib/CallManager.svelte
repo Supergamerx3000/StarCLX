@@ -2,7 +2,6 @@
   import CallCard from "./CallCard.svelte";
   import Icon from "./Icon.svelte";
   import { isRingingIn, phone } from "./phone.svelte";
-  import { prefs } from "./prefs.svelte";
 
   let open = $state(false);
   const calls = $derived(phone.status.calls);
@@ -16,29 +15,6 @@
     lastCount = calls.length;
   });
 
-  // Klingelton über die Web-Audio-API, solange ein eingehender Anruf klingelt.
-  $effect(() => {
-    if (!ringing || prefs.value?.ringtone === false) return;
-    const ctx = new AudioContext();
-    const burst = () => {
-      for (const [start, freq] of [[0, 880], [0.25, 660], [0.5, 880], [0.75, 660]] as const) {
-        const osc = ctx.createOscillator();
-        const gain = ctx.createGain();
-        osc.frequency.value = freq;
-        gain.gain.setValueAtTime(0.15, ctx.currentTime + start);
-        gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + start + 0.22);
-        osc.connect(gain).connect(ctx.destination);
-        osc.start(ctx.currentTime + start);
-        osc.stop(ctx.currentTime + start + 0.23);
-      }
-    };
-    burst();
-    const timer = setInterval(burst, 3000);
-    return () => {
-      clearInterval(timer);
-      ctx.close();
-    };
-  });
 </script>
 
 <div class="cm">

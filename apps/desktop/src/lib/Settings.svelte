@@ -1,6 +1,8 @@
 <script lang="ts">
   import { invoke } from "@tauri-apps/api/core";
+  import { listen } from "@tauri-apps/api/event";
   import { onMount } from "svelte";
+  import DeviceList, { DEFAULT, mergeOrder, type Device } from "./DeviceList.svelte";
   import Icon, { type IconName } from "./Icon.svelte";
   import Toggle from "./Toggle.svelte";
   import { loadPrefs, savePrefs, type Prefs } from "./prefs.svelte";
@@ -17,6 +19,11 @@
   let saving = $state(false);
   let notice = $state("");
   let content: HTMLElement;
+  let devices = $state<{ speakers: Device[]; microphones: Device[] }>({ speakers: [], microphones: [] });
+  let builtinTones = $state<string[]>([]);
+  let micLevel = $state(0);
+  let micTesting = $state(false);
+  let playing = $state<string | null>(null);
 
   const sections: { id: string; icon: IconName; label: string }[] = [
     { id: "softphone", icon: "call", label: "Softphone" },
@@ -29,15 +36,76 @@
     { id: "account", icon: "account", label: "Konto" },
   ];
 
-  onMount(async () => {
+  onMount(() => {
+    const off = listen<number>("mic-level", (e) => (micLevel = e.payload));
+    init();
+    return () => {
+      invoke("audio_stop");
+      off.then((f) => f());
+    };
+  });
+
+  const firstPresent = (order: string[], devs: Device[]) =>
+    order.find((n) => n === DEFAULT || devs.some((d) => d.name === n)) ?? DEFAULT;
+  const fileName = (path: string) => path.split("/").pop() ?? path;
+
+  async function preview(name: string | null) {
+    if (!draft) return;
+    const key = name ?? "@test";
+    if (playing === key) {
+      playing = null;
+      return invoke("audio_stop");
+    }
+    playing = key;
+    const order = name ? draft.ring_devices : draft.speakers;
+    await invoke("audio_preview", { name, device: firstPresent(order, devices.speakers) });
+    setTimeout(() => playing === key && (playing = null), name ? 3000 : 1000);
+  }
+
+  async function toggleMic() {
+    if (!draft) return;
+    micTesting = !micTesting;
+    micLevel = 0;
+    if (micTesting) await invoke("mic_test", { device: firstPresent(draft.microphones, devices.microphones) });
+    else await invoke("audio_stop");
+  }
+
+  async function addRingtone() {
+    if (!draft) return;
+    try {
+      const path = await invoke<string | null>("pick_ringtone");
+      if (path && !draft.custom_ringtones.includes(path)) draft.custom_ringtones = [...draft.custom_ringtones, path];
+    } catch (e) {
+      notice = `Klingelton nicht übernommen: ${e}`;
+    }
+  }
+
+  function removeRingtone(path: string) {
+    if (!draft) return;
+    draft.custom_ringtones = draft.custom_ringtones.filter((p) => p !== path);
+    if (draft.ringtone_internal === path) draft.ringtone_internal = builtinTones[0];
+    if (draft.ringtone_external === path) draft.ringtone_external = builtinTones[0];
+  }
+
+  async function init() {
     draft = $state.snapshot(await loadPrefs());
+    try {
+      const info = await invoke<{ devices: typeof devices; ringtones: string[] }>("audio_info");
+      devices = info.devices;
+      builtinTones = info.ringtones;
+      draft.speakers = mergeOrder(draft.speakers, devices.speakers);
+      draft.microphones = mergeOrder(draft.microphones, devices.microphones);
+      draft.ring_devices = mergeOrder(draft.ring_devices, devices.speakers);
+    } catch (e) {
+      notice = `Audiogeräte nicht gelesen: ${e}`;
+    }
     try {
       numbers = await invoke<SignalingNumber[]>("signaling_numbers");
       initialSignaling = signaling = numbers.find((n) => n.selected)?.id ?? "";
     } catch (e) {
       numbersError = String(e);
     }
-  });
+  }
 
   function jump(id: string) {
     content.querySelector(`#${id}`)?.scrollIntoView({ behavior: "smooth", block: "start" });
@@ -97,8 +165,18 @@
 
       <section id="audio">
         <h3>Audio</h3>
+        <p class="muted small">Die Geräte werden in der aufgelisteten Reihenfolge verwendet: das erste angeschlossene Gerät gewinnt. Änderungen gelten nach dem Speichern, das Softphone startet dann neu.</p>
         <div class="card">
-          <p class="muted">Das Softphone nutzt die Standardgeräte des Systems (PipeWire). Die Geräteauswahl mit Reihenfolge folgt.</p>
+          <h4>Lautsprecher</h4>
+          <button class="play" onclick={() => preview(null)}><Icon name={playing === "@test" ? "pause" : "play"} size={18} /> Testton abspielen</button>
+          <DeviceList bind:order={draft.speakers} devices={devices.speakers} />
+          <hr />
+          <h4>Mikrofon</h4>
+          <div class="mic">
+            <button class="play" onclick={toggleMic}>{micTesting ? "Test beenden" : "Mikrofon testen"}</button>
+            <div class="meter"><div class="bar" style="width: {Math.round(micLevel * 100)}%"></div></div>
+          </div>
+          <DeviceList bind:order={draft.microphones} devices={devices.microphones} />
         </div>
       </section>
 
@@ -106,7 +184,24 @@
         <h3>Klingeltöne</h3>
         <div class="card">
           <Toggle bind:checked={draft.ringtone} label="Klingelton verwenden" />
-          <p class="muted">Auswahl für intern und extern sowie eigene Klingeltöne folgen.</p>
+          <div class="tones" class:off={!draft.ringtone}>
+            <div class="tone head"><span>Intern</span><span>Extern</span></div>
+            {#each [...builtinTones, ...draft.custom_ringtones] as t (t)}
+              <div class="tone">
+                <input type="radio" name="tone-int" value={t} bind:group={draft.ringtone_internal} title="Interne Anrufe" />
+                <input type="radio" name="tone-ext" value={t} bind:group={draft.ringtone_external} title="Externe Anrufe" />
+                <button class="round" title="Anhören" onclick={() => preview(t)}><Icon name={playing === t ? "pause" : "play"} size={16} /></button>
+                <span class="tname">{fileName(t)}</span>
+                {#if draft.custom_ringtones.includes(t)}
+                  <button class="x" title="Entfernen" onclick={() => removeRingtone(t)}><Icon name="close" size={16} /></button>
+                {/if}
+              </div>
+            {/each}
+            <button class="add" onclick={addRingtone}>Eigenen Klingelton hinzufügen (WAV)</button>
+          </div>
+          <hr />
+          <h4>Ausgabegerät zum Klingeln</h4>
+          <DeviceList bind:order={draft.ring_devices} devices={devices.speakers} />
         </div>
       </section>
 
@@ -174,6 +269,22 @@
   section { padding-top: 0.8rem; }
   h3 { font-size: 1.05rem; margin: 0.6rem 0 0.7rem; }
   .card { background: var(--panel); border-radius: 4px; padding: 0.7rem 1rem; display: flex; flex-direction: column; gap: 0.2rem; }
+  h4 { margin: 0.3rem 0; font-size: 0.98rem; }
+  hr { border: none; border-top: 1px solid var(--line); margin: 0.8rem 0 0.4rem; width: 100%; }
+  .small { font-size: 0.85rem; margin: -0.3rem 0 0.6rem; }
+  .play { align-self: flex-start; display: flex; align-items: center; gap: 0.4rem; }
+  .mic { display: flex; align-items: center; gap: 1rem; }
+  .meter { flex: 1; max-width: 18rem; height: 0.4rem; background: var(--panel-2); border-radius: 999px; overflow: hidden; }
+  .bar { height: 100%; background: var(--green); transition: width 0.08s; }
+  .tones { display: flex; flex-direction: column; }
+  .tones.off { opacity: 0.5; }
+  .tone { display: grid; grid-template-columns: 3.2rem 3.2rem 2.4rem 1fr auto; align-items: center; padding: 0.3rem 0; border-bottom: 1px solid var(--line); }
+  .tone.head { font-size: 0.8rem; color: var(--muted); border: none; padding-bottom: 0; }
+  .tone input { accent-color: var(--accent); width: 1.1rem; height: 1.1rem; margin: 0 0 0 0.6rem; }
+  .round { width: 1.9rem; height: 1.9rem; padding: 0; border-radius: 50%; display: grid; place-items: center; }
+  .tname { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .x { background: none; border: none; padding: 0.2rem; color: var(--muted); display: grid; }
+  .add { align-self: flex-start; margin-top: 0.7rem; }
   .radio { display: flex; align-items: center; gap: 0.7rem; padding: 0.35rem 0; cursor: pointer; }
   .radio.disabled { opacity: 0.5; }
   .radio input { accent-color: var(--accent); width: 1.1rem; height: 1.1rem; margin: 0; }
