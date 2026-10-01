@@ -1,7 +1,7 @@
 // Funktionstasten: Daten von der Anlage, Zustände und Auslösen.
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
-import { phone, run } from "./phone.svelte";
+import { action, phone, run, type Call } from "./phone.svelte";
 
 export type FunctionKey = {
   functionKeyType: string;
@@ -280,4 +280,82 @@ export function blank(type: string): FunctionKey {
     displayNumberId: null, activateModuleIds: [], addressbookRequest: type === "ADDRESSBOOK" ? "CONTACTLIST" : null,
     addressBookFolderName: null, callListRequest: type === "PHONECALLLIST" ? "INCOMING" : null, dtmf: null, genericURL: null,
   };
+}
+
+// ── Gespräch auf ein Besetztlampenfeld ziehen ──────────────────────────────
+// Ablegen startet eine Rückfrage zum Kollegen; Auflegen dieser Rückfrage
+// vermittelt dann das erste Gespräch an ihn.
+
+/** Laufendes Ziehen eines Gesprächs (für Vorschau und Hervorhebung) */
+export const callDrag = $state({ call: null as Call | null, x: 0, y: 0, over: "" });
+/** Erste Gespräche, deren Rückfrage per Besetztlampenfeld gestartet wurde */
+export const blfTransfers = $state<Record<string, boolean>>({});
+
+let pending: { call: Call; x: number; y: number } | null = null;
+
+/** BLF-Taste unter dem Zeiger (Elemente mit data-fkey) */
+function blfAt(x: number, y: number) {
+  const id = document.elementFromPoint(x, y)?.closest<HTMLElement>("[data-fkey]")?.dataset.fkey;
+  const k = fkeys.keys.find((k) => k.id === id);
+  return k?.functionKeyType === "BUSYLAMPFIELD" ? k : undefined;
+}
+
+function onMove(e: PointerEvent) {
+  if (!pending) return;
+  if (!callDrag.call) {
+    if (Math.hypot(e.clientX - pending.x, e.clientY - pending.y) < 8) return;
+    callDrag.call = pending.call;
+  }
+  callDrag.x = e.clientX;
+  callDrag.y = e.clientY;
+  callDrag.over = blfAt(e.clientX, e.clientY)?.id ?? "";
+}
+
+function onUp(e: PointerEvent) {
+  const call = callDrag.call;
+  stopCallDrag();
+  if (!call) return;
+  const k = blfAt(e.clientX, e.clientY);
+  if (k) transferTo(call, k);
+}
+
+function stopCallDrag() {
+  pending = null;
+  callDrag.call = null;
+  callDrag.over = "";
+  window.removeEventListener("pointermove", onMove);
+  window.removeEventListener("pointerup", onUp);
+  window.removeEventListener("pointercancel", stopCallDrag);
+}
+
+/** Auf der Anrufkarte gedrückt: Ziehen vorbereiten */
+export function startCallDrag(e: PointerEvent, call: Call) {
+  if (e.button !== 0 || (call.phase !== "connected" && call.phase !== "held") || call.consultation_of) return;
+  if ((e.target as HTMLElement).closest("button, input")) return;
+  e.preventDefault(); // keine Textauswahl beim Ziehen
+  pending = { call, x: e.clientX, y: e.clientY };
+  window.addEventListener("pointermove", onMove);
+  window.addEventListener("pointerup", onUp);
+  window.addEventListener("pointercancel", stopCallDrag);
+}
+
+/** Rückfrage zum Kollegen der Taste; Auflegen vermittelt danach */
+export async function transferTo(call: Call, k: FunctionKey) {
+  const a = account(k);
+  if (!a?.number) return void (phone.notice = "Für diese Taste ist keine Rufnummer bekannt.");
+  if (await action("consult", call.id, a.number)) blfTransfers[call.id] = true;
+}
+
+/** Soll Auflegen dieses Gesprächs vermitteln? */
+export const transfersOnHangup = (c: Call) =>
+  !!c.consultation_of && !!blfTransfers[c.consultation_of] && phone.status.calls.some((x) => x.id === c.consultation_of);
+
+/** Rückfrage abbrechen und zum ersten Gespräch zurück */
+export async function backToFirst(c: Call) {
+  const first = c.consultation_of;
+  if (first) delete blfTransfers[first];
+  await run("phone_hangup", { callId: c.id });
+  if (first && phone.status.calls.some((x) => x.id === first && x.phase === "held")) {
+    await run("phone_hold", { callId: first, hold: false });
+  }
 }
