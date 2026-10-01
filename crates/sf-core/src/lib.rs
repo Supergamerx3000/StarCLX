@@ -9,6 +9,7 @@ pub mod directory;
 pub mod journal;
 pub mod phone;
 pub mod redirect;
+pub mod voicemail;
 
 use std::time::Duration;
 
