@@ -2,8 +2,10 @@
 //!
 //! Die Anlage betreibt Openfire auf Port 5222 mit STARTTLS. Benutzername ist
 //! der lokale Teil der Jabber-ID aus `ChatService.GetChatId`, Passwort das
-//! OAuth-Access-Token. Weil das Token nach wenigen Minuten abläuft, baut
-//! [`Chat`] jede Verbindung mit dem aktuellen Token neu auf.
+//! OAuth-Access-Token. Weil das Token nach wenigen Minuten abläuft, holt
+//! [`Chat`] bei jedem Verbindungsaufbau, auch bei automatischen
+//! Neuverbindungen, das aktuelle Token. (Der fertige `tokio_xmpp::Client`
+//! verbindet sich mit dem Passwort vom Start neu und scheitert dann ewig.)
 //!
 //! Unterstützt: Kontaktliste mit Präsenz, Einzelchats, Nachrichten anderer
 //! Geräte (Carbons), verzögerte Zustellung, Verlauf aus dem Serverarchiv
@@ -14,19 +16,22 @@ mod xml;
 
 use std::collections::BTreeMap;
 use std::path::PathBuf;
+use std::sync::Arc;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use futures::StreamExt;
 use serde::Serialize;
-use tokio::sync::mpsc;
+use tokio::sync::{mpsc, oneshot};
 use tokio::task::JoinHandle;
-use tokio_xmpp::connect::DnsConfig;
+use tokio_xmpp::connect::{DnsConfig, ServerConnector, StartTlsServerConnector};
 use tokio_xmpp::jid::{BareJid, Jid};
 use tokio_xmpp::minidom::Element;
 use tokio_xmpp::parsers::message::{Lang, Message, MessageType};
+use tokio_xmpp::parsers::ns;
 use tokio_xmpp::parsers::presence::{Presence, Show, Type as PresenceType};
-use tokio_xmpp::xmlstream::Timeouts;
-use tokio_xmpp::{Client, Event, Stanza};
+use tokio_xmpp::stanzastream::{Connection, Event, StanzaStream, StreamEvent};
+use tokio_xmpp::xmlstream::{StreamHeader, Timeouts};
+use tokio_xmpp::{Stanza, client_login};
 
 pub use history::History;
 
@@ -130,7 +135,7 @@ impl Chat {
     pub fn start(
         jid: &str,
         host: &str,
-        token: impl Fn() -> String + Send + 'static,
+        token: impl Fn() -> String + Send + Sync + 'static,
         history_file: Option<PathBuf>,
         events: mpsc::UnboundedSender<ChatEvent>,
     ) -> Result<Self, Error> {
@@ -142,7 +147,7 @@ impl Chat {
         let task = tokio::spawn(run(
             jid,
             host.to_owned(),
-            Box::new(token),
+            Arc::new(token),
             history.clone(),
             events,
             rx,
@@ -207,55 +212,134 @@ struct Conn {
     events: mpsc::UnboundedSender<ChatEvent>,
 }
 
+/// Token, das bei jedem Verbindungsaufbau neu abgefragt wird
+type TokenFn = Arc<dyn Fn() -> String + Send + Sync>;
+
+/// Meldet sich an der Anlage an. Liefert einen authentifizierten, noch nicht
+/// gebundenen Stream; die Bindung übernimmt der `StanzaStream`.
+async fn login(
+    jid: &BareJid,
+    host: &str,
+    password: String,
+) -> Result<Connection, tokio_xmpp::Error> {
+    let jid = Jid::from(jid.clone());
+    let server = StartTlsServerConnector::from(DnsConfig::no_srv(host, PORT));
+    let (stream, binding) = server
+        .connect(&jid, ns::JABBER_CLIENT, Timeouts::default())
+        .await?;
+    let (features, stream) = stream.recv_features().await?;
+    let creds = sasl::common::Credentials::default()
+        .with_username(jid.node().map(|n| n.as_str()).unwrap_or_default())
+        .with_password(password)
+        .with_channel_binding(binding);
+    let stream = client_login(stream, features.sasl_mechanisms, creds).await?;
+    let stream = stream
+        .send_header(StreamHeader {
+            to: Some(jid.domain().as_str().to_owned().into()),
+            from: None,
+            id: None,
+        })
+        .await?;
+    let (features, stream) = stream.recv_features().await?;
+    Ok(Connection {
+        stream: stream.box_stream(),
+        features,
+        identity: jid,
+    })
+}
+
+/// Baut für den `StanzaStream` Verbindungen auf, jedes Mal mit dem aktuellen
+/// Token. Fehlschläge werden gemeldet und mit wachsendem Abstand wiederholt.
+fn connector(
+    jid: BareJid,
+    host: String,
+    token: TokenFn,
+    events: mpsc::UnboundedSender<ChatEvent>,
+) -> Box<dyn FnMut(Option<String>, oneshot::Sender<Connection>) + Send + 'static> {
+    Box::new(move |_, slot| {
+        let (jid, host, token, events) = (jid.clone(), host.clone(), token.clone(), events.clone());
+        tokio::spawn(async move {
+            let mut backoff = Duration::from_secs(2);
+            loop {
+                match login(&jid, &host, token()).await {
+                    Ok(conn) => {
+                        let _ = slot.send(conn);
+                        return;
+                    }
+                    Err(e) => {
+                        tracing::warn!(error = %e, ?backoff, "Chat-Anmeldung fehlgeschlagen");
+                        let _ = events.send(ChatEvent::State {
+                            online: false,
+                            detail: format!("Anmeldung fehlgeschlagen: {e}"),
+                        });
+                        if slot.is_closed() {
+                            return;
+                        }
+                        tokio::time::sleep(backoff).await;
+                        backoff = (backoff * 2).min(MAX_BACKOFF);
+                    }
+                }
+            }
+        });
+    })
+}
+
 async fn run(
     jid: BareJid,
     host: String,
-    token: Box<dyn Fn() -> String + Send>,
+    token: TokenFn,
     history: History,
     events: mpsc::UnboundedSender<ChatEvent>,
     mut commands: mpsc::UnboundedReceiver<Command>,
 ) {
-    let mut backoff = Duration::from_secs(2);
     let mut own = Own::default();
+    let mut conn = Conn {
+        own: jid.clone(),
+        roster: BTreeMap::new(),
+        archive_requests: BTreeMap::new(),
+        roster_request: String::new(),
+        history,
+        events: events.clone(),
+    };
     loop {
-        let mut client = Client::new_starttls(
-            jid.clone(),
-            token(),
-            DnsConfig::no_srv(&host, PORT),
-            Timeouts::default(),
+        let mut stream = StanzaStream::new(
+            connector(jid.clone(), host.clone(), token.clone(), events.clone()),
+            16,
         );
-        let mut conn = Conn {
-            own: jid.clone(),
-            roster: BTreeMap::new(),
-            archive_requests: BTreeMap::new(),
-            roster_request: String::new(),
-            history: history.clone(),
-            events: events.clone(),
-        };
         let mut online = false;
-        let reason = loop {
+        loop {
             tokio::select! {
-                ev = client.next() => match ev {
-                    None => break "Verbindung beendet".to_owned(),
-                    Some(Event::Online { .. }) => {
+                ev = stream.next() => match ev {
+                    None => {
+                        // Der Stream gibt nur bei schweren Fehlern auf; neu beginnen.
+                        tracing::warn!("Chat-Stream beendet, neuer Versuch");
+                        let _ = events.send(ChatEvent::State { online: false, detail: "Verbindung beendet".into() });
+                        break;
+                    }
+                    Some(Event::Stream(StreamEvent::Reset { .. })) => {
                         online = true;
-                        backoff = Duration::from_secs(2);
                         let _ = events.send(ChatEvent::State { online: true, detail: String::new() });
                         for stanza in conn.on_online(&own) {
-                            if let Err(e) = client.send_stanza(stanza).await {
-                                tracing::warn!(error = %e, "Chat: Senden fehlgeschlagen");
-                            }
+                            stream.send(Box::new(stanza)).await;
                         }
                     }
-                    Some(Event::Disconnected(e)) => break e.to_string(),
+                    Some(Event::Stream(StreamEvent::Resumed)) => {
+                        online = true;
+                        let _ = events.send(ChatEvent::State { online: true, detail: String::new() });
+                    }
+                    Some(Event::Stream(StreamEvent::Suspended)) => {
+                        online = false;
+                        tracing::warn!("Chat getrennt, verbinde neu");
+                        let _ = events.send(ChatEvent::State { online: false, detail: "Verbindung unterbrochen, verbinde neu …".into() });
+                    }
                     Some(Event::Stanza(s)) => conn.on_stanza(s),
                 },
                 cmd = commands.recv() => match cmd {
-                    None => return,
+                    None => return stream.close().await,
                     Some(Command::Presence(p)) => {
                         own = p;
-                        if online && let Err(e) = client.send_stanza(own.presence().into()).await {
-                            tracing::warn!(error = %e, "Chat: Status nicht gesendet");
+                        if online {
+                            stream.send(Box::new(own.presence().into())).await;
                         }
                     }
                     Some(Command::Offline { status }) => {
@@ -264,16 +348,14 @@ async fn run(
                             if !status.is_empty() {
                                 p.set_status(Lang::default(), status);
                             }
-                            let _ = client.send_stanza(p.into()).await;
+                            let mut sent = stream.send(Box::new(p.into())).await;
+                            let _ = tokio::time::timeout(Duration::from_secs(1), sent.wait_for(tokio_xmpp::stanzastream::StanzaStage::Sent)).await;
                         }
-                        let _ = client.send_end().await;
-                        return;
+                        return stream.close().await;
                     }
                     Some(cmd) if online => {
-                        if let Some(stanza) = conn.on_command(cmd)
-                            && let Err(e) = client.send_stanza(stanza).await
-                        {
-                            tracing::warn!(error = %e, "Chat: Senden fehlgeschlagen");
+                        if let Some(stanza) = conn.on_command(cmd) {
+                            stream.send(Box::new(stanza)).await;
                         }
                     }
                     Some(Command::Send { .. }) => {
@@ -285,15 +367,8 @@ async fn run(
                     Some(Command::LoadArchive { .. }) => {}
                 },
             }
-        };
-        tracing::warn!(%reason, "Chat getrennt");
-        let _ = events.send(ChatEvent::State {
-            online: false,
-            detail: reason,
-        });
-        let _ = client.send_end().await;
-        tokio::time::sleep(backoff).await;
-        backoff = (backoff * 2).min(MAX_BACKOFF);
+        }
+        tokio::time::sleep(MAX_BACKOFF).await;
     }
 }
 
