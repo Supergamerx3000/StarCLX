@@ -121,17 +121,17 @@
   .dial { position: relative; display: flex; align-items: center; gap: 0.5rem; }
   .search {
     display: flex; align-items: center; gap: 0.5rem; padding: 0 0.9rem;
-    background: var(--bar-2); border: 1px solid var(--line); border-radius: 999px; width: 20rem;
+    background: var(--bar-2); border: 1px solid var(--line); border-radius: 999px; width: 20rem; flex: 0 1 auto; min-width: 0;
   }
   .search:focus-within { border-color: var(--accent); }
-  .search input { border: none; background: none; padding: 0.55rem 0; flex: 1; outline: none; }
+  .search input { border: none; background: none; padding: 0.55rem 0; flex: 1; min-width: 0; outline: none; }
   .dialbtn {
-    width: 2.6rem; height: 2.6rem; padding: 0; border-radius: 50%; display: grid; place-items: center;
+    width: 2.6rem; height: 2.6rem; flex: none; padding: 0; border-radius: 50%; display: grid; place-items: center;
     background: var(--panel-2); border: none; color: var(--text);
   }
   .dialbtn.armed { background: var(--green); color: #fff; }
   .results {
-    position: absolute; left: 0; top: calc(100% + 0.4rem); z-index: 12; width: 30rem; max-height: 70vh; overflow: auto;
+    position: absolute; left: 0; top: calc(100% + 0.4rem); z-index: 12; width: min(30rem, calc(100vw - 1.5rem)); max-height: 70vh; overflow: auto;
     background: var(--panel); border: 1px solid var(--line); border-radius: 8px; box-shadow: 0 8px 24px #000a; padding: 0.3rem;
   }
   .hit { display: flex; flex-direction: column; gap: 0.3rem; padding: 0.5rem 0.6rem; border-bottom: 1px solid var(--line); }
