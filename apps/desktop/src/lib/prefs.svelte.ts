@@ -32,6 +32,7 @@ export type Prefs = {
   minimize_to_tray: boolean;
   always_on_top: boolean;
   hotkeys: Hotkeys;
+  fkey_columns: number;
 };
 
 export type Hotkeys = {

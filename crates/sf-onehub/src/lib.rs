@@ -162,6 +162,10 @@ impl OneHub {
         v1::journal::journal_service_client::JournalServiceClient
     );
     service!(
+        presence,
+        v1::presence::presence_service_client::PresenceServiceClient
+    );
+    service!(
         redirect,
         v1::redirect::redirect_service_client::RedirectServiceClient
     );

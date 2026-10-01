@@ -8,6 +8,7 @@
   import Journal from "$lib/Journal.svelte";
   import Chat from "$lib/Chat.svelte";
   import Voicemail from "$lib/Voicemail.svelte";
+  import FunctionKeys from "$lib/FunctionKeys.svelte";
   import { initVoicemail, loadVoicemails, unheard, voicemail } from "$lib/voicemail.svelte";
   import { initChat, unreadTotal } from "$lib/chat.svelte";
   import Icon, { type IconName } from "$lib/Icon.svelte";
@@ -90,13 +91,14 @@
 
   let menuOpen = $state(false);
   let settingsOpen = $state(false);
-  type Tab = "journal" | "voicemail" | "contacts" | "chat";
+  type Tab = "journal" | "voicemail" | "contacts" | "chat" | "fkeys";
   let tab = $state<Tab>("journal");
   const tabs: { id: Tab; icon: IconName; label: string }[] = [
     { id: "journal", icon: "history", label: "Rufliste" },
     { id: "voicemail", icon: "voicemail", label: "Voicemail" },
     { id: "contacts", icon: "contacts", label: "Adressbuch" },
     { id: "chat", icon: "chat", label: "Chat" },
+    { id: "fkeys", icon: "dialpad", label: "Funktionstasten" },
   ];
 
   async function logout() {
@@ -170,6 +172,8 @@
       {#if notice}<p class="banner">{notice}</p>{/if}
       {#if tab === "journal"}
         <Journal />
+      {:else if tab === "fkeys"}
+        <FunctionKeys />
       {:else if tab === "voicemail"}
         <Voicemail />
       {:else if tab === "contacts"}

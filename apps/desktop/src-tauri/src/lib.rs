@@ -6,6 +6,7 @@ mod audio;
 mod busylight;
 mod chat;
 mod desktop;
+mod fkeys;
 mod presence;
 mod reach;
 mod settings;
@@ -102,6 +103,7 @@ async fn set_session(app: &AppHandle, session: Option<Session>) {
     *state.journal.lock().await = hub.clone().map(|hub| start_journal(app, hub));
     reach::restart(app, hub.clone()).await;
     voicemail::restart(app, hub.clone()).await;
+    fkeys::stop(app).await;
     chat::stop(app).await;
     if let (Some(hub), Some(host), Some(user_id)) = (&hub, &host, user_id) {
         chat::start(app, hub.clone(), host.clone(), user_id);
@@ -695,6 +697,7 @@ pub fn run() {
         .plugin(tauri_plugin_dialog::init())
         .manage(chat::ChatState::default())
         .manage(reach::ReachState::default())
+        .manage(fkeys::FkeyState::default())
         .manage(voicemail::VoicemailState::default())
         .manage(audio::AudioState::default())
         .manage(busylight::BusylightState::default())
@@ -795,6 +798,13 @@ pub fn run() {
             reach::fmc_delete,
             reach::mailboxes,
             reach::mailbox_record,
+            fkeys::fkeys_load,
+            fkeys::fkey_presence,
+            fkeys::fkey_save,
+            fkeys::fkey_delete,
+            fkeys::fkeys_reorder,
+            fkeys::fkey_dnd,
+            fkeys::fkey_park,
             voicemail::voicemails,
             voicemail::voicemail_audio,
             voicemail::voicemail_save,

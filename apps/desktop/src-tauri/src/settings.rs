@@ -64,6 +64,8 @@ pub struct Prefs {
     pub minimize_to_tray: bool,
     pub always_on_top: bool,
     pub hotkeys: crate::desktop::Hotkeys,
+    /// Spalten im Funktionstasten-Raster (lokal, wie in Windows)
+    pub fkey_columns: u8,
 }
 
 impl Default for Prefs {
@@ -99,6 +101,7 @@ impl Default for Prefs {
             minimize_to_tray: false,
             always_on_top: false,
             hotkeys: crate::desktop::Hotkeys::default(),
+            fkey_columns: 3,
         }
     }
 }
