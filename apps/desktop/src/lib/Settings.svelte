@@ -24,6 +24,8 @@
   let micLevel = $state(0);
   let micTesting = $state(false);
   let playing = $state<string | null>(null);
+  let busylight = $state<{ devices: string[]; error: string | null; tones: string[] }>({ devices: [], error: null, tones: [] });
+  let blTesting = $state(false);
 
   const sections: { id: string; icon: IconName; label: string }[] = [
     { id: "softphone", icon: "call", label: "Softphone" },
@@ -99,11 +101,22 @@
     } catch (e) {
       notice = `Audiogeräte nicht gelesen: ${e}`;
     }
+    invoke<typeof busylight>("busylight_info").then((b) => (busylight = b), () => {});
     try {
       numbers = await invoke<SignalingNumber[]>("signaling_numbers");
       initialSignaling = signaling = numbers.find((n) => n.selected)?.id ?? "";
     } catch (e) {
       numbersError = String(e);
+    }
+  }
+
+  async function testBusylight() {
+    if (!draft) return;
+    blTesting = true;
+    try {
+      await invoke("busylight_test", { sound: draft.busylight_sound, volume: draft.busylight_volume });
+    } finally {
+      blTesting = false;
     }
   }
 
@@ -233,7 +246,33 @@
       <section id="busylight">
         <h3>Busylight</h3>
         <div class="card">
-          <p class="muted">Unterstützung für Kuando Busylight folgt.</p>
+          <Toggle bind:checked={draft.busylight} label="Kuando Busylight verwenden" />
+          <p class="small muted">Grün: frei · Rot: im Gespräch · Rot blinkend: eingehender Anruf</p>
+          <p class="muted">
+            {#if busylight.devices.length}
+              Angeschlossen: {busylight.devices.length === 1 ? "1 Gerät" : `${busylight.devices.length} Geräte`}
+            {:else}
+              Kein Busylight angeschlossen.
+            {/if}
+          </p>
+          {#if busylight.error}<p class="notice">{busylight.error}</p>{/if}
+          <div class="bl" class:off={!draft.busylight}>
+            <label>
+              <span>Ton bei Anruf</span>
+              <select bind:value={draft.busylight_sound}>
+                <option value="">Kein Ton</option>
+                {#each busylight.tones as t}<option value={t}>{t}</option>{/each}
+              </select>
+            </label>
+            <label>
+              <span>Lautstärke</span>
+              <input type="range" min="0" max="100" step="5" bind:value={draft.busylight_volume} disabled={!draft.busylight_sound} />
+              <span class="vol">{draft.busylight_volume} %</span>
+            </label>
+            <button class="play" onclick={testBusylight} disabled={blTesting || !busylight.devices.length}>
+              <Icon name="light" size={18} /> {blTesting ? "Teste …" : "Testen"}
+            </button>
+          </div>
         </div>
       </section>
 
@@ -290,6 +329,12 @@
   .radio input { accent-color: var(--accent); width: 1.1rem; height: 1.1rem; margin: 0; }
   .muted { color: var(--muted); margin: 0.3rem 0; }
   .notice { color: var(--accent); margin: 0; flex: 1; }
+  .bl { display: flex; flex-direction: column; gap: 0.6rem; margin-top: 0.4rem; }
+  .bl.off { opacity: 0.5; }
+  .bl label { display: grid; grid-template-columns: 8rem minmax(0, 16rem) auto; align-items: center; gap: 0.8rem; }
+  .bl select { padding: 0.3rem; background: var(--panel-2); color: inherit; border: 1px solid var(--line); border-radius: 4px; }
+  .bl input[type="range"] { accent-color: var(--accent); }
+  .vol { color: var(--muted); font-size: 0.85rem; }
   .logout { align-self: flex-start; display: flex; align-items: center; gap: 0.5rem; }
   footer {
     grid-column: 1 / -1; display: flex; justify-content: flex-end; align-items: center; gap: 1rem;

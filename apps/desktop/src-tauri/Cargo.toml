@@ -18,12 +18,13 @@ sf-onehub.workspace = true
 sf-sip = { path = "../../../crates/sf-sip" }
 sf-chat = { path = "../../../crates/sf-chat" }
 sf-audio = { path = "../../../crates/sf-audio" }
+sf-busylight = { path = "../../../crates/sf-busylight" }
 tracing.workspace = true
 tracing-subscriber.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 url.workspace = true
-tokio = { workspace = true, features = ["sync"] }
+tokio = { workspace = true, features = ["sync", "time"] }
 tauri = { version = "2", features = ["tray-icon"] }
 tauri-plugin-opener = "2"
 tauri-plugin-deep-link = "2"

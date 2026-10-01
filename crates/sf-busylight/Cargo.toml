@@ -1,0 +1,8 @@
+[package]
+name = "sf-busylight"
+description = "Kuando Busylight über hidraw: Farbe, Blinken und Klingelton"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+tracing.workspace = true

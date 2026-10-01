@@ -4682,6 +4682,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "sf-busylight"
+version = "0.1.0"
+dependencies = [
+ "tracing",
+]
+
+[[package]]
 name = "sf-chat"
 version = "0.1.0"
 dependencies = [
@@ -4955,6 +4962,7 @@ dependencies = [
  "serde_json",
  "sf-audio",
  "sf-auth",
+ "sf-busylight",
  "sf-chat",
  "sf-core",
  "sf-onehub",

@@ -1,0 +1,3 @@
+# Kuando Busylight: Zugriff für angemeldete Benutzer (STARFACE Linux-Client)
+SUBSYSTEM=="hidraw", ATTRS{idVendor}=="27bb", TAG+="uaccess"
+SUBSYSTEM=="hidraw", ATTRS{idVendor}=="04d8", ATTRS{idProduct}=="f848", TAG+="uaccess"
