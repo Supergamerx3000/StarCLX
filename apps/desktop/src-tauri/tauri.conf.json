@@ -45,7 +45,10 @@
           "libpulse0",
           "libasound2t64 | libasound2",
           "libssl3t64 | libssl3"
-        ]
+        ],
+        "files": {
+          "/usr/lib/udev/rules.d/60-starface-busylight.rules": "udev/60-starface-busylight.rules"
+        }
       },
       "appimage": {}
     }

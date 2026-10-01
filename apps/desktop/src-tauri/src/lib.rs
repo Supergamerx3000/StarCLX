@@ -3,6 +3,7 @@
 //! dem Schlüsselbund, ein Tray-Symbol und das Softphone.
 
 mod audio;
+mod busylight;
 mod chat;
 mod settings;
 
@@ -85,6 +86,7 @@ async fn set_session(app: &AppHandle, session: Option<Session>) {
     // Erst das alte Softphone beenden, dann ggf. ein neues starten.
     state.phone.lock().await.take();
     audio::update_ringer(app, None);
+    busylight::set_mode(app, busylight::Mode::Off);
     let host = session.as_ref().and_then(|s| {
         url::Url::parse(&s.info().server)
             .ok()
@@ -205,6 +207,7 @@ async fn start_phone(app: AppHandle, hub: sf_onehub::OneHub, host: String) {
             }
             *state.phone.lock().await = Some(phone);
             update_phone_status(&app, |s| s.state = "ready".into());
+            busylight::set_mode(&app, busylight::Mode::Idle);
         }
         Err(e) => {
             tracing::warn!(error = %e, "Softphone nicht gestartet");
@@ -238,6 +241,7 @@ async fn start_phone(app: AppHandle, hub: sf_onehub::OneHub, host: String) {
                     .find(|c| c.incoming && c.phase == CallPhase::Ringing)
                     .map(|c| c.internal);
                 audio::update_ringer(&app, ring_internal);
+                busylight::set_mode(&app, busylight::Mode::from_calls(&calls));
                 update_phone_status(&app, |s| {
                     s.calls = calls;
                     s.muted = muted;
@@ -443,6 +447,7 @@ async fn save_prefs(
 ) -> Result<(), String> {
     let old = settings::load(&app).prefs;
     settings::update(&app, |s| s.prefs = prefs.clone());
+    busylight::refresh(&app);
     if !old.softphone_changed(&prefs) {
         return Ok(());
     }
@@ -668,6 +673,7 @@ pub fn run() {
         .plugin(tauri_plugin_dialog::init())
         .manage(chat::ChatState::default())
         .manage(audio::AudioState::default())
+        .manage(busylight::BusylightState::default())
         .manage(AppState {
             pending: Mutex::default(),
             session: Mutex::default(),
@@ -716,6 +722,8 @@ pub fn run() {
         })
         .invoke_handler(tauri::generate_handler![
             last_server,
+            busylight::busylight_info,
+            busylight::busylight_test,
             restore_session,
             start_login,
             logout,
