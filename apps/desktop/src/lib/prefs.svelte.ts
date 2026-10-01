@@ -18,6 +18,14 @@ export type Prefs = {
   busylight: boolean;
   busylight_sound: string;
   busylight_volume: number;
+  chat_notify: boolean;
+  chat_sound: boolean;
+  download_dir: string;
+  away_on_idle: boolean;
+  away_on_screensaver: boolean;
+  away_on_lock: boolean;
+  away_text: string;
+  offline_text: string;
 };
 
 export const prefs = $state({ value: null as Prefs | null });

@@ -84,8 +84,38 @@ pub enum ChatEvent {
 }
 
 enum Command {
-    Send { to: String, body: String },
-    LoadArchive { peer: String },
+    Send {
+        to: String,
+        body: String,
+    },
+    LoadArchive {
+        peer: String,
+    },
+    Presence(Own),
+    /// Abmelden mit Statustext, danach endet die Verbindung
+    Offline {
+        status: String,
+    },
+}
+
+/// Eigener Status, wie ihn die anderen sehen
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct Own {
+    pub away: bool,
+    pub status: String,
+}
+
+impl Own {
+    fn presence(&self) -> Presence {
+        let mut p = Presence::available();
+        if self.away {
+            p.show = Some(Show::Away);
+        }
+        if !self.status.is_empty() {
+            p.set_status(Lang::default(), self.status.clone());
+        }
+        p
+    }
 }
 
 pub struct Chat {
@@ -143,6 +173,22 @@ impl Chat {
     pub fn recent(&self) -> Vec<ChatMessage> {
         self.history.recent()
     }
+
+    /// Setzt den eigenen Status (auch für spätere Neuverbindungen).
+    pub fn set_presence(&self, away: bool, status: &str) {
+        let _ = self.commands.send(Command::Presence(Own {
+            away,
+            status: status.to_owned(),
+        }));
+    }
+
+    /// Meldet sich mit Statustext ab und wartet kurz, bis das gesendet ist.
+    pub async fn shutdown(mut self, status: &str) {
+        let _ = self.commands.send(Command::Offline {
+            status: status.to_owned(),
+        });
+        let _ = tokio::time::timeout(Duration::from_secs(2), &mut self.task).await;
+    }
 }
 
 impl Drop for Chat {
@@ -170,6 +216,7 @@ async fn run(
     mut commands: mpsc::UnboundedReceiver<Command>,
 ) {
     let mut backoff = Duration::from_secs(2);
+    let mut own = Own::default();
     loop {
         let mut client = Client::new_starttls(
             jid.clone(),
@@ -194,7 +241,7 @@ async fn run(
                         online = true;
                         backoff = Duration::from_secs(2);
                         let _ = events.send(ChatEvent::State { online: true, detail: String::new() });
-                        for stanza in conn.on_online() {
+                        for stanza in conn.on_online(&own) {
                             if let Err(e) = client.send_stanza(stanza).await {
                                 tracing::warn!(error = %e, "Chat: Senden fehlgeschlagen");
                             }
@@ -205,6 +252,23 @@ async fn run(
                 },
                 cmd = commands.recv() => match cmd {
                     None => return,
+                    Some(Command::Presence(p)) => {
+                        own = p;
+                        if online && let Err(e) = client.send_stanza(own.presence().into()).await {
+                            tracing::warn!(error = %e, "Chat: Status nicht gesendet");
+                        }
+                    }
+                    Some(Command::Offline { status }) => {
+                        if online {
+                            let mut p = Presence::unavailable();
+                            if !status.is_empty() {
+                                p.set_status(Lang::default(), status);
+                            }
+                            let _ = client.send_stanza(p.into()).await;
+                        }
+                        let _ = client.send_end().await;
+                        return;
+                    }
                     Some(cmd) if online => {
                         if let Some(stanza) = conn.on_command(cmd)
                             && let Err(e) = client.send_stanza(stanza).await
@@ -246,12 +310,12 @@ fn new_id() -> String {
 }
 
 impl Conn {
-    fn on_online(&mut self) -> Vec<Stanza> {
+    fn on_online(&mut self, own: &Own) -> Vec<Stanza> {
         self.roster_request = new_id();
         vec![
             xml::iq_get(&self.roster_request, xml::roster_query()),
             xml::iq_set(&new_id(), xml::carbons_enable()),
-            Presence::available().into(),
+            own.presence().into(),
         ]
     }
 
@@ -278,6 +342,8 @@ impl Conn {
                 self.archive_requests.insert(id.clone(), peer.clone());
                 Some(xml::iq_get(&id, xml::archive_retrieve(&peer, 50)))
             }
+            // werden in `run` behandelt
+            Command::Presence(_) | Command::Offline { .. } => None,
         }
     }
 
