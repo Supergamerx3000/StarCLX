@@ -229,8 +229,10 @@ impl Drop for MicMeter {
 /// Spitzenpegel von 16-Bit-PCM, auf 0..1 normiert
 fn peak(bytes: &[u8]) -> f32 {
     bytes
-        .chunks_exact(2)
-        .map(|b| i16::from_le_bytes([b[0], b[1]]).unsigned_abs())
+        .as_chunks::<2>()
+        .0
+        .iter()
+        .map(|b| i16::from_le_bytes(*b).unsigned_abs())
         .max()
         .map_or(0.0, |m| f32::from(m) / 32768.0)
 }
