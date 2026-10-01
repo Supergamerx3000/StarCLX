@@ -6,6 +6,7 @@ edition.workspace = true
 
 [dependencies]
 reqwest.workspace = true
+sf-tls.workspace = true
 serde.workspace = true
 thiserror.workspace = true
 url.workspace = true

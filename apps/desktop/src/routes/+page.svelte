@@ -17,11 +17,14 @@
   import { loadPrefs } from "$lib/prefs.svelte";
 
   type SessionInfo = { server: string; server_version: string; display_name: string };
+  type UntrustedCert = { host: string; port: number; fingerprint: string; reason: string };
 
   let server = $state("");
   let phase = $state<"restoring" | "login" | "waiting" | "session">("restoring");
   let notice = $state("");
   let session = $state<SessionInfo | null>(null);
+  /** Zertifikat der Anlage, das der Benutzer bestätigen muss */
+  let untrusted = $state<UntrustedCert | null>(null);
 
   onMount(() => {
     const offs = [
@@ -77,16 +80,30 @@
     phase = "login";
   }
 
-  async function login(event: Event) {
-    event.preventDefault();
+  async function login(event?: Event) {
+    event?.preventDefault();
     notice = "";
+    untrusted = null;
     phase = "waiting";
     try {
+      const cert = await invoke<UntrustedCert | null>("check_certificate", { server });
+      if (cert) {
+        untrusted = cert;
+        phase = "login";
+        return;
+      }
       await invoke("start_login", { server });
     } catch (e) {
       notice = String(e);
       phase = "login";
     }
+  }
+
+  async function trustCertificate() {
+    if (!untrusted) return;
+    await invoke("trust_certificate", { server, fingerprint: untrusted.fingerprint });
+    // Weiter prüfen: gRPC kann ein anderes Zertifikat haben als der Web-Port.
+    login();
   }
 
   let menuOpen = $state(false);
@@ -199,6 +216,22 @@
         {phase === "waiting" ? "Warte auf Browser …" : "Im Browser anmelden"}
       </button>
     </form>
+    {#if untrusted}
+      <div class="cert" role="alertdialog" aria-labelledby="cert-title">
+        <h2 id="cert-title">Zertifikat nicht vertrauenswürdig</h2>
+        <p>
+          Das Zertifikat von <b>{untrusted.host}:{untrusted.port}</b> ist nicht von einer bekannten
+          Stelle ausgestellt oder passt nicht zur Adresse ({untrusted.reason}). Das ist bei lokalen
+          Anlagen mit selbstsigniertem Zertifikat üblich.
+        </p>
+        <p class="muted">Fingerabdruck (SHA-256), mit dem Zertifikat der Anlage vergleichen:</p>
+        <code>{untrusted.fingerprint}</code>
+        <div class="actions">
+          <button onclick={() => (untrusted = null)}>Abbrechen</button>
+          <button class="primary" onclick={trustCertificate}>Vertrauen und anmelden</button>
+        </div>
+      </div>
+    {/if}
   {/if}
   {#if notice}<p class="notice">{notice}</p>{/if}
 </main>
@@ -290,4 +323,8 @@
   .login { max-width: 26rem; margin: 15vh auto 0; padding: 0 1rem; }
   .login form { display: flex; flex-direction: column; gap: 0.75rem; }
   .primary { background: var(--accent); border-color: var(--accent); color: #111; font-weight: 600; }
+  .cert { margin-top: 1rem; padding: 0.75rem 1rem; border: 1px solid var(--accent); border-radius: 6px; background: var(--panel); }
+  .cert h2 { margin: 0 0 0.5rem; font-size: 1rem; }
+  .cert code { display: block; font-size: 0.8rem; word-break: break-all; }
+  .cert .actions { display: flex; justify-content: flex-end; gap: 0.5rem; margin-top: 0.75rem; }
 </style>

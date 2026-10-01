@@ -4,6 +4,7 @@
 
 mod audio;
 mod busylight;
+mod certs;
 mod chat;
 mod desktop;
 mod fkeys;
@@ -203,7 +204,10 @@ async fn start_phone(app: AppHandle, hub: sf_onehub::OneHub, host: String) {
         return;
     }
     let (tx, mut rx) = mpsc::unbounded_channel();
-    let config = audio::softphone_config(&prefs).await;
+    let mut config = audio::softphone_config(&prefs).await;
+    if certs::has_trusted(&app, &host) {
+        config.verify_server = false;
+    }
     match Phone::start(hub.clone(), &host, &config, env!("CARGO_PKG_VERSION"), tx).await {
         Ok(phone) => {
             let state = app.state::<AppState>();
@@ -309,7 +313,7 @@ async fn start_login(
     state: State<'_, AppState>,
     server: String,
 ) -> Result<(), String> {
-    let server = server.trim().trim_end_matches('/').to_owned();
+    let server = certs::normalize_server(&server);
     let auth = sf_auth::Client::discover(&server)
         .await
         .map_err(|e| e.to_string())?;
@@ -710,6 +714,7 @@ pub fn run() {
             journal: Mutex::default(),
         })
         .setup(move |app| {
+            certs::init(app.handle());
             presence::start(app.handle());
             let prefs = settings::load(app.handle()).prefs;
             desktop::apply_window(app.handle(), &prefs);
@@ -764,6 +769,8 @@ pub fn run() {
             busylight::busylight_info,
             busylight::busylight_test,
             restore_session,
+            certs::check_certificate,
+            certs::trust_certificate,
             start_login,
             logout,
             phone_status,

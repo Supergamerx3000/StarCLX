@@ -10,6 +10,7 @@
 //! (XEP-0136) und ein lokaler Verlauf als JSON-Datei.
 
 mod history;
+mod tls;
 mod xml;
 
 use std::collections::BTreeMap;
@@ -218,10 +219,10 @@ async fn run(
     let mut backoff = Duration::from_secs(2);
     let mut own = Own::default();
     loop {
-        let mut client = Client::new_starttls(
+        let mut client = Client::new_with_connector(
             jid.clone(),
             token(),
-            DnsConfig::no_srv(&host, PORT),
+            tls::StartTls(DnsConfig::no_srv(&host, PORT)),
             Timeouts::default(),
         );
         let mut conn = Conn {
