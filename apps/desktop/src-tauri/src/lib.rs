@@ -78,6 +78,33 @@ pub(crate) fn show_main_window(app: &AppHandle) {
     }
 }
 
+/// Kleines Fenster mit Rufnummernfeld und Besetztlampenfeldern
+pub(crate) fn show_quick_window(app: &AppHandle) {
+    if let Some(w) = app.get_webview_window("quick") {
+        let _ = w.show();
+        let _ = w.unminimize();
+        let _ = w.set_focus();
+        return;
+    }
+    let built =
+        tauri::WebviewWindowBuilder::new(app, "quick", tauri::WebviewUrl::App("quick".into()))
+            .title("STARFACE Schnellwahl")
+            .inner_size(340.0, 480.0)
+            .min_inner_size(260.0, 240.0)
+            .build();
+    if let Err(e) = built {
+        tracing::warn!(error = %e, "Schnellwahl-Fenster nicht geöffnet");
+    }
+}
+
+/// Schnellwahl schliessen (Esc); das Fenster bleibt für das nächste Mal bestehen.
+#[tauri::command]
+fn quick_hide(app: AppHandle) {
+    if let Some(w) = app.get_webview_window("quick") {
+        let _ = w.hide();
+    }
+}
+
 async fn set_session(app: &AppHandle, session: Option<Session>) {
     let tooltip = session
         .as_ref()
@@ -641,14 +668,16 @@ fn handle_urls(app: &AppHandle, urls: Vec<String>) {
 
 fn build_tray(app: &AppHandle) -> tauri::Result<()> {
     let open = MenuItem::with_id(app, "open", "Öffnen", true, None::<&str>)?;
+    let quick = MenuItem::with_id(app, "quick", "Schnellwahl", true, None::<&str>)?;
     let logout_item = MenuItem::with_id(app, "logout", "Abmelden", true, None::<&str>)?;
     let quit = MenuItem::with_id(app, "quit", "Beenden", true, None::<&str>)?;
-    let menu = Menu::with_items(app, &[&open, &logout_item, &quit])?;
+    let menu = Menu::with_items(app, &[&open, &quick, &logout_item, &quit])?;
     let mut tray = TrayIconBuilder::with_id("main")
         .tooltip("STARFACE: abgemeldet")
         .menu(&menu)
         .on_menu_event(|app, event| match event.id.as_ref() {
             "open" => show_main_window(app),
+            "quick" => show_quick_window(app),
             "logout" => {
                 let app = app.clone();
                 tauri::async_runtime::spawn(async move {
@@ -761,6 +790,7 @@ pub fn run() {
         })
         .invoke_handler(tauri::generate_handler![
             last_server,
+            quick_hide,
             busylight::busylight_info,
             busylight::busylight_test,
             restore_session,
