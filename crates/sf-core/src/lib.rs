@@ -6,6 +6,7 @@
 
 pub mod account;
 pub mod directory;
+pub mod journal;
 pub mod phone;
 
 use std::time::Duration;

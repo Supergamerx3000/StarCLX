@@ -6,12 +6,14 @@ mod settings;
 
 use serde::Serialize;
 use settings::Prefs;
+use sf_core::journal::{Journal, JournalEvent};
 use sf_core::phone::{CallPhase, Phone, PhoneEvent};
 use sf_core::{Session, SessionEvent};
 use tauri::menu::{Menu, MenuItem};
 use tauri::tray::TrayIconBuilder;
 use tauri::{AppHandle, Emitter, Manager, State, WindowEvent};
 use tauri_plugin_deep_link::DeepLinkExt;
+use tauri_plugin_notification::NotificationExt;
 use tauri_plugin_opener::OpenerExt;
 use tokio::sync::{Mutex, mpsc};
 
@@ -29,6 +31,7 @@ struct AppState {
     phone: Mutex<Option<Phone>>,
     /// Letzter Stand fürs Neuladen der Oberfläche
     phone_status: std::sync::Mutex<PhoneStatus>,
+    journal: Mutex<Option<Journal>>,
 }
 
 #[derive(Clone, Default, Serialize)]
@@ -86,12 +89,67 @@ async fn set_session(app: &AppHandle, session: Option<Session>) {
     });
     let hub = session.as_ref().map(|s| s.hub().clone());
     *state.session.lock().await = session;
+    *state.journal.lock().await = hub.clone().map(|hub| start_journal(app, hub));
+    if hub.is_none() {
+        let _ = app.emit("journal", Vec::<sf_core::journal::Entry>::new());
+    }
     match (hub, host) {
         (Some(hub), Some(host)) => {
             let app = app.clone();
             tauri::async_runtime::spawn(async move { start_phone(app, hub, host).await });
         }
         _ => update_phone_status(app, |s| *s = PhoneStatus::default()),
+    }
+}
+
+fn start_journal(app: &AppHandle, hub: sf_onehub::OneHub) -> Journal {
+    let (tx, mut rx) = mpsc::unbounded_channel();
+    let journal = Journal::start(hub, tx);
+    let app = app.clone();
+    tauri::async_runtime::spawn(async move {
+        while let Some(ev) = rx.recv().await {
+            match ev {
+                JournalEvent::Entries { entries } => {
+                    let _ = app.emit("journal", entries);
+                }
+                JournalEvent::Missed { entry } => notify_missed(&app, &entry),
+                JournalEvent::Error { message } => {
+                    let _ = app.emit("journal-error", message);
+                }
+            }
+        }
+    });
+    journal
+}
+
+fn notify_missed(app: &AppHandle, entry: &sf_core::journal::Entry) {
+    let prefs = settings::load(app).prefs;
+    let group = !entry.group.is_empty();
+    if !(if group {
+        prefs.notify_missed_group
+    } else {
+        prefs.notify_missed
+    }) {
+        return;
+    }
+    let who = match (entry.name.trim(), entry.number.trim()) {
+        ("", "") => "Unbekannt".to_owned(),
+        ("", n) | (n, "") => n.to_owned(),
+        (name, n) => format!("{name} ({n})"),
+    };
+    let body = if group {
+        format!("{who} über Gruppe {}", entry.group)
+    } else {
+        who
+    };
+    if let Err(e) = app
+        .notification()
+        .builder()
+        .title("Verpasster Anruf")
+        .body(body)
+        .show()
+    {
+        tracing::warn!(error = %e, "Benachrichtigung nicht angezeigt");
     }
 }
 
@@ -460,6 +518,40 @@ async fn contacts_list(
 }
 
 #[tauri::command]
+async fn journal_entries(
+    state: State<'_, AppState>,
+) -> Result<Vec<sf_core::journal::Entry>, String> {
+    Ok(state
+        .journal
+        .lock()
+        .await
+        .as_ref()
+        .map(Journal::entries)
+        .unwrap_or_default())
+}
+
+/// Rufliste bearbeiten: "delete", "called_back", "not_called_back" oder
+/// "comment" (mit `text`).
+#[tauri::command]
+async fn journal_action(
+    state: State<'_, AppState>,
+    action: String,
+    id: String,
+    text: Option<String>,
+) -> Result<(), String> {
+    let journal = state.journal.lock().await;
+    let journal = journal.as_ref().ok_or("Nicht angemeldet")?;
+    match action.as_str() {
+        "delete" => journal.delete(&id).await,
+        "called_back" => journal.set_called_back(&id, true).await,
+        "not_called_back" => journal.set_called_back(&id, false).await,
+        "comment" => journal.set_comment(&id, &text.unwrap_or_default()).await,
+        _ => return Err(format!("Unbekannte Aktion {action}")),
+    }
+    .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
 async fn logout(app: AppHandle, state: State<'_, AppState>) -> Result<(), String> {
     let session = state.session.lock().await.take();
     set_session(&app, None).await;
@@ -559,12 +651,14 @@ pub fn run() {
         }))
         .plugin(tauri_plugin_deep_link::init())
         .plugin(tauri_plugin_opener::init())
+        .plugin(tauri_plugin_notification::init())
         .manage(AppState {
             pending: Mutex::default(),
             session: Mutex::default(),
             events: events_tx,
             phone: Mutex::default(),
             phone_status: std::sync::Mutex::default(),
+            journal: Mutex::default(),
         })
         .setup(move |app| {
             // Registriert starface-app:// für das laufende Binary (wichtig für
@@ -623,7 +717,9 @@ pub fn run() {
             set_signaling_number,
             contacts_search,
             contacts_folders,
-            contacts_list
+            contacts_list,
+            journal_entries,
+            journal_action
         ])
         .run(tauri::generate_context!())
         .expect("Tauri-App konnte nicht starten");

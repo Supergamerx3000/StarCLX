@@ -5,6 +5,7 @@
   import CallManager from "$lib/CallManager.svelte";
   import Contacts from "$lib/Contacts.svelte";
   import DialSearch from "$lib/DialSearch.svelte";
+  import Journal from "$lib/Journal.svelte";
   import Icon, { type IconName } from "$lib/Icon.svelte";
   import Settings from "$lib/Settings.svelte";
   import { initPhone, phone } from "$lib/phone.svelte";
@@ -129,7 +130,9 @@
         <p class="banner"><span class="reg {phone.status.state}"></span>{stateText[phone.status.state]}{#if phone.status.detail}: {phone.status.detail}{/if}</p>
       {/if}
       {#if notice}<p class="banner">{notice}</p>{/if}
-      {#if tab === "contacts"}
+      {#if tab === "journal"}
+        <Journal />
+      {:else if tab === "contacts"}
         <Contacts />
       {:else}
         <section class="tile">
