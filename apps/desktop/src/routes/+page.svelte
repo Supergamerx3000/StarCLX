@@ -14,7 +14,8 @@
   import Icon, { type IconName } from "$lib/Icon.svelte";
   import Settings from "$lib/Settings.svelte";
   import { initPhone, phone, run, isRingingIn } from "$lib/phone.svelte";
-  import { loadPrefs } from "$lib/prefs.svelte";
+  import { loadPrefs, prefs, savePrefs, type Tile } from "$lib/prefs.svelte";
+  import Workspace, { tilesOf } from "$lib/Workspace.svelte";
 
   type SessionInfo = { server: string; server_version: string; display_name: string };
 
@@ -101,6 +102,25 @@
     { id: "fkeys", icon: "dialpad", label: "Funktionstasten" },
   ];
 
+  const meta = Object.fromEntries(tabs.map((t) => [t.id, t]));
+  const free = $derived(prefs.value?.workspace === "free");
+  let tiles = $state<Tile[]>([]);
+  $effect(() => {
+    tiles = tilesOf(prefs.value?.workspace_tiles);
+  });
+
+  /** Anordnung der Kacheln sichern */
+  function saveLayout() {
+    if (prefs.value) savePrefs({ ...$state.snapshot(prefs.value), workspace_tiles: $state.snapshot(tiles) }).catch(() => {});
+  }
+
+  function tabClick(id: Tab) {
+    if (!free) return void (tab = id);
+    const t = tiles.find((t) => t.id === id);
+    if (t) t.visible = !t.visible;
+    saveLayout();
+  }
+
   async function logout() {
     menuOpen = false;
     settingsOpen = false;
@@ -157,7 +177,12 @@
 
     <nav class="tabs">
       {#each tabs as t}
-        <button class="tab" class:active={tab === t.id} onclick={() => (tab = t.id)}>
+        <button
+          class="tab"
+          class:active={free ? tiles.find((x) => x.id === t.id)?.visible : tab === t.id}
+          title={free ? "Kachel ein- oder ausblenden" : undefined}
+          onclick={() => tabClick(t.id)}
+        >
           <Icon name={t.icon} size={20} /><span>{t.label}</span>
           {#if t.id === "chat" && unreadTotal()}<span class="unread">{unreadTotal()}</span>{/if}
           {#if t.id === "voicemail" && unheard()}<span class="unread">{unheard()}</span>{/if}
@@ -170,16 +195,23 @@
         <p class="banner"><span class="reg {phone.status.state}"></span>{stateText[phone.status.state]}{#if phone.status.detail}: {phone.status.detail}{/if}</p>
       {/if}
       {#if notice}<p class="banner">{notice}</p>{/if}
-      {#if tab === "journal"}
-        <Journal />
-      {:else if tab === "fkeys"}
-        <FunctionKeys />
-      {:else if tab === "voicemail"}
-        <Voicemail />
-      {:else if tab === "contacts"}
-        <Contacts />
+      {#snippet view(id: string)}
+        {#if id === "journal"}
+          <Journal />
+        {:else if id === "fkeys"}
+          <FunctionKeys />
+        {:else if id === "voicemail"}
+          <Voicemail />
+        {:else if id === "contacts"}
+          <Contacts />
+        {:else}
+          <Chat />
+        {/if}
+      {/snippet}
+      {#if free}
+        <Workspace bind:tiles {meta} body={view} onchange={saveLayout} />
       {:else}
-        <Chat />
+        {@render view(tab)}
       {/if}
     </main>
   </div>
