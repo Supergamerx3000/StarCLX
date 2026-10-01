@@ -20,6 +20,7 @@ sf-chat = { path = "../../../crates/sf-chat" }
 sf-audio = { path = "../../../crates/sf-audio" }
 sf-busylight = { path = "../../../crates/sf-busylight" }
 zbus = "5"
+arboard = { version = "3", default-features = false }
 tracing.workspace = true
 tracing-subscriber.workspace = true
 serde.workspace = true

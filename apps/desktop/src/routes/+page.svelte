@@ -10,7 +10,7 @@
   import { initChat, unreadTotal } from "$lib/chat.svelte";
   import Icon, { type IconName } from "$lib/Icon.svelte";
   import Settings from "$lib/Settings.svelte";
-  import { initPhone, phone } from "$lib/phone.svelte";
+  import { initPhone, phone, run, isRingingIn } from "$lib/phone.svelte";
   import { loadPrefs } from "$lib/prefs.svelte";
 
   type SessionInfo = { server: string; server_version: string; display_name: string };
@@ -25,6 +25,7 @@
       listen<SessionInfo>("session", (e) => { session = e.payload; notice = ""; phase = "session"; }),
       listen<string>("login-error", (e) => { notice = e.payload; phase = "login"; }),
       listen<string>("logged-out", (e) => { session = null; notice = e.payload; phase = "login"; }),
+      listen<{ action: string; text: string | null }>("hotkey", (e) => hotkey(e.payload.action, e.payload.text)),
     ];
     initPhone();
     initChat();
@@ -32,6 +33,34 @@
     restore();
     return () => offs.forEach((p) => p.then((off) => off()));
   });
+
+  /** Tastenkürzel aus GNOME (`starface-desktop --action …`) */
+  function hotkey(action: string, text: string | null) {
+    const calls = phone.status.calls;
+    switch (action) {
+      case "dial-selection":
+      case "dial-clipboard": {
+        const number = (text ?? "").replace(/[^\d+*#]/g, "");
+        if (number) run("phone_dial", { number });
+        else phone.notice = action === "dial-selection" ? "Keine Rufnummer markiert" : "Keine Rufnummer in der Zwischenablage";
+        break;
+      }
+      case "answer": {
+        const c = calls.find(isRingingIn);
+        if (c) run("phone_answer", { callId: c.id });
+        break;
+      }
+      case "hangup": {
+        const order = ["connected", "ringback", "setup", "held"];
+        const c = order.map((p) => calls.find((c) => c.phase === p)).find(Boolean);
+        if (c) run("phone_hangup", { callId: c.id });
+        break;
+      }
+      case "toggle-view":
+        tab = tabs[(tabs.findIndex((t) => t.id === tab) + 1) % tabs.length].id;
+        break;
+    }
+  }
 
   async function restore() {
     server = (await invoke<string | null>("last_server")) ?? "";
@@ -182,6 +211,18 @@
     --red: #d9262d;
     color: var(--text);
     background: var(--bg);
+  }
+  :global(:root[data-theme="light"]) {
+    color-scheme: light;
+    --bg: #eef0f3;
+    --bar: #ffffff;
+    --bar-2: #e4e7eb;
+    --panel: #ffffff;
+    --panel-2: #e6e9ed;
+    --line: #d3d8de;
+    --text: #1f2226;
+    --muted: #5f6670;
+    --accent-soft: #f5a31a40;
   }
   :global(body) { margin: 0; }
   :global(input), :global(button) {

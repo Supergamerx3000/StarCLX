@@ -5,6 +5,7 @@
 mod audio;
 mod busylight;
 mod chat;
+mod desktop;
 mod presence;
 mod settings;
 
@@ -66,7 +67,7 @@ impl From<&sf_core::SessionInfo> for SessionInfo {
     }
 }
 
-fn show_main_window(app: &AppHandle) {
+pub(crate) fn show_main_window(app: &AppHandle) {
     if let Some(w) = app.get_webview_window("main") {
         let _ = w.show();
         let _ = w.unminimize();
@@ -449,6 +450,11 @@ async fn save_prefs(
     let old = settings::load(&app).prefs;
     settings::update(&app, |s| s.prefs = prefs.clone());
     busylight::refresh(&app);
+    desktop::apply_window(&app, &prefs);
+    if old.hotkeys != prefs.hotkeys || prefs.hotkeys.enabled {
+        desktop::apply_hotkeys(&prefs.hotkeys)
+            .map_err(|e| format!("Gespeichert, aber Tastenkürzel nicht eingetragen: {e}"))?;
+    }
     if !old.softphone_changed(&prefs) {
         return Ok(());
     }
@@ -672,9 +678,13 @@ pub fn run() {
     tauri::Builder::default()
         // Unter Linux startet der Browser für starface-app:// einen zweiten
         // Prozess; single-instance reicht die URL an die laufende App weiter.
-        .plugin(tauri_plugin_single_instance::init(|app, _argv, _cwd| {
-            show_main_window(app)
-        }))
+        // Tastenkürzel kommen als `--action …` über denselben Weg.
+        .plugin(tauri_plugin_single_instance::init(
+            |app, argv, _cwd| match desktop::action_from_args(&argv) {
+                Some(action) => desktop::run_action(app, action),
+                None => show_main_window(app),
+            },
+        ))
         .plugin(tauri_plugin_deep_link::init())
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_notification::init())
@@ -692,6 +702,9 @@ pub fn run() {
         })
         .setup(move |app| {
             presence::start(app.handle());
+            let prefs = settings::load(app.handle()).prefs;
+            desktop::apply_window(app.handle(), &prefs);
+            desktop::show_on_start(app.handle(), &prefs);
             // Registriert starface-app:// für das laufende Binary (wichtig für
             // AppImage und `tauri dev`; das .deb bringt eine eigene .desktop-Datei
             // mit). Fehlt z. B. xdg-mime, soll die App trotzdem starten.
@@ -723,11 +736,19 @@ pub fn run() {
             Ok(())
         })
         // Schliessen versteckt das Fenster nur; die App bleibt im Tray erreichbar.
-        .on_window_event(|window, event| {
-            if let WindowEvent::CloseRequested { api, .. } = event {
+        .on_window_event(|window, event| match event {
+            WindowEvent::CloseRequested { api, .. } => {
                 let _ = window.hide();
                 api.prevent_close();
             }
+            // Minimieren kommt unter Linux als Grössenänderung an
+            WindowEvent::Resized(_)
+                if window.is_minimized().unwrap_or(false)
+                    && settings::load(window.app_handle()).prefs.minimize_to_tray =>
+            {
+                let _ = window.hide();
+            }
+            _ => {}
         })
         .invoke_handler(tauri::generate_handler![
             last_server,
@@ -758,6 +779,7 @@ pub fn run() {
             chat::chat_conversation,
             chat::chat_send,
             chat::default_download_dir,
+            desktop::desktop_info,
             chat::pick_download_dir,
             audio::audio_info,
             audio::audio_preview,
