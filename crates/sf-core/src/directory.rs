@@ -55,17 +55,66 @@ pub async fn search(hub: &OneHub, term: &str, limit: i32) -> sf_onehub::Result<V
     Ok(contacts.into_iter().map(simple_view).collect())
 }
 
-pub async fn folders(hub: &OneHub) -> sf_onehub::Result<Vec<Folder>> {
+/// Adressbücher des Benutzers. Die Ordner kommen über gRPC; die auf der
+/// Anlage konfigurierten Anzeigenamen (Alias) liefert nur REST
+/// (`/rest/contacts/tags`, gleiche IDs). Fehlt REST, gelten die eingebauten
+/// Namen.
+pub async fn folders(hub: &OneHub, server: &str) -> sf_onehub::Result<Vec<Folder>> {
     let folders = hub.contact().get_folders(()).await?.into_inner().folders;
+    let aliases = match folder_aliases(server, &hub.token().get()).await {
+        Ok(a) => a,
+        Err(e) => {
+            tracing::debug!(error = %e, "Adressbuch-Namen über REST nicht gelesen");
+            Default::default()
+        }
+    };
     Ok(folders
         .into_iter()
         .filter_map(|f| {
+            let id = f.folder_id.as_ref()?.id.clone();
+            let alias = aliases.get(&id).map(String::as_str);
             Some(Folder {
-                name: folder_label(&f.folder_name, f.folder_type()),
-                id: f.folder_id?.id,
+                name: display_name(&f.folder_name, f.folder_type(), alias),
+                id,
             })
         })
         .collect())
+}
+
+#[derive(serde::Deserialize)]
+struct Tag {
+    id: String,
+    #[serde(default)]
+    alias: String,
+}
+
+type BoxError = Box<dyn std::error::Error + Send + Sync>;
+
+async fn folder_aliases(
+    server: &str,
+    token: &str,
+) -> Result<std::collections::HashMap<String, String>, BoxError> {
+    let url = url::Url::parse(server)?.join("/rest/contacts/tags")?;
+    let tags: Vec<Tag> = reqwest::Client::builder()
+        .timeout(std::time::Duration::from_secs(5))
+        .build()?
+        .get(url)
+        .bearer_auth(token)
+        .header("X-Version", "2")
+        .send()
+        .await?
+        .error_for_status()?
+        .json()
+        .await?;
+    Ok(tags.into_iter().map(|t| (t.id, t.alias)).collect())
+}
+
+/// Alias von der Anlage, sonst der eingebaute bzw. gelieferte Name
+fn display_name(name: &str, kind: v1::contact::FolderType, alias: Option<&str>) -> String {
+    match alias.map(str::trim) {
+        Some(a) if !a.is_empty() && !a.starts_with("de.vertico.") => a.to_owned(),
+        _ => folder_label(name, kind),
+    }
 }
 
 /// Anzeigename eines Adressbuchs. Für die eingebauten Ordner schickt die
@@ -266,6 +315,17 @@ mod tests {
             folder_label("SelectLine Mitarbeiter", T::Custom),
             "SelectLine Mitarbeiter"
         );
+    }
+
+    #[test]
+    fn alias_from_pbx_wins() {
+        use v1::contact::FolderType as T;
+        let all = "de.vertico.starface.addressbook.folder.all";
+        assert_eq!(display_name(all, T::Public, Some("Zentrale")), "Zentrale");
+        assert_eq!(display_name(all, T::Public, Some(" ")), "Zentral");
+        assert_eq!(display_name(all, T::Public, Some(all)), "Zentral");
+        assert_eq!(display_name(all, T::Public, None), "Zentral");
+        assert_eq!(display_name("Firma", T::Number, Some("Firma")), "Firma");
     }
 
     #[test]

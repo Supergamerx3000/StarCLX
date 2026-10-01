@@ -4708,6 +4708,7 @@ version = "0.1.0"
 dependencies = [
  "keyring-core",
  "prost-types",
+ "reqwest",
  "serde",
  "serde_json",
  "sf-auth",
