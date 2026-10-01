@@ -5,14 +5,16 @@
   import { onMount } from "svelte";
   import FkeyTile from "./FkeyTile.svelte";
   import Icon from "./Icon.svelte";
-  import { TYPES, blank, fkeys, loadFkeys, typeInfo, type FunctionKey, type SignalingNumber } from "./fkeys.svelte";
+  import { TYPES, blank, fkeys, keyAt, loadFkeys, placeAt, saveOrder, typeInfo, type FunctionKey, type SignalingNumber } from "./fkeys.svelte";
 
   let { columns = $bindable(3) }: { columns: number } = $props();
 
   let editing = $state<FunctionKey | null>(null);
   let busy = $state(false);
   let error = $state("");
-  let dragging: { kind: "type"; type: string } | { kind: "key"; index: number } | null = null;
+  let dragging: { kind: "type"; type: string } | { kind: "key"; id: string } | null = null;
+  /** Platz, auf den eine neue Taste nach dem Anlegen kommt */
+  let target: number | null = null;
   let over = $state<number | null>(null);
   let signaling = $state<SignalingNumber[]>([]);
 
@@ -21,7 +23,7 @@
     invoke<SignalingNumber[]>("signaling_numbers").then((s) => (signaling = s), () => {});
   });
 
-  const slots = $derived(Math.max(24, Math.ceil((fkeys.keys.length + 1) / columns) * columns));
+  const slots = $derived(Math.max(24, Math.ceil((fkeys.order.length + 1) / columns) * columns));
   const groups = [
     { id: "fav", label: "Favoriten" },
     { id: "fn", label: "Funktionstasten" },
@@ -82,20 +84,34 @@
     if (error) return;
     if (k.functionKeyType === "FORWARDTOTARGET" && k.forwardTargetType === "VOICEMAIL") k.forwardTarget = `destination:${fkeys.accountId}`;
     if (!k.name.trim()) k.name = defaultName(k);
-    if (await act("fkey_save", { set: fkeys.setId, key: k })) editing = null;
+    // Die Bearbeitungsform der Anlage erwartet beim BLF die Rufnummer
+    if (k.functionKeyType === "BUSYLAMPFIELD") {
+      k.directCallTargetnumber = fkeys.accounts.find((a) => a.account_id === k.blfAccountId)?.number ?? null;
+    }
+    const before = new Set(fkeys.keys.map((x) => x.id));
+    const slot = k.id ? null : target;
+    if (!(await act("fkey_save", { set: fkeys.setId, key: k }))) return;
+    editing = null;
+    target = null;
+    // Neue Taste auf den Platz legen, auf den sie gezogen wurde
+    const added = fkeys.keys.find((x) => !before.has(x.id));
+    if (added && slot !== null) await reorder(placeAt(fkeys.order, added.id, slot));
+  }
+
+  async function reorder(order: string[]) {
+    busy = true;
+    error = "";
+    try {
+      await saveOrder(order);
+    } catch (e) {
+      error = String(e);
+    }
+    await loadFkeys();
+    busy = false;
   }
 
   async function remove(k: FunctionKey) {
     if (await act("fkey_delete", { set: fkeys.setId, id: k.id })) editing = null;
-  }
-
-  async function move(from: number, to: number) {
-    if (from === to || to >= fkeys.keys.length + 1) return;
-    const keys = $state.snapshot(fkeys.keys) as FunctionKey[];
-    const [k] = keys.splice(from, 1);
-    keys.splice(Math.min(to, keys.length), 0, k);
-    fkeys.keys = keys;
-    await act("fkeys_reorder", { set: fkeys.setId, keys });
   }
 
   function drop(e: DragEvent, slot: number) {
@@ -103,11 +119,12 @@
     over = null;
     const d = dragging;
     dragging = null;
-    if (!d) return;
+    if (!d || busy) return;
     if (d.kind === "type") {
-      editing = { ...blank(d.type), position: Math.min(slot, fkeys.keys.length) };
-    } else {
-      move(d.index, Math.min(slot, fkeys.keys.length - 1));
+      target = slot;
+      editing = blank(d.type);
+    } else if (fkeys.order[slot] !== d.id) {
+      reorder(placeAt(fkeys.order, d.id, slot));
     }
   }
 
@@ -125,7 +142,7 @@
     </label>
     <div class="grid" style="grid-template-columns: repeat({columns}, minmax(0, 1fr))">
       {#each Array(slots) as _, i}
-        {@const k = fkeys.keys[i]}
+        {@const k = keyAt(i)}
         <div
           class="slot"
           class:over={over === i}
@@ -136,7 +153,7 @@
         >
           <span class="num">{String(i + 1).padStart(2, "0")}</span>
           {#if k}
-            <div class="keywrap" draggable="true" role="button" tabindex="-1" ondragstart={() => (dragging = { kind: "key", index: i })}>
+            <div class="keywrap" draggable="true" role="button" tabindex="-1" ondragstart={() => (dragging = { kind: "key", id: k.id })}>
               <FkeyTile key={k} onclick={() => (editing = structuredClone($state.snapshot(k)) as FunctionKey)} />
             </div>
           {:else}
@@ -145,7 +162,7 @@
         </div>
       {/each}
     </div>
-    <p class="small muted">Typ von rechts auf einen Platz ziehen oder anklicken. Tasten lassen sich im Raster verschieben; ein Klick öffnet sie zum Bearbeiten.</p>
+    <p class="small muted">Typ von rechts auf einen Platz ziehen oder anklicken. Tasten lassen sich im Raster verschieben: auf einen leeren Platz legen oder auf eine Taste ziehen, um sie davor einzuschieben. Ein Klick öffnet sie zum Bearbeiten.</p>
   </div>
 
   <div class="types">
@@ -158,7 +175,7 @@
           class:unusable={!t.usable}
           draggable="true"
           ondragstart={() => (dragging = { kind: "type", type: t.type })}
-          onclick={() => (editing = blank(t.type))}
+          onclick={() => { target = null; editing = blank(t.type); }}
         >{t.label}</button>
       {/each}
     {/each}

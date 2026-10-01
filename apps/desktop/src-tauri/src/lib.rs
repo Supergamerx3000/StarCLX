@@ -805,6 +805,7 @@ pub fn run() {
             fkeys::fkeys_reorder,
             fkeys::fkey_dnd,
             fkeys::fkey_park,
+            fkeys::fkey_grab,
             voicemail::voicemails,
             voicemail::voicemail_audio,
             voicemail::voicemail_save,
