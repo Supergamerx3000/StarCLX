@@ -162,6 +162,10 @@ impl OneHub {
         v1::journal::journal_service_client::JournalServiceClient
     );
     service!(
+        redirect,
+        v1::redirect::redirect_service_client::RedirectServiceClient
+    );
+    service!(
         fmc_phone,
         v1::fmcphone::fmc_phone_service_client::FmcPhoneServiceClient
     );

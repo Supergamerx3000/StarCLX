@@ -173,7 +173,7 @@
     </main>
   </div>
   {#if settingsOpen}
-    <Settings onclose={() => (settingsOpen = false)} onlogout={logout} />
+    <Settings onclose={() => (settingsOpen = false)} onlogout={logout} server={session.server} />
   {/if}
 {:else}
 <main class="login">
