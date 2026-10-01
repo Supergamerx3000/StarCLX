@@ -1,5 +1,6 @@
 <script lang="ts">
   import Icon, { type IconName } from "./Icon.svelte";
+  import { backToFirst, callDrag, startCallDrag, transfersOnHangup } from "./fkeys.svelte";
   import { action, duration, isRingingIn, phone, run, who, type Call } from "./phone.svelte";
 
   let { call }: { call: Call } = $props();
@@ -18,6 +19,7 @@
       (c) => c.id !== call.id && (c.consultation_of === call.id || call.consultation_of === c.id),
     ),
   );
+  const transfers = $derived(transfersOnHangup(call));
   const others = $derived(phone.status.calls.filter((c) => c.id !== call.id));
 
   const title = $derived(
@@ -52,12 +54,14 @@
     <span class="time">{duration(call, phone.now)}</span>
   </header>
 
-  <div class="pill">
+  <!-- Gespräch lässt sich auf ein Besetztlampenfeld ziehen (Vermitteln) -->
+  <div class="pill" class:draggable={(connected || held) && !call.consultation_of} role="group" onpointerdown={(e) => startCallDrag(e, call)}>
     <div class="avatar"><Icon name="person" size={34} /></div>
     <div class="who">
       <strong>{who(call)}</strong>
       {#if call.remote_name && call.remote_number}<span>{call.remote_number}</span>{/if}
       {#if sub}<span class="sub">{sub}</span>{/if}
+      {#if transfers}<span class="sub">Auflegen vermittelt das gehaltene Gespräch</span>{/if}
       {#if call.local_number || call.local_name}
         <small>{call.local_number} {call.local_name}</small>
       {/if}
@@ -72,9 +76,16 @@
         <Icon name={phone.status.muted ? "micOff" : "mic"} size={18} />
       </button>
     {/if}
-    <button class="round red" class:big={!ringingIn} title={ringingIn ? "Ablehnen" : "Auflegen"} onclick={() => run("phone_hangup", { callId: call.id })}>
-      <Icon name="hangup" size={ringingIn ? 24 : 30} />
-    </button>
+    {#if transfers}
+      <button class="back" title="Rückfrage beenden, zurück zum ersten Gespräch" onclick={() => backToFirst(call)}>Zurück</button>
+      <button class="round red" class:big={!ringingIn} title="Auflegen und vermitteln" onclick={() => action("transfer_consultation", call.id)}>
+        <Icon name="hangup" size={30} />
+      </button>
+    {:else}
+      <button class="round red" class:big={!ringingIn} title={ringingIn ? "Ablehnen" : "Auflegen"} onclick={() => run("phone_hangup", { callId: call.id })}>
+        <Icon name="hangup" size={ringingIn ? 24 : 30} />
+      </button>
+    {/if}
     {#if ringingIn}
       <button class="round green big" title="Annehmen" onclick={() => run("phone_answer", { callId: call.id })}>
         <Icon name="call" size={32} />
@@ -171,7 +182,21 @@
   {/if}
 </article>
 
+{#if callDrag.call?.id === call.id}
+  <div class="ghost" style="left: {callDrag.x}px; top: {callDrag.y}px">
+    <Icon name="forward" size={16} /> {who(call)}{callDrag.over ? "" : " … auf Besetztlampenfeld ziehen"}
+  </div>
+{/if}
+
 <style>
+  .pill.draggable { cursor: grab; touch-action: none; }
+  .back { padding: 0.3rem 0.7rem; border-radius: 999px; }
+  .ghost {
+    position: fixed; z-index: 50; pointer-events: none; transform: translate(12px, 12px);
+    display: flex; align-items: center; gap: 0.4rem; padding: 0.35rem 0.7rem; border-radius: 6px;
+    background: var(--panel-2); border: 1px solid var(--accent); box-shadow: 0 4px 14px #0006;
+    font-size: 0.9rem; font-weight: 600; white-space: nowrap;
+  }
   .call { display: flex; flex-direction: column; gap: 0.5rem; }
   header { display: flex; align-items: center; gap: 0.4rem; font-size: 0.85rem; color: var(--muted); }
   header .time { margin-left: auto; font-variant-numeric: tabular-nums; }

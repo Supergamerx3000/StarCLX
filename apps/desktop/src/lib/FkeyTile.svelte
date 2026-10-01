@@ -1,8 +1,11 @@
 <script lang="ts">
   // Eine Funktionstaste mit Zustandsfarbe; im Arbeitsbereich und im Editor.
-  import { account, keyState, keyTitle, typeInfo, type FunctionKey } from "./fkeys.svelte";
+  import { account, callDrag, keyState, keyTitle, typeInfo, type FunctionKey } from "./fkeys.svelte";
 
-  let { key, onclick, disabled = false }: { key: FunctionKey; onclick?: () => void; disabled?: boolean } = $props();
+  let { key, onclick, disabled = false, editor = false }: { key: FunctionKey; onclick?: () => void; disabled?: boolean; editor?: boolean } = $props();
+
+  // Leere Taste: im Betrieb nur die Fläche, ohne Text und nicht anklickbar
+  const blank = $derived(key.functionKeyType === "SEPARATOR" && !editor);
 
   const info = $derived(typeInfo(key.functionKeyType));
   const state = $derived(keyState(key));
@@ -19,14 +22,17 @@
 
 <button
   class="tile {state}"
-  class:sep={key.functionKeyType === "SEPARATOR"}
-  class:unusable={!info.usable}
-  title={[info.label, stateText[state]].filter(Boolean).join(" · ")}
-  {disabled}
+  class:sep={key.functionKeyType === "SEPARATOR" && editor}
+  class:blank
+  class:unusable={!info.usable && !blank}
+  class:target={callDrag.call && callDrag.over === key.id}
+  data-fkey={key.id}
+  title={blank ? undefined : [info.label, stateText[state]].filter(Boolean).join(" · ")}
+  disabled={disabled || blank}
   {onclick}
 >
   <span class="lamp"></span>
-  <span class="txt"><strong>{keyTitle(key)}</strong>{#if sub}<small>{sub}</small>{/if}</span>
+  {#if !blank}<span class="txt"><strong>{keyTitle(key)}</strong>{#if sub}<small>{sub}</small>{/if}</span>{/if}
 </button>
 
 <style>
@@ -43,7 +49,10 @@
   .txt strong { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .txt small { color: var(--muted); font-size: 0.78rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .unusable { opacity: 0.55; }
+  .tile.target { border-color: var(--accent); outline: 2px solid var(--accent); }
   .sep { background: none; border-style: dashed; }
   .sep .lamp { visibility: hidden; }
+  .blank { cursor: default; }
+  .blank .lamp { visibility: hidden; }
   @keyframes blink { to { opacity: 0.2; } }
 </style>

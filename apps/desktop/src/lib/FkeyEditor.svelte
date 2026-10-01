@@ -207,7 +207,7 @@
               tabindex="-1"
               onpointerdown={(e) => startDrag(e, { kind: "key", id: k.id, label: k.name || typeInfo(k.functionKeyType).label })}
             >
-              <FkeyTile key={k} onclick={click(() => (editing = structuredClone($state.snapshot(k)) as FunctionKey))} />
+              <FkeyTile key={k} editor onclick={click(() => (editing = structuredClone($state.snapshot(k)) as FunctionKey))} />
             </div>
           {:else}
             <div class="empty"></div>
