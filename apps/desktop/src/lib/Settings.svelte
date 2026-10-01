@@ -4,12 +4,13 @@
   import { onMount } from "svelte";
   import DeviceList, { DEFAULT, mergeOrder, type Device } from "./DeviceList.svelte";
   import Icon, { type IconName } from "./Icon.svelte";
+  import Reach from "./Reach.svelte";
   import Toggle from "./Toggle.svelte";
   import { type Hotkeys, loadPrefs, savePrefs, type Prefs } from "./prefs.svelte";
 
   type SignalingNumber = { id: string; number: string; suppressed: boolean; read_only: boolean; selected: boolean };
 
-  let { onclose, onlogout }: { onclose: () => void; onlogout: () => void } = $props();
+  let { onclose, onlogout, server = "" }: { onclose: () => void; onlogout: () => void; server?: string } = $props();
 
   let draft = $state<Prefs | null>(null);
   let numbers = $state<SignalingNumber[]>([]);
@@ -42,6 +43,11 @@
     { id: "chat-status", icon: "person", label: "Status" },
   ];
   let defaultDownloads = $state("");
+  const reachSections: { id: string; icon: IconName; label: string }[] = [
+    { id: "voicemail", icon: "voicemail", label: "Voicemail" },
+    { id: "redirects", icon: "forward", label: "Umleitungen" },
+    { id: "fmc", icon: "call2go", label: "Parallelruf" },
+  ];
   const personalSections: { id: string; icon: IconName; label: string }[] = [
     { id: "appearance", icon: "workspace", label: "Darstellung" },
     { id: "hotkeys", icon: "dialpad", label: "Hotkeys" },
@@ -212,6 +218,10 @@
     {#each sections as s}
       <button class="nav" onclick={() => jump(s.id)}><Icon name={s.icon} size={18} /><span>{s.label}</span></button>
     {/each}
+    <h2>Erreichbarkeit</h2>
+    {#each reachSections as s}
+      <button class="nav" onclick={() => jump(s.id)}><Icon name={s.icon} size={18} /><span>{s.label}</span></button>
+    {/each}
     <h2>Chat</h2>
     {#each chatSections as s}
       <button class="nav" onclick={() => jump(s.id)}><Icon name={s.icon} size={18} /><span>{s.label}</span></button>
@@ -344,6 +354,8 @@
           </div>
         </div>
       </section>
+
+      <Reach {server} />
 
       <section id="chat-notify">
         <h3>Chat: Benachrichtigungen</h3>

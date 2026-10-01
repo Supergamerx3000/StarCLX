@@ -7,6 +7,7 @@ mod busylight;
 mod chat;
 mod desktop;
 mod presence;
+mod reach;
 mod settings;
 
 use serde::Serialize;
@@ -29,11 +30,11 @@ struct PendingLogin {
     state: String,
 }
 
-struct AppState {
+pub(crate) struct AppState {
     pending: Mutex<Option<PendingLogin>>,
     session: Mutex<Option<Session>>,
     events: mpsc::UnboundedSender<SessionEvent>,
-    phone: Mutex<Option<Phone>>,
+    pub(crate) phone: Mutex<Option<Phone>>,
     /// Letzter Stand fürs Neuladen der Oberfläche
     phone_status: std::sync::Mutex<PhoneStatus>,
     journal: Mutex<Option<Journal>>,
@@ -98,6 +99,7 @@ async fn set_session(app: &AppHandle, session: Option<Session>) {
     let user_id = session.as_ref().map(|s| s.info().user_id.clone());
     *state.session.lock().await = session;
     *state.journal.lock().await = hub.clone().map(|hub| start_journal(app, hub));
+    reach::restart(app, hub.clone()).await;
     chat::stop(app).await;
     if let (Some(hub), Some(host), Some(user_id)) = (&hub, &host, user_id) {
         chat::start(app, hub.clone(), host.clone(), user_id);
@@ -482,7 +484,7 @@ async fn restart_phone(app: &AppHandle) {
     }
 }
 
-async fn hub(state: &AppState) -> Result<sf_onehub::OneHub, String> {
+pub(crate) async fn hub(state: &AppState) -> Result<sf_onehub::OneHub, String> {
     state
         .session
         .lock()
@@ -690,6 +692,7 @@ pub fn run() {
         .plugin(tauri_plugin_notification::init())
         .plugin(tauri_plugin_dialog::init())
         .manage(chat::ChatState::default())
+        .manage(reach::ReachState::default())
         .manage(audio::AudioState::default())
         .manage(busylight::BusylightState::default())
         .manage(AppState {
@@ -780,6 +783,15 @@ pub fn run() {
             chat::chat_send,
             chat::default_download_dir,
             desktop::desktop_info,
+            reach::redirects,
+            reach::redirect_enable,
+            reach::redirect_update,
+            reach::fmc_phones,
+            reach::fmc_save,
+            reach::fmc_enable,
+            reach::fmc_delete,
+            reach::mailboxes,
+            reach::mailbox_record,
             chat::pick_download_dir,
             audio::audio_info,
             audio::audio_preview,
