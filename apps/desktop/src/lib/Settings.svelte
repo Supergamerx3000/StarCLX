@@ -35,8 +35,13 @@
     { id: "signaling", icon: "numbers", label: "Rufnummer signalisieren" },
     { id: "callmanager", icon: "forward", label: "Call Manager" },
     { id: "busylight", icon: "light", label: "Busylight" },
-    { id: "account", icon: "account", label: "Konto" },
   ];
+  const chatSections: { id: string; icon: IconName; label: string }[] = [
+    { id: "chat-notify", icon: "bell", label: "Benachrichtigungen" },
+    { id: "chat-files", icon: "folder", label: "Dateien empfangen" },
+    { id: "chat-status", icon: "person", label: "Status" },
+  ];
+  let defaultDownloads = $state("");
 
   onMount(() => {
     const off = listen<number>("mic-level", (e) => (micLevel = e.payload));
@@ -101,12 +106,23 @@
     } catch (e) {
       notice = `Audiogeräte nicht gelesen: ${e}`;
     }
+    invoke<string>("default_download_dir").then((d) => (defaultDownloads = d), () => {});
     invoke<typeof busylight>("busylight_info").then((b) => (busylight = b), () => {});
     try {
       numbers = await invoke<SignalingNumber[]>("signaling_numbers");
       initialSignaling = signaling = numbers.find((n) => n.selected)?.id ?? "";
     } catch (e) {
       numbersError = String(e);
+    }
+  }
+
+  async function pickDownloadDir() {
+    if (!draft) return;
+    try {
+      const dir = await invoke<string | null>("pick_download_dir");
+      if (dir) draft.download_dir = dir;
+    } catch (e) {
+      notice = String(e);
     }
   }
 
@@ -153,6 +169,12 @@
     {#each sections as s}
       <button class="nav" onclick={() => jump(s.id)}><Icon name={s.icon} size={18} /><span>{s.label}</span></button>
     {/each}
+    <h2>Chat</h2>
+    {#each chatSections as s}
+      <button class="nav" onclick={() => jump(s.id)}><Icon name={s.icon} size={18} /><span>{s.label}</span></button>
+    {/each}
+    <h2>Konto</h2>
+    <button class="nav" onclick={() => jump("account")}><Icon name="account" size={18} /><span>Konto</span></button>
   </nav>
 
   <div class="content" bind:this={content}>
@@ -276,6 +298,43 @@
         </div>
       </section>
 
+      <section id="chat-notify">
+        <h3>Chat: Benachrichtigungen</h3>
+        <div class="card">
+          <Toggle bind:checked={draft.chat_notify} label="Benachrichtigung bei neuer Chatnachricht anzeigen" />
+          <Toggle bind:checked={draft.chat_sound} label="Ton bei neuer Chatnachricht abspielen" />
+        </div>
+      </section>
+
+      <section id="chat-files">
+        <h3>Dateien empfangen</h3>
+        <div class="card">
+          <p class="muted">Empfangene Dateien speichern unter</p>
+          <div class="path">
+            <input type="text" bind:value={draft.download_dir} placeholder={defaultDownloads || "Downloads"} />
+            <button onclick={pickDownloadDir}>Suchen</button>
+          </div>
+          <p class="small muted">Leer lassen für den Standardordner. Der Dateiempfang im Chat folgt in einem späteren Schritt.</p>
+        </div>
+      </section>
+
+      <section id="chat-status">
+        <h3>Status</h3>
+        <div class="card">
+          <Toggle bind:checked={draft.away_on_idle} label="Bei Inaktivität (10 Minuten) Status auf „Abwesend“ setzen" />
+          <Toggle bind:checked={draft.away_on_screensaver} label="Bei aktivem Bildschirmschoner Status auf „Abwesend“ setzen" />
+          <Toggle bind:checked={draft.away_on_lock} label="Bei gesperrtem Bildschirm Status auf „Abwesend“ setzen" />
+          <label class="field">
+            <span>Statustext bei automatischer Abwesenheit</span>
+            <input type="text" bind:value={draft.away_text} placeholder="z. B. Bin gleich zurück" />
+          </label>
+          <label class="field">
+            <span>Statustext beim Abmelden</span>
+            <input type="text" bind:value={draft.offline_text} placeholder="z. B. Feierabend" />
+          </label>
+        </div>
+      </section>
+
       <section id="account">
         <h3>Konto</h3>
         <div class="card">
@@ -335,6 +394,9 @@
   .bl select { padding: 0.3rem; background: var(--panel-2); color: inherit; border: 1px solid var(--line); border-radius: 4px; }
   .bl input[type="range"] { accent-color: var(--accent); }
   .vol { color: var(--muted); font-size: 0.85rem; }
+  .path { display: flex; gap: 0.6rem; max-width: 34rem; }
+  .path input, .field input { flex: 1; padding: 0.35rem 0.5rem; background: var(--panel-2); color: inherit; border: 1px solid var(--line); border-radius: 4px; }
+  .field { display: flex; flex-direction: column; gap: 0.3rem; margin-top: 0.6rem; max-width: 34rem; }
   .logout { align-self: flex-start; display: flex; align-items: center; gap: 0.5rem; }
   footer {
     grid-column: 1 / -1; display: flex; justify-content: flex-end; align-items: center; gap: 1rem;

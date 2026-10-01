@@ -70,6 +70,14 @@ pub fn test_tone() -> Vec<i16> {
     to_pcm(&buf)
 }
 
+/// Kurzer Hinweiston für neue Chat-Nachrichten
+pub fn message_tone() -> Vec<i16> {
+    let mut buf = vec![0.0f32; (RATE as f32 * 0.6) as usize];
+    pluck(&mut buf, 0.0, 987.77, 0.3, 0.35);
+    pluck(&mut buf, 0.11, 1318.5, 0.45, 0.3);
+    to_pcm(&buf)
+}
+
 fn to_pcm(buf: &[f32]) -> Vec<i16> {
     buf.iter()
         .map(|v| (v.clamp(-1.0, 1.0) * 32767.0) as i16)
@@ -140,5 +148,6 @@ mod tests {
             assert!(peak < 32767, "{name} übersteuert");
         }
         assert!(!test_tone().is_empty());
+        assert!(message_tone().iter().any(|s| s.unsigned_abs() > 3000));
     }
 }

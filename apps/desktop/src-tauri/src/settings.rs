@@ -43,6 +43,18 @@ pub struct Prefs {
     pub busylight_sound: String,
     /// 0 bis 100
     pub busylight_volume: u8,
+    /// Chat: Desktop-Benachrichtigung und Ton bei neuer Nachricht
+    pub chat_notify: bool,
+    pub chat_sound: bool,
+    /// Ordner für empfangene Dateien; leer heisst Downloads
+    pub download_dir: String,
+    /// Chat-Status automatisch auf Abwesend
+    pub away_on_idle: bool,
+    pub away_on_screensaver: bool,
+    pub away_on_lock: bool,
+    /// Statustext bei Abwesenheit bzw. beim Abmelden
+    pub away_text: String,
+    pub offline_text: String,
 }
 
 impl Default for Prefs {
@@ -64,6 +76,14 @@ impl Default for Prefs {
             busylight: false,
             busylight_sound: String::new(),
             busylight_volume: 50,
+            chat_notify: true,
+            chat_sound: true,
+            download_dir: String::new(),
+            away_on_idle: true,
+            away_on_screensaver: true,
+            away_on_lock: true,
+            away_text: String::new(),
+            offline_text: String::new(),
         }
     }
 }

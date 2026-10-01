@@ -16,6 +16,8 @@ pub struct AudioState {
     /// Vorschau oder Testton aus den Einstellungen
     preview: Mutex<Option<Playback>>,
     meter: Mutex<Option<MicMeter>>,
+    /// Hinweiston für Chat-Nachrichten
+    chime: Mutex<Option<Playback>>,
 }
 
 fn devices() -> Devices {
@@ -53,6 +55,13 @@ fn ringtone(name: &str) -> Arc<Vec<i16>> {
         }
     }
     Arc::new(sf_audio::tones::render(name))
+}
+
+/// Spielt den Hinweiston für eine neue Chat-Nachricht auf dem Klingelgerät.
+pub fn play_message_tone(app: &AppHandle, prefs: &Prefs) {
+    let device = sf_audio::pick(&prefs.ring_devices, &devices().speakers);
+    let tone = Arc::new(sf_audio::tones::message_tone());
+    *app.state::<AudioState>().chime.lock().unwrap() = Some(Playback::start(device, tone, false));
 }
 
 /// Startet oder beendet das Klingeln je nach Anrufstand.

@@ -59,6 +59,9 @@ pub fn start(app: &AppHandle, hub: sf_onehub::OneHub, host: String, user_id: Str
             return; // inzwischen abgemeldet
         }
         set_status(&app, |s| s.own = jid);
+        if crate::presence::away() {
+            chat.set_presence(true, &crate::settings::load(&app).prefs.away_text);
+        }
         *app.state::<ChatState>().chat.lock().await = Some(chat);
         while let Some(ev) = rx.recv().await {
             match ev {
@@ -81,9 +84,13 @@ pub fn start(app: &AppHandle, hub: sf_onehub::OneHub, host: String, user_id: Str
     });
 }
 
-/// Beendet den Chat (Abmelden).
+/// Beendet den Chat (Abmelden) und hinterlässt den Statustext.
 pub async fn stop(app: &AppHandle) {
-    app.state::<ChatState>().chat.lock().await.take();
+    let chat = app.state::<ChatState>().chat.lock().await.take();
+    if let Some(chat) = chat {
+        chat.shutdown(&crate::settings::load(app).prefs.offline_text)
+            .await;
+    }
     set_status(app, |s| *s = ChatStatus::default());
 }
 
@@ -103,6 +110,13 @@ fn notify_message(app: &AppHandle, m: &ChatMessage) {
         .and_then(|w| w.is_focused().ok())
         .unwrap_or(false);
     if focused {
+        return;
+    }
+    let prefs = crate::settings::load(app).prefs;
+    if prefs.chat_sound {
+        crate::audio::play_message_tone(app, &prefs);
+    }
+    if !prefs.chat_notify {
         return;
     }
     let name = app
@@ -160,4 +174,30 @@ pub async fn chat_send(
     let chat = chat.as_ref().ok_or("Chat ist nicht verbunden")?;
     chat.send(&peer, body.trim_end());
     Ok(())
+}
+
+/// Standardordner für empfangene Dateien
+#[tauri::command]
+pub fn default_download_dir(app: AppHandle) -> String {
+    app.path()
+        .download_dir()
+        .map(|p| p.to_string_lossy().into_owned())
+        .unwrap_or_default()
+}
+
+#[tauri::command]
+pub async fn pick_download_dir(app: AppHandle) -> Result<Option<String>, String> {
+    use tauri_plugin_dialog::DialogExt;
+    let (tx, rx) = tokio::sync::oneshot::channel();
+    app.dialog()
+        .file()
+        .set_title("Ordner für empfangene Dateien")
+        .pick_folder(move |f| {
+            let _ = tx.send(f);
+        });
+    let Some(dir) = rx.await.map_err(|e| e.to_string())? else {
+        return Ok(None);
+    };
+    let path = dir.into_path().map_err(|e| e.to_string())?;
+    Ok(Some(path.to_string_lossy().into_owned()))
 }

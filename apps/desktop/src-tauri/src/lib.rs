@@ -5,6 +5,7 @@
 mod audio;
 mod busylight;
 mod chat;
+mod presence;
 mod settings;
 
 use serde::Serialize;
@@ -690,6 +691,7 @@ pub fn run() {
             journal: Mutex::default(),
         })
         .setup(move |app| {
+            presence::start(app.handle());
             // Registriert starface-app:// für das laufende Binary (wichtig für
             // AppImage und `tauri dev`; das .deb bringt eine eigene .desktop-Datei
             // mit). Fehlt z. B. xdg-mime, soll die App trotzdem starten.
@@ -755,6 +757,8 @@ pub fn run() {
             chat::chat_recent,
             chat::chat_conversation,
             chat::chat_send,
+            chat::default_download_dir,
+            chat::pick_download_dir,
             audio::audio_info,
             audio::audio_preview,
             audio::audio_stop,
