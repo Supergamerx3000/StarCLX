@@ -150,6 +150,18 @@ impl OneHub {
         v1::voicemail::voice_mail_service_client::VoiceMailServiceClient
     );
     service!(
+        contact,
+        v1::contact::contact_service_client::ContactServiceClient
+    );
+    service!(
+        simple_contact,
+        v1::contact::phonenumber::simple_contact_service_client::SimpleContactServiceClient
+    );
+    service!(
+        journal,
+        v1::journal::journal_service_client::JournalServiceClient
+    );
+    service!(
         fmc_phone,
         v1::fmcphone::fmc_phone_service_client::FmcPhoneServiceClient
     );

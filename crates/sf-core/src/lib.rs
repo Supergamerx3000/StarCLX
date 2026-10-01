@@ -5,6 +5,7 @@
 //! gültig) im Hintergrund, bevor es abläuft.
 
 pub mod account;
+pub mod directory;
 pub mod phone;
 
 use std::time::Duration;

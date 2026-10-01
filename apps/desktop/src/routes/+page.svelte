@@ -3,9 +3,11 @@
   import { listen } from "@tauri-apps/api/event";
   import { onMount } from "svelte";
   import CallManager from "$lib/CallManager.svelte";
+  import Contacts from "$lib/Contacts.svelte";
+  import DialSearch from "$lib/DialSearch.svelte";
   import Icon, { type IconName } from "$lib/Icon.svelte";
   import Settings from "$lib/Settings.svelte";
-  import { initPhone, phone, run } from "$lib/phone.svelte";
+  import { initPhone, phone } from "$lib/phone.svelte";
   import { loadPrefs } from "$lib/prefs.svelte";
 
   type SessionInfo = { server: string; server_version: string; display_name: string };
@@ -73,17 +75,6 @@
     phase = "login";
   }
 
-  let dialNumber = $state("");
-  let dialing = $state(false);
-
-  async function dial(event: Event) {
-    event.preventDefault();
-    if (!dialNumber.trim() || dialing) return;
-    dialing = true;
-    if (await run("phone_dial", { number: dialNumber })) dialNumber = "";
-    dialing = false;
-  }
-
   function initials(name: string) {
     return name.split(/\s+/).filter(Boolean).slice(0, 2).map((w) => w[0]).join("").toUpperCase() || "?";
   }
@@ -119,21 +110,7 @@
           </div>
         {/if}
       </div>
-      <form class="dial" onsubmit={dial}>
-        <label class="search">
-          <Icon name="search" size={20} />
-          <input bind:value={dialNumber} placeholder="Name/Nummer eingeben" inputmode="tel" autocomplete="off" />
-        </label>
-        <button
-          class="dialbtn"
-          class:armed={dialNumber.trim() && phone.status.state === "ready"}
-          type="submit"
-          title="Anrufen"
-          disabled={phone.status.state !== "ready" || dialing || !dialNumber.trim()}
-        >
-          <Icon name="call" />
-        </button>
-      </form>
+      <DialSearch />
       <div class="spacer"></div>
       <CallManager />
       <div class="brand"><span class="star">✱</span> STARFACE</div>
@@ -152,10 +129,14 @@
         <p class="banner"><span class="reg {phone.status.state}"></span>{stateText[phone.status.state]}{#if phone.status.detail}: {phone.status.detail}{/if}</p>
       {/if}
       {#if notice}<p class="banner">{notice}</p>{/if}
-      <section class="tile">
-        <h2>{tabs.find((t) => t.id === tab)?.label}</h2>
-        <p class="muted">Folgt in Kürze.</p>
-      </section>
+      {#if tab === "contacts"}
+        <Contacts />
+      {:else}
+        <section class="tile">
+          <h2>{tabs.find((t) => t.id === tab)?.label}</h2>
+          <p class="muted">Folgt in Kürze.</p>
+        </section>
+      {/if}
     </main>
   </div>
   {#if settingsOpen}
@@ -225,18 +206,6 @@
   .reg.ready { background: var(--green); }
   .reg.starting { background: var(--accent); }
   .reg.error { background: var(--red); }
-  .dial { display: flex; align-items: center; gap: 0.5rem; }
-  .search {
-    display: flex; align-items: center; gap: 0.5rem; padding: 0 0.9rem;
-    background: var(--bar-2); border: 1px solid var(--line); border-radius: 999px; width: 17rem;
-  }
-  .search:focus-within { border-color: var(--accent); }
-  .search input { border: none; background: none; padding: 0.55rem 0; flex: 1; outline: none; }
-  .dialbtn {
-    width: 2.6rem; height: 2.6rem; padding: 0; border-radius: 50%; display: grid; place-items: center;
-    background: var(--panel-2); border: none; color: var(--text);
-  }
-  .dialbtn.armed { background: var(--green); color: #fff; }
   .spacer { flex: 1; }
   .brand { font-weight: 700; letter-spacing: 0.12em; color: var(--accent); white-space: nowrap; }
   .brand .star { display: inline-grid; place-items: center; width: 1.6rem; height: 1.6rem; background: var(--accent); color: #fff; border-radius: 5px; letter-spacing: 0; margin-right: 0.3rem; }
@@ -256,7 +225,7 @@
   .tab { display: flex; align-items: center; gap: 0.45rem; background: none; border: none; border-bottom: 3px solid transparent; border-radius: 0; padding: 0.55rem 0.9rem; color: var(--muted); }
   .tab.active { color: var(--text); border-bottom-color: var(--accent); }
   .banner { display: flex; align-items: center; gap: 0.5rem; margin: 0 0 0.4rem; padding: 0.5rem 0.8rem; background: var(--panel); border-left: 3px solid var(--accent); }
-  .work { overflow: auto; padding: 0.4rem; }
+  .work { overflow: auto; padding: 0.5rem; display: flex; flex-direction: column; min-height: 0; }
   .tile { background: var(--panel); border-radius: 4px; padding: 1rem 1.25rem; max-width: 40rem; }
   .tile h2 { margin: 0 0 0.5rem; font-size: 1.2rem; }
   .state { display: flex; align-items: center; gap: 0.5rem; }
