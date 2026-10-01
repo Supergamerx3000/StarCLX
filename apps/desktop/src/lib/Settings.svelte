@@ -1,5 +1,6 @@
 <script lang="ts">
   import { invoke } from "@tauri-apps/api/core";
+  import { getVersion } from "@tauri-apps/api/app";
   import { listen } from "@tauri-apps/api/event";
   import { onMount } from "svelte";
   import DeviceList, { DEFAULT, mergeOrder, type Device } from "./DeviceList.svelte";
@@ -92,6 +93,9 @@
     draft.hotkeys[key] = mods + name;
     recording = null;
   }
+
+  let version = $state("");
+  getVersion().then((v) => (version = v), () => {});
 
   onMount(() => {
     const off = listen<number>("mic-level", (e) => (micLevel = e.payload));
@@ -458,6 +462,7 @@
         <h3>Konto</h3>
         <div class="card">
           <button class="logout" onclick={onlogout}><Icon name="logout" size={18} /> Abmelden</button>
+          {#if version}<p class="version">Version {version}</p>{/if}
         </div>
       </section>
     {/if}
@@ -471,6 +476,7 @@
 </div>
 
 <style>
+  .version { color: var(--muted); font-size: 0.85rem; margin: 0.4rem 0 0; }
   .settings {
     position: fixed; inset: 0; z-index: 20; background: var(--bg);
     display: grid; grid-template-columns: 15rem 1fr; grid-template-rows: auto 1fr auto;
