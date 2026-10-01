@@ -49,7 +49,7 @@ impl History {
             .values()
             .filter_map(|v| v.last().cloned())
             .collect();
-        last.sort_by(|a, b| b.ts.cmp(&a.ts));
+        last.sort_by_key(|m| std::cmp::Reverse(m.ts));
         last
     }
 
