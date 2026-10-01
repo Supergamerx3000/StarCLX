@@ -1,0 +1,15 @@
+[package]
+name = "sf-chat"
+description = "Chat der Anlage über XMPP (Openfire, Token als Passwort)"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+tokio-xmpp = { version = "6", default-features = false, features = ["starttls", "aws_lc_rs", "rustls-native-certs"] }
+futures = "0.3"
+serde.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
+tracing.workspace = true
+tokio = { workspace = true, features = ["sync", "time", "rt", "macros"] }
+chrono = { version = "0.4", default-features = false, features = ["std"] }

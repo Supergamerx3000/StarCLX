@@ -206,6 +206,20 @@ impl OneHub {
             .map(|id| id.id))
     }
 
+    /// Jabber-ID eines Benutzers für den Chat (XMPP)
+    pub async fn chat_jid(&self, user_id: &str) -> Result<String> {
+        let res = self
+            .chat()
+            .get_chat_id(v1::chat::GetChatIdRequest {
+                user_id: Some(v1::types::UserId {
+                    id: user_id.to_owned(),
+                }),
+            })
+            .await?
+            .into_inner();
+        Ok(res.chat_id.map(|c| c.id).unwrap_or_default())
+    }
+
     pub async fn server_version(&self) -> Result<String> {
         Ok(self
             .system()

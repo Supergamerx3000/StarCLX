@@ -36,7 +36,7 @@
       listen<Entry[]>("journal", (e) => { entries = e.payload; error = ""; }),
       listen<string>("journal-error", (e) => (error = e.payload)),
     ];
-    invoke<Entry[]>("journal_entries").then((e) => { if (e.length) entries = e; });
+    invoke<Entry[]>("journal_entries").then((e) => { if (e?.length) entries = e; });
     return () => offs.forEach((p) => p.then((off) => off()));
   });
 

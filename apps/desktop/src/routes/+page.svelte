@@ -6,6 +6,8 @@
   import Contacts from "$lib/Contacts.svelte";
   import DialSearch from "$lib/DialSearch.svelte";
   import Journal from "$lib/Journal.svelte";
+  import Chat from "$lib/Chat.svelte";
+  import { initChat, unreadTotal } from "$lib/chat.svelte";
   import Icon, { type IconName } from "$lib/Icon.svelte";
   import Settings from "$lib/Settings.svelte";
   import { initPhone, phone } from "$lib/phone.svelte";
@@ -25,6 +27,7 @@
       listen<string>("logged-out", (e) => { session = null; notice = e.payload; phase = "login"; }),
     ];
     initPhone();
+    initChat();
     loadPrefs().catch(() => {});
     restore();
     return () => offs.forEach((p) => p.then((off) => off()));
@@ -121,6 +124,7 @@
       {#each tabs as t}
         <button class="tab" class:active={tab === t.id} onclick={() => (tab = t.id)}>
           <Icon name={t.icon} size={20} /><span>{t.label}</span>
+          {#if t.id === "chat" && unreadTotal()}<span class="unread">{unreadTotal()}</span>{/if}
         </button>
       {/each}
     </nav>
@@ -135,10 +139,7 @@
       {:else if tab === "contacts"}
         <Contacts />
       {:else}
-        <section class="tile">
-          <h2>{tabs.find((t) => t.id === tab)?.label}</h2>
-          <p class="muted">Folgt in Kürze.</p>
-        </section>
+        <Chat />
       {/if}
     </main>
   </div>
@@ -226,11 +227,10 @@
   .item:hover { background: var(--panel-2); }
   .tabs { display: flex; gap: 0.2rem; padding: 0 0.6rem; background: var(--bar); border-top: 1px solid var(--bar-2); }
   .tab { display: flex; align-items: center; gap: 0.45rem; background: none; border: none; border-bottom: 3px solid transparent; border-radius: 0; padding: 0.55rem 0.9rem; color: var(--muted); }
+  .unread { background: var(--accent); color: #111; border-radius: 999px; padding: 0 0.45rem; font-size: 0.78rem; font-weight: 700; }
   .tab.active { color: var(--text); border-bottom-color: var(--accent); }
   .banner { display: flex; align-items: center; gap: 0.5rem; margin: 0 0 0.4rem; padding: 0.5rem 0.8rem; background: var(--panel); border-left: 3px solid var(--accent); }
   .work { overflow: auto; padding: 0.5rem; display: flex; flex-direction: column; min-height: 0; }
-  .tile { background: var(--panel); border-radius: 4px; padding: 1rem 1.25rem; max-width: 40rem; }
-  .tile h2 { margin: 0 0 0.5rem; font-size: 1.2rem; }
   .state { display: flex; align-items: center; gap: 0.5rem; }
   .muted { color: var(--muted); }
   .notice { color: var(--accent); }
