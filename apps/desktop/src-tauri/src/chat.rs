@@ -49,7 +49,13 @@ pub fn start(app: &AppHandle, hub: sf_onehub::OneHub, host: String, user_id: Str
             Ok(c) => c,
             Err(e) => return set_status(&app, |s| s.detail = e.to_string()),
         };
-        if app.state::<crate::AppState>().session.lock().await.is_none() {
+        if app
+            .state::<crate::AppState>()
+            .session
+            .lock()
+            .await
+            .is_none()
+        {
             return; // inzwischen abgemeldet
         }
         set_status(&app, |s| s.own = jid);
