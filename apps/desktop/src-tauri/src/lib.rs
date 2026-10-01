@@ -2,9 +2,10 @@
 //! `starface-app://login`, stilles Wiederanmelden mit dem Refresh-Token aus
 //! dem Schlüsselbund, ein Tray-Symbol und das Softphone.
 
-use std::path::PathBuf;
+mod settings;
 
-use serde::{Deserialize, Serialize};
+use serde::Serialize;
+use settings::Prefs;
 use sf_core::phone::{CallPhase, Phone, PhoneEvent};
 use sf_core::{Session, SessionEvent};
 use tauri::menu::{Menu, MenuItem};
@@ -55,44 +56,6 @@ impl From<&sf_core::SessionInfo> for SessionInfo {
                 .trim()
                 .to_owned(),
         }
-    }
-}
-
-/// Nicht geheime Einstellungen, als JSON im Konfigurationsordner.
-#[derive(Default, Serialize, Deserialize)]
-struct Settings {
-    last_server: Option<String>,
-}
-
-fn settings_path(app: &AppHandle) -> Option<PathBuf> {
-    app.path()
-        .app_config_dir()
-        .ok()
-        .map(|d| d.join("settings.json"))
-}
-
-fn load_settings(app: &AppHandle) -> Settings {
-    settings_path(app)
-        .and_then(|p| std::fs::read(p).ok())
-        .and_then(|b| serde_json::from_slice(&b).ok())
-        .unwrap_or_default()
-}
-
-fn save_settings(app: &AppHandle, settings: &Settings) {
-    let Some(path) = settings_path(app) else {
-        return;
-    };
-    let result = path
-        .parent()
-        .map_or(Ok(()), std::fs::create_dir_all)
-        .and_then(|()| {
-            std::fs::write(
-                &path,
-                serde_json::to_vec_pretty(settings).unwrap_or_default(),
-            )
-        });
-    if let Err(e) = result {
-        tracing::warn!(error = %e, "Einstellungen nicht gespeichert");
     }
 }
 
@@ -152,13 +115,27 @@ async fn start_phone(app: AppHandle, hub: sf_onehub::OneHub, host: String) {
             ..Default::default()
         }
     });
+    let prefs = settings::load(&app).prefs;
+    if !prefs.softphone {
+        update_phone_status(&app, |s| {
+            *s = PhoneStatus {
+                state: "off".into(),
+                detail: "Softphone in den Einstellungen ausgeschaltet".into(),
+                ..Default::default()
+            }
+        });
+        return;
+    }
     let (tx, mut rx) = mpsc::unbounded_channel();
     let config = sf_sip::Config::default();
-    match Phone::start(hub, &host, &config, env!("CARGO_PKG_VERSION"), tx).await {
+    match Phone::start(hub.clone(), &host, &config, env!("CARGO_PKG_VERSION"), tx).await {
         Ok(phone) => {
             let state = app.state::<AppState>();
             if state.session.lock().await.is_none() {
                 return; // inzwischen abgemeldet
+            }
+            if prefs.primary_on_login {
+                make_primary(&hub, phone.phone_id()).await;
             }
             *state.phone.lock().await = Some(phone);
             update_phone_status(&app, |s| s.state = "ready".into());
@@ -194,7 +171,7 @@ async fn start_phone(app: AppHandle, hub: sf_onehub::OneHub, host: String) {
                     s.calls = calls;
                     s.muted = muted;
                 });
-                if ringing && !was_ringing {
+                if ringing && !was_ringing && settings::load(&app).prefs.bring_to_front {
                     show_main_window(&app);
                 }
             }
@@ -205,10 +182,16 @@ async fn start_phone(app: AppHandle, hub: sf_onehub::OneHub, host: String) {
     }
 }
 
+async fn make_primary(hub: &sf_onehub::OneHub, phone_id: &str) {
+    if let Err(e) = sf_core::account::set_primary_phone(hub, phone_id).await {
+        tracing::warn!(error = %e, "Softphone nicht als primäres Telefon gesetzt");
+    }
+}
+
 /// Zuletzt benutzte Anlage, um das Anmeldefeld vorzubelegen.
 #[tauri::command]
 fn last_server(app: AppHandle) -> Option<String> {
-    load_settings(&app).last_server
+    settings::load(&app).last_server
 }
 
 /// Stilles Wiederanmelden beim Start. `None` heisst: Browser-Login nötig.
@@ -220,7 +203,7 @@ async fn restore_session(
     if let Some(session) = state.session.lock().await.as_ref() {
         return Ok(Some(session.info().into()));
     }
-    let Some(server) = load_settings(&app).last_server else {
+    let Some(server) = settings::load(&app).last_server else {
         return Ok(None);
     };
     match Session::restore(&server, state.events.clone())
@@ -284,8 +267,23 @@ async fn phone_dial(state: State<'_, AppState>, number: String) -> Result<(), St
 }
 
 #[tauri::command]
-async fn phone_answer(state: State<'_, AppState>, call_id: String) -> Result<(), String> {
-    with_phone(&state, async |p| p.answer(&call_id)).await
+async fn phone_answer(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    call_id: String,
+) -> Result<(), String> {
+    let primary = settings::load(&app).prefs.primary_on_answer;
+    with_phone(&state, async |p| {
+        p.answer(&call_id)?;
+        if primary {
+            let hub = state.session.lock().await.as_ref().map(|s| s.hub().clone());
+            if let Some(hub) = hub {
+                make_primary(&hub, p.phone_id()).await;
+            }
+        }
+        Ok(())
+    })
+    .await
 }
 
 #[tauri::command]
@@ -360,6 +358,74 @@ async fn with_phone(
 }
 
 #[tauri::command]
+fn get_prefs(app: AppHandle) -> Prefs {
+    settings::load(&app).prefs
+}
+
+/// Speichert die Einstellungen. Ändert sich etwas am Softphone, startet es neu,
+/// sofern gerade kein Gespräch läuft.
+#[tauri::command]
+async fn save_prefs(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    prefs: Prefs,
+) -> Result<(), String> {
+    let old = settings::load(&app).prefs;
+    settings::update(&app, |s| s.prefs = prefs.clone());
+    if !old.softphone_changed(&prefs) {
+        return Ok(());
+    }
+    if !state.phone_status.lock().unwrap().calls.is_empty() {
+        return Err("Gespeichert. Das Softphone übernimmt die Änderung nach dem Gespräch beim nächsten Start.".into());
+    }
+    restart_phone(&app).await;
+    Ok(())
+}
+
+async fn restart_phone(app: &AppHandle) {
+    let state = app.state::<AppState>();
+    state.phone.lock().await.take();
+    let session = state.session.lock().await;
+    let Some(session) = session.as_ref() else {
+        return;
+    };
+    let hub = session.hub().clone();
+    let host = url::Url::parse(&session.info().server)
+        .ok()
+        .and_then(|u| u.host_str().map(str::to_owned));
+    if let Some(host) = host {
+        let app = app.clone();
+        tauri::async_runtime::spawn(async move { start_phone(app, hub, host).await });
+    }
+}
+
+async fn hub(state: &AppState) -> Result<sf_onehub::OneHub, String> {
+    state
+        .session
+        .lock()
+        .await
+        .as_ref()
+        .map(|s| s.hub().clone())
+        .ok_or_else(|| "Nicht angemeldet".to_owned())
+}
+
+#[tauri::command]
+async fn signaling_numbers(
+    state: State<'_, AppState>,
+) -> Result<Vec<sf_core::account::SignalingNumber>, String> {
+    sf_core::account::signaling_numbers(&hub(&state).await?)
+        .await
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+async fn set_signaling_number(state: State<'_, AppState>, id: String) -> Result<(), String> {
+    sf_core::account::set_signaling_number(&hub(&state).await?, &id)
+        .await
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
 async fn logout(app: AppHandle, state: State<'_, AppState>) -> Result<(), String> {
     let session = state.session.lock().await.take();
     set_session(&app, None).await;
@@ -387,12 +453,7 @@ async fn finish_login(app: &AppHandle, redirect: &str) -> Result<SessionInfo, St
     let session = Session::start(&pending.server, pending.auth, tokens, state.events.clone())
         .await
         .map_err(|e| e.to_string())?;
-    save_settings(
-        app,
-        &Settings {
-            last_server: Some(pending.server),
-        },
-    );
+    settings::update(app, |s| s.last_server = Some(pending.server));
     let info = SessionInfo::from(session.info());
     set_session(app, Some(session)).await;
     Ok(info)
@@ -521,7 +582,11 @@ pub fn run() {
             phone_hold,
             phone_mute,
             phone_dtmf,
-            phone_action
+            phone_action,
+            get_prefs,
+            save_prefs,
+            signaling_numbers,
+            set_signaling_number
         ])
         .run(tauri::generate_context!())
         .expect("Tauri-App konnte nicht starten");

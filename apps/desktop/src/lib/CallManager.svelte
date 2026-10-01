@@ -2,6 +2,7 @@
   import CallCard from "./CallCard.svelte";
   import Icon from "./Icon.svelte";
   import { isRingingIn, phone } from "./phone.svelte";
+  import { prefs } from "./prefs.svelte";
 
   let open = $state(false);
   const calls = $derived(phone.status.calls);
@@ -17,7 +18,7 @@
 
   // Klingelton über die Web-Audio-API, solange ein eingehender Anruf klingelt.
   $effect(() => {
-    if (!ringing) return;
+    if (!ringing || prefs.value?.ringtone === false) return;
     const ctx = new AudioContext();
     const burst = () => {
       for (const [start, freq] of [[0, 880], [0.25, 660], [0.5, 880], [0.75, 660]] as const) {
