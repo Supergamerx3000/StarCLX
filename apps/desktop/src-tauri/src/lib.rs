@@ -519,7 +519,14 @@ async fn contacts_search(
 async fn contacts_folders(
     state: State<'_, AppState>,
 ) -> Result<Vec<sf_core::directory::Folder>, String> {
-    sf_core::directory::folders(&hub(&state).await?)
+    let (hub, server) = state
+        .session
+        .lock()
+        .await
+        .as_ref()
+        .map(|s| (s.hub().clone(), s.info().server.clone()))
+        .ok_or("Nicht angemeldet")?;
+    sf_core::directory::folders(&hub, &server)
         .await
         .map_err(|e| e.to_string())
 }
