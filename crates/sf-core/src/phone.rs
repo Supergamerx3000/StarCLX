@@ -65,6 +65,8 @@ pub struct CallView {
     pub id: String,
     pub phase: CallPhase,
     pub incoming: bool,
+    /// Interner Anruf (für den passenden Klingelton)
+    pub internal: bool,
     pub remote_name: String,
     pub remote_number: String,
     /// Eigene Nummer bzw. Gruppe, über die der Anruf kam
@@ -624,6 +626,7 @@ fn view_of(c: &v1::call::Call) -> CallView {
         id: id_of(&c.call_id),
         phase: phase_of(c.call_state()),
         incoming: c.call_direction() == v1::types::CallDirection::Inbound,
+        internal: c.is_internal_call,
         remote_name: remote.name,
         remote_number: remote.number,
         local_name: local.name,

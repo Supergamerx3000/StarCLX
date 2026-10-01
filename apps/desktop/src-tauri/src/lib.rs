@@ -2,6 +2,7 @@
 //! `starface-app://login`, stilles Wiederanmelden mit dem Refresh-Token aus
 //! dem Schlüsselbund, ein Tray-Symbol und das Softphone.
 
+mod audio;
 mod chat;
 mod settings;
 
@@ -83,6 +84,7 @@ async fn set_session(app: &AppHandle, session: Option<Session>) {
     let state = app.state::<AppState>();
     // Erst das alte Softphone beenden, dann ggf. ein neues starten.
     state.phone.lock().await.take();
+    audio::update_ringer(app, None);
     let host = session.as_ref().and_then(|s| {
         url::Url::parse(&s.info().server)
             .ok()
@@ -191,7 +193,7 @@ async fn start_phone(app: AppHandle, hub: sf_onehub::OneHub, host: String) {
         return;
     }
     let (tx, mut rx) = mpsc::unbounded_channel();
-    let config = sf_sip::Config::default();
+    let config = audio::softphone_config(&prefs).await;
     match Phone::start(hub.clone(), &host, &config, env!("CARGO_PKG_VERSION"), tx).await {
         Ok(phone) => {
             let state = app.state::<AppState>();
@@ -231,6 +233,11 @@ async fn start_phone(app: AppHandle, hub: sf_onehub::OneHub, host: String) {
                     .calls
                     .iter()
                     .any(|c| c.incoming && c.phase == CallPhase::Ringing);
+                let ring_internal = calls
+                    .iter()
+                    .find(|c| c.incoming && c.phase == CallPhase::Ringing)
+                    .map(|c| c.internal);
+                audio::update_ringer(&app, ring_internal);
                 update_phone_status(&app, |s| {
                     s.calls = calls;
                     s.muted = muted;
@@ -658,7 +665,9 @@ pub fn run() {
         .plugin(tauri_plugin_deep_link::init())
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_notification::init())
+        .plugin(tauri_plugin_dialog::init())
         .manage(chat::ChatState::default())
+        .manage(audio::AudioState::default())
         .manage(AppState {
             pending: Mutex::default(),
             session: Mutex::default(),
@@ -730,7 +739,12 @@ pub fn run() {
             chat::chat_status,
             chat::chat_recent,
             chat::chat_conversation,
-            chat::chat_send
+            chat::chat_send,
+            audio::audio_info,
+            audio::audio_preview,
+            audio::audio_stop,
+            audio::mic_test,
+            audio::pick_ringtone
         ])
         .run(tauri::generate_context!())
         .expect("Tauri-App konnte nicht starten");

@@ -1,0 +1,13 @@
+[package]
+name = "sf-audio"
+description = "Audiogeräte (PulseAudio/PipeWire), Klingeltöne, Testton und Mikrofontest"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+libpulse-binding = "2"
+libpulse-simple-binding = "2"
+hound = "3"
+serde.workspace = true
+thiserror.workspace = true
+tracing.workspace = true
