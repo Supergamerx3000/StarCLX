@@ -61,11 +61,32 @@ pub async fn folders(hub: &OneHub) -> sf_onehub::Result<Vec<Folder>> {
         .into_iter()
         .filter_map(|f| {
             Some(Folder {
+                name: folder_label(&f.folder_name, f.folder_type()),
                 id: f.folder_id?.id,
-                name: f.folder_name,
             })
         })
         .collect())
+}
+
+/// Anzeigename eines Adressbuchs. Für die eingebauten Ordner schickt die
+/// Anlage nur einen Übersetzungsschlüssel wie
+/// `de.vertico.starface.addressbook.folder.all`; die Namen entsprechen der
+/// deutschen Oberfläche der Anlage. Eigene Ordner behalten ihren Namen.
+fn folder_label(name: &str, kind: v1::contact::FolderType) -> String {
+    use v1::contact::FolderType as T;
+    let Some(key) = name.strip_prefix("de.vertico.starface.addressbook.folder.") else {
+        return name.to_owned();
+    };
+    match (key, kind) {
+        ("all", _) => "Zentral",
+        ("users", _) => "Benutzer",
+        ("private", _) => "Privat",
+        (_, T::Public) => "Zentral",
+        (_, T::Users) => "Benutzer",
+        (_, T::Private) => "Privat",
+        _ => return key.to_owned(),
+    }
+    .to_owned()
 }
 
 /// Eine Seite eines Adressbuchs, optional gefiltert.
@@ -229,6 +250,21 @@ mod tests {
                     number: "+41 79 000 00 00".into()
                 },
             ]
+        );
+    }
+
+    #[test]
+    fn builtin_folders_get_readable_names() {
+        use v1::contact::FolderType as T;
+        let p = "de.vertico.starface.addressbook.folder.";
+        assert_eq!(folder_label(&format!("{p}all"), T::Public), "Zentral");
+        assert_eq!(folder_label(&format!("{p}users"), T::Users), "Benutzer");
+        assert_eq!(folder_label(&format!("{p}private"), T::Private), "Privat");
+        assert_eq!(folder_label(&format!("{p}neu"), T::Users), "Benutzer");
+        assert_eq!(folder_label(&format!("{p}neu"), T::Custom), "neu");
+        assert_eq!(
+            folder_label("SelectLine Mitarbeiter", T::Custom),
+            "SelectLine Mitarbeiter"
         );
     }
 
