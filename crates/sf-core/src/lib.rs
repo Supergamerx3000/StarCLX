@@ -49,6 +49,7 @@ pub struct SessionInfo {
     pub server_version: String,
     pub first_name: String,
     pub last_name: String,
+    pub user_id: String,
 }
 
 pub struct Session {
@@ -102,6 +103,7 @@ impl Session {
             server_version,
             first_name: user.first_name,
             last_name: user.last_name,
+            user_id: user.user_id.map(|u| u.id).unwrap_or_default(),
         };
         Ok(Self {
             hub,

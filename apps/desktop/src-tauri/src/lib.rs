@@ -2,6 +2,7 @@
 //! `starface-app://login`, stilles Wiederanmelden mit dem Refresh-Token aus
 //! dem Schlüsselbund, ein Tray-Symbol und das Softphone.
 
+mod chat;
 mod settings;
 
 use serde::Serialize;
@@ -88,8 +89,13 @@ async fn set_session(app: &AppHandle, session: Option<Session>) {
             .and_then(|u| u.host_str().map(str::to_owned))
     });
     let hub = session.as_ref().map(|s| s.hub().clone());
+    let user_id = session.as_ref().map(|s| s.info().user_id.clone());
     *state.session.lock().await = session;
     *state.journal.lock().await = hub.clone().map(|hub| start_journal(app, hub));
+    chat::stop(app).await;
+    if let (Some(hub), Some(host), Some(user_id)) = (&hub, &host, user_id) {
+        chat::start(app, hub.clone(), host.clone(), user_id);
+    }
     if hub.is_none() {
         let _ = app.emit("journal", Vec::<sf_core::journal::Entry>::new());
     }
@@ -652,6 +658,7 @@ pub fn run() {
         .plugin(tauri_plugin_deep_link::init())
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_notification::init())
+        .manage(chat::ChatState::default())
         .manage(AppState {
             pending: Mutex::default(),
             session: Mutex::default(),
@@ -719,7 +726,11 @@ pub fn run() {
             contacts_folders,
             contacts_list,
             journal_entries,
-            journal_action
+            journal_action,
+            chat::chat_status,
+            chat::chat_recent,
+            chat::chat_conversation,
+            chat::chat_send
         ])
         .run(tauri::generate_context!())
         .expect("Tauri-App konnte nicht starten");
