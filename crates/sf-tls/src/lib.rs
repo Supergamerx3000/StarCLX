@@ -66,6 +66,14 @@ fn normalize(fingerprint: String) -> String {
     fingerprint.trim().to_ascii_uppercase()
 }
 
+/// Hat der Benutzer das Zertifikat mit diesem Fingerabdruck bestätigt?
+pub fn is_confirmed_fingerprint(fingerprint: &str) -> bool {
+    TRUSTED
+        .read()
+        .unwrap()
+        .contains(&normalize(fingerprint.to_owned()))
+}
+
 fn is_trusted(cert: &[u8]) -> bool {
     TRUSTED.read().unwrap().contains(&fingerprint(cert))
 }
