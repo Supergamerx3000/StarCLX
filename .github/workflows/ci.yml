@@ -60,6 +60,17 @@ jobs:
           npm ci
           npm run check
 
+      # Jeder Build bekommt eine eigene, steigende Version (0.1.<Laufnummer>),
+      # damit Pakete unterscheidbar sind und apt sie als Update erkennt.
+      - name: Version setzen
+        run: |
+          VERSION="0.1.${{ github.run_number }}"
+          echo "VERSION=$VERSION" >> "$GITHUB_ENV"
+          sed -i "0,/^version = \".*\"/s//version = \"$VERSION\"/" Cargo.toml
+          sed -i "s/\"version\": \"[^\"]*\"/\"version\": \"$VERSION\"/" apps/desktop/src-tauri/tauri.conf.json
+          grep -m1 '^version' Cargo.toml
+          grep '"version"' apps/desktop/src-tauri/tauri.conf.json
+
       - name: Pakete bauen (.deb, AppImage)
         working-directory: apps/desktop
         run: npx tauri build --bundles deb,appimage
@@ -69,7 +80,7 @@ jobs:
 
       - uses: actions/upload-artifact@v7
         with:
-          name: starface-linuxclient-linux-x86_64
+          name: starface-linuxclient-${{ env.VERSION }}-linux-x86_64
           path: |
             target/release/bundle/deb/*.deb
             target/release/bundle/appimage/*.AppImage
