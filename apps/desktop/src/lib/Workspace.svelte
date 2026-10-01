@@ -22,22 +22,25 @@
 </script>
 
 <script lang="ts">
-  // Freier Arbeitsbereich: Kacheln an der Titelleiste verschieben, an der
-  // Ecke in der Grösse ändern; sie rasten am Raster ein. Ziehen läuft über
+  // Freier Arbeitsbereich: Im Bearbeiten-Modus Kacheln an der Titelleiste
+  // verschieben, an der Ecke in der Grösse ändern; sie rasten am Raster ein.
+  // Ausserhalb des Bearbeiten-Modus ist die Anordnung fixiert. Ziehen läuft über
   // Zeigerereignisse (HTML5-Drag&Drop funktioniert im Linux-Fenster nicht).
   import type { Snippet } from "svelte";
   import Icon, { type IconName } from "./Icon.svelte";
 
   let {
     tiles = $bindable(),
+    editing = false,
     meta,
     body,
     onchange,
   }: {
     tiles: Tile[];
+    editing?: boolean;
     meta: Record<string, { icon: IconName; label: string }>;
     body: Snippet<[string]>;
-    onchange: () => void;
+    onchange?: () => void;
   } = $props();
 
   let width = $state(0);
@@ -50,7 +53,7 @@
   const height = $derived(Math.max(...tiles.filter((t) => t.visible).map((t) => t.y + t.h), 1) * ROW + ROW * 4);
 
   function start(e: PointerEvent, t: Tile, mode: "move" | "size") {
-    if (e.button !== 0 || (mode === "move" && (e.target as HTMLElement).closest("button"))) return;
+    if (!editing || e.button !== 0 || (mode === "move" && (e.target as HTMLElement).closest("button"))) return;
     e.preventDefault();
     order = [...order.filter((x) => x !== t.id), t.id];
     drag = { id: t.id, mode, sx: e.clientX, sy: e.clientY, start: { ...t } };
@@ -92,31 +95,32 @@
     drag = null;
     if (t && (t.x !== s.x || t.y !== s.y || t.w !== s.w || t.h !== s.h)) {
       pushDown(t);
-      onchange();
+      onchange?.();
     }
   }
 
   function hide(t: Tile) {
     t.visible = false;
-    onchange();
+    onchange?.();
   }
 </script>
 
 <svelte:window onpointermove={onmove} onpointerup={onup} onpointercancel={onup} />
 
-<div class="area" bind:clientWidth={width} style="height: {height}px">
+<div class="area" class:editing bind:clientWidth={width} style="height: {height}px">
   {#each tiles.filter((t) => t.visible) as t (t.id)}
     <section
       class="tile"
+      data-tile={t.id}
       style="left: {t.x * col}px; top: {t.y * ROW}px; width: {t.w * col}px; height: {t.h * ROW}px; z-index: {z(t.id)}"
     >
       <header role="toolbar" tabindex="-1" onpointerdown={(e) => start(e, t, "move")}>
         <Icon name={meta[t.id].icon} size={16} />
         <span>{meta[t.id].label}</span>
-        <button class="x" title="Ausblenden" onclick={() => hide(t)}><Icon name="close" size={16} /></button>
+        {#if editing}<button class="x" title="Ausblenden" onclick={() => hide(t)}><Icon name="close" size={16} /></button>{/if}
       </header>
       <div class="body">{@render body(t.id)}</div>
-      <span class="grip" role="separator" aria-label="Grösse ändern" onpointerdown={(e) => start(e, t, "size")}></span>
+      {#if editing}<span class="grip" role="separator" aria-label="Grösse ändern" onpointerdown={(e) => start(e, t, "size")}></span>{/if}
     </section>
   {/each}
 </div>
@@ -129,10 +133,12 @@
   }
   .tile > * { min-width: 0; }
   header {
-    display: flex; align-items: center; gap: 0.45rem; padding: 0.3rem 0.6rem; cursor: grab; touch-action: none; user-select: none;
+    display: flex; align-items: center; gap: 0.45rem; padding: 0.3rem 0.6rem; user-select: none;
     background: var(--bar-2); border: 1px solid var(--line); border-bottom: none; border-radius: 6px 6px 0 0; font-weight: 600; font-size: 0.9rem;
   }
   header span { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .editing header { cursor: grab; touch-action: none; }
+  .editing .tile .body { outline: 1px dashed var(--accent); outline-offset: -1px; }
   .x { background: none; border: none; padding: 0.1rem; color: var(--muted); display: grid; }
   .body { flex: 1; min-height: 0; overflow: auto; background: var(--bg); border: 1px solid var(--line); border-radius: 0 0 6px 6px; padding: 0.4rem; }
   .grip {
