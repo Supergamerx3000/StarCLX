@@ -97,6 +97,7 @@ async fn folder_aliases(
     let url = url::Url::parse(server)?.join("/rest/contacts/tags")?;
     let tags: Vec<Tag> = reqwest::Client::builder()
         .timeout(std::time::Duration::from_secs(5))
+        .tls_backend_preconfigured(sf_tls::client_config())
         .build()?
         .get(url)
         .bearer_auth(token)

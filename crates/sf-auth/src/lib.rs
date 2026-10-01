@@ -107,6 +107,7 @@ impl Client {
     pub async fn discover(server: &str) -> Result<Self> {
         let http = reqwest::Client::builder()
             .user_agent(concat!("starface-linuxclient/", env!("CARGO_PKG_VERSION")))
+            .tls_backend_preconfigured(sf_tls::client_config())
             .build()?;
         let url = Url::parse(server)?.join("/.well-known/openid-configuration")?;
         // Die Anlage leitet auf /auth/realms/pbx/… weiter; reqwest folgt dem.

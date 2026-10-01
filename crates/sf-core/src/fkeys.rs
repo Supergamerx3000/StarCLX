@@ -93,6 +93,7 @@ impl Rest {
             token: hub.token().get(),
             http: reqwest::Client::builder()
                 .timeout(Duration::from_secs(10))
+                .tls_backend_preconfigured(sf_tls::client_config())
                 .build()?,
         })
     }

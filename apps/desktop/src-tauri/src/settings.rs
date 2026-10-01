@@ -1,6 +1,7 @@
 //! Lokale Einstellungen als JSON im Konfigurationsordner. Geheimnisse liegen
 //! nie hier, sondern im Schlüsselbund.
 
+use std::collections::{BTreeMap, BTreeSet};
 use std::path::PathBuf;
 
 use serde::{Deserialize, Serialize};
@@ -11,6 +12,9 @@ pub struct Settings {
     pub last_server: Option<String>,
     #[serde(default)]
     pub prefs: Prefs,
+    /// Vom Benutzer bestätigte Zertifikate (SHA-256) je Anlage
+    #[serde(default)]
+    pub trusted_certs: BTreeMap<String, BTreeSet<String>>,
 }
 
 /// Benutzereinstellungen der Oberfläche, aufgebaut wie im Windows-Client.

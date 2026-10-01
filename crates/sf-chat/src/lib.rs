@@ -12,6 +12,7 @@
 //! (XEP-0136) und ein lokaler Verlauf als JSON-Datei.
 
 mod history;
+mod tls;
 mod xml;
 
 use std::collections::BTreeMap;
@@ -23,7 +24,7 @@ use futures::StreamExt;
 use serde::Serialize;
 use tokio::sync::{mpsc, oneshot};
 use tokio::task::JoinHandle;
-use tokio_xmpp::connect::{DnsConfig, ServerConnector, StartTlsServerConnector};
+use tokio_xmpp::connect::{DnsConfig, ServerConnector};
 use tokio_xmpp::jid::{BareJid, Jid};
 use tokio_xmpp::minidom::Element;
 use tokio_xmpp::parsers::message::{Lang, Message, MessageType};
@@ -223,7 +224,7 @@ async fn login(
     password: String,
 ) -> Result<Connection, tokio_xmpp::Error> {
     let jid = Jid::from(jid.clone());
-    let server = StartTlsServerConnector::from(DnsConfig::no_srv(host, PORT));
+    let server = tls::StartTls(DnsConfig::no_srv(host, PORT));
     let (stream, binding) = server
         .connect(&jid, ns::JABBER_CLIENT, Timeouts::default())
         .await?;

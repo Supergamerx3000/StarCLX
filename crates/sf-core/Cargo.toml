@@ -7,6 +7,7 @@ edition.workspace = true
 [dependencies]
 sf-auth.workspace = true
 sf-onehub.workspace = true
+sf-tls.workspace = true
 sf-sip = { path = "../sf-sip" }
 serde.workspace = true
 reqwest.workspace = true
