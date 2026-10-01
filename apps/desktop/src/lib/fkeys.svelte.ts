@@ -26,8 +26,8 @@ export type FunctionKey = {
   dtmf: string | null;
   genericURL: string | null;
 };
-export type Account = { account_id: number; uuid: string; name: string; number: string };
-type Keys = { set_id: string; account_id: string; keys: FunctionKey[]; accounts: Account[]; me: string };
+export type Account = { account_id: number; user_ids: string[]; name: string; number: string };
+type Keys = { set_id: string; set_name: string; account_id: string; keys: FunctionKey[]; order: string[]; accounts: Account[]; me: string };
 type UserState = { telephony: string; dnd: boolean };
 export type Redirect = {
   id: string; kind: string; called_number: string; called_number_id: string; group: boolean; enabled: boolean;
@@ -59,8 +59,13 @@ export const typeInfo = (t: string) => TYPES.find((x) => x.type === t) ?? { type
 
 export const fkeys = $state({
   setId: "",
+  setName: "",
   accountId: "",
   keys: [] as FunctionKey[],
+  /** Platzbelegung: Tasten-ID je Platz, "" = leerer Platz */
+  order: [] as string[],
+  /** Parkplätze, auf denen dieser Client ein Gespräch geparkt hat */
+  parked: {} as Record<string, boolean>,
   accounts: [] as Account[],
   presence: {} as Record<string, UserState>,
   redirects: [] as Redirect[],
@@ -81,8 +86,10 @@ export async function loadFkeys() {
   try {
     const k = await invoke<Keys>("fkeys_load");
     fkeys.setId = k.set_id;
+    fkeys.setName = k.set_name;
     fkeys.accountId = k.account_id;
     fkeys.keys = k.keys;
+    fkeys.order = k.order;
     fkeys.accounts = k.accounts;
     fkeys.me = k.me;
     fkeys.error = "";
@@ -104,6 +111,44 @@ async function loadRedirects() {
 
 export const account = (k: FunctionKey) => fkeys.accounts.find((a) => a.account_id === k.blfAccountId);
 
+/** Taste auf einem Platz, oder undefined für einen leeren Platz */
+export const keyAt = (slot: number) => {
+  const id = fkeys.order[slot];
+  return id ? fkeys.keys.find((k) => k.id === id) : undefined;
+};
+
+/** Legt `id` auf `slot`. Ist der Platz belegt, wird die Taste davor
+ *  eingeschoben: eine verschobene Taste lässt dabei keine Lücke zurück, eine
+ *  neue schiebt die folgenden Tasten bis zur nächsten Lücke weiter. */
+export function placeAt(order: string[], id: string, slot: number): string[] {
+  const o = [...order];
+  const from = o.indexOf(id);
+  while (o.length <= slot) o.push("");
+  if (!o[slot] || o[slot] === id) {
+    if (from >= 0) o[from] = "";
+    o[slot] = id;
+  } else if (from >= 0) {
+    o.splice(from, 1);
+    o.splice(slot, 0, id);
+  } else {
+    o.splice(slot, 0, id);
+    const gap = o.indexOf("", slot + 1);
+    if (gap >= 0) o.splice(gap, 1);
+  }
+  while (o.length && !o[o.length - 1]) o.pop();
+  return o;
+}
+
+/** Neue Platzbelegung an die Anlage schicken */
+export async function saveOrder(order: string[]) {
+  fkeys.order = order;
+  await invoke("fkeys_reorder", { set: fkeys.setId, name: fkeys.setName, order, keys: $state.snapshot(fkeys.keys) });
+}
+
+const stateOf = (a: Account | undefined) => {
+  for (const id of a?.user_ids ?? []) if (fkeys.presence[id]) return fkeys.presence[id];
+};
+
 const ownDnd = () => fkeys.presence[fkeys.me]?.dnd ?? false;
 
 /** Umleitungen, die eine Taste schaltet */
@@ -124,7 +169,7 @@ export function redirectsOf(k: FunctionKey): Redirect[] {
 export function keyState(k: FunctionKey): string {
   switch (k.functionKeyType) {
     case "BUSYLAMPFIELD": {
-      const s = fkeys.presence[account(k)?.uuid ?? ""];
+      const s = stateOf(account(k));
       if (!s) return "";
       return s.telephony === "ringing" ? "ringing" : s.telephony === "active" ? "busy" : s.telephony === "unavailable" ? "off" : "free";
     }
@@ -134,6 +179,8 @@ export function keyState(k: FunctionKey): string {
     case "FORWARDNUMBER":
     case "FORWARDTOTARGET":
       return redirectsOf(k).some((r) => r.enabled) ? "on" : "";
+    case "PARKANDORBIT":
+      return fkeys.parked[k.poNumber ?? ""] ? "parked" : "";
     default:
       return "";
   }
@@ -149,8 +196,10 @@ async function call(cmd: string, args: Record<string, unknown>) {
   fkeys.notice = "";
   try {
     await invoke(cmd, args);
+    return true;
   } catch (e) {
     fkeys.notice = String(e);
+    return false;
   }
 }
 
@@ -159,8 +208,16 @@ export async function press(k: FunctionKey) {
   fkeys.notice = "";
   switch (k.functionKeyType) {
     case "BUSYLAMPFIELD": {
+      // Klingelt es beim Kollegen, Anruf heranholen, sonst ihn anrufen
       const a = account(k);
-      if (a?.number) run("phone_dial", { number: a.number });
+      if (!a) return void (fkeys.notice = "Für diese Taste ist kein Benutzer hinterlegt.");
+      const s = stateOf(a);
+      if (s?.telephony === "ringing" && a.user_ids.length) {
+        await call("fkey_grab", { userId: a.user_ids[0] });
+        return;
+      }
+      if (a.number) run("phone_dial", { number: a.number });
+      else fkeys.notice = `${a.name} hat keine Rufnummer.`;
       return;
     }
     case "QUICKDIAL":
@@ -192,9 +249,17 @@ export async function press(k: FunctionKey) {
       return loadRedirects();
     }
     case "PARKANDORBIT": {
+      // Mit Gespräch parken, ohne Gespräch das geparkte zurückholen
+      const number = k.poNumber ?? "";
       const c = activeCall();
-      if (!c) return void (fkeys.notice = "Kein Gespräch zum Parken.");
-      return call("fkey_park", { callId: c.id, number: k.poNumber ?? "" });
+      if (c) {
+        if (await call("fkey_park", { callId: c.id, number })) fkeys.parked[number] = true;
+      } else if (await call("fkey_park", { callId: null, number })) {
+        fkeys.parked[number] = false;
+      } else if (!fkeys.parked[number]) {
+        fkeys.notice = `Auf Platz ${number} ist kein Gespräch geparkt.`;
+      }
+      return;
     }
     case "PHONEDTMF": {
       const c = activeCall();

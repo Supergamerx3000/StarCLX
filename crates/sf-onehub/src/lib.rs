@@ -162,6 +162,10 @@ impl OneHub {
         v1::journal::journal_service_client::JournalServiceClient
     );
     service!(
+        user_id_lookup,
+        v1::useridlookup::user_id_lookup_service_client::UserIdLookupServiceClient
+    );
+    service!(
         presence,
         v1::presence::presence_service_client::PresenceServiceClient
     );

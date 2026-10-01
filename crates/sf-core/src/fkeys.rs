@@ -43,10 +43,13 @@ pub struct FunctionKey {
     pub generic_url: Option<String>,
 }
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct KeySet {
     id: String,
+    #[serde(default)]
+    name: String,
+    /// Tasten-IDs in Platzreihenfolge; `""` ist ein leerer Platz
     #[serde(default)]
     key_order: Vec<String>,
 }
@@ -55,8 +58,9 @@ struct KeySet {
 #[derive(Debug, Clone, Serialize, PartialEq, Eq)]
 pub struct Account {
     pub account_id: i32,
-    /// Entspricht der OneHub-User-ID (für die Präsenz)
-    pub uuid: String,
+    /// OneHub-IDs dieses Users (für Präsenz und Heranholen); füllt der
+    /// Aufrufer über [`user_ids`]
+    pub user_ids: Vec<String>,
     pub name: String,
     pub number: String,
 }
@@ -64,9 +68,12 @@ pub struct Account {
 #[derive(Debug, Clone, Serialize)]
 pub struct Keys {
     pub set_id: String,
+    pub set_name: String,
     /// Eigene REST-Account-ID (für neue Tasten)
     pub account_id: String,
     pub keys: Vec<FunctionKey>,
+    /// Platzbelegung: Tasten-ID je Platz, `""` für einen leeren Platz
+    pub order: Vec<String>,
     pub accounts: Vec<Account>,
     /// Eigene OneHub-User-ID (für den Ruhe-Zustand); setzt der Aufrufer
     pub me: String,
@@ -109,33 +116,68 @@ impl Rest {
             .await?)
     }
 
-    /// Tastensatz, eigene Account-ID, Tasten in Platzreihenfolge und User
+    async fn send_json(
+        &self,
+        method: reqwest::Method,
+        path: &str,
+        body: &impl Serialize,
+    ) -> Result<(), BoxError> {
+        check(self.req(method, path)?.json(body).send().await?).await?;
+        Ok(())
+    }
+
+    /// Tastensatz, eigene Account-ID, Tasten mit Platzbelegung und User
     pub async fn load(&self) -> Result<Keys, BoxError> {
         let sets: Vec<KeySet> = self.get("/rest/functionkeysets").await?;
         let set = sets
             .into_iter()
             .next()
             .ok_or("Kein Tastensatz auf der Anlage")?;
-        let mut keys: Vec<FunctionKey> = self
+        let keys: Vec<FunctionKey> = self
             .get(&format!("/rest/functionkeysets/{}", set.id))
             .await?;
-        order(&mut keys, &set.key_order);
         #[derive(Deserialize)]
         struct Me {
             id: i64,
         }
         let me: Me = self.get("/rest/users/me").await?;
         let defaults: serde_json::Value = self.get("/rest/functionkeysets/edit/defaults").await?;
+        let mut accounts = accounts(&defaults);
+        // Bereits belegte User fehlen in den Vorgaben; die Bearbeitungsform
+        // der Taste nennt sie samt Nummer.
+        for k in keys
+            .iter()
+            .filter(|k| k.function_key_type == "BUSYLAMPFIELD")
+        {
+            let path = format!("/rest/functionkeysets/{}/edit/{}", set.id, k.id);
+            match self.get::<serde_json::Value>(&path).await {
+                Ok(edit) => {
+                    if let Some(a) = blf_account(&edit)
+                        && !accounts.iter().any(|x| x.account_id == a.account_id)
+                    {
+                        accounts.push(a);
+                    }
+                }
+                Err(e) => {
+                    tracing::warn!(error = %e, key = %k.id, "Besetztlampenfeld nicht gelesen")
+                }
+            }
+        }
+        accounts.sort_by_key(|a| a.name.to_lowercase());
         Ok(Keys {
+            order: slot_order(&set.key_order, &keys),
             set_id: set.id,
+            set_name: set.name,
             account_id: me.id.to_string(),
             keys,
-            accounts: accounts(&defaults),
+            accounts,
             me: String::new(),
         })
     }
 
-    /// Legt eine Taste an (ohne `id`) oder ändert sie.
+    /// Legt eine Taste an (ohne `id`) oder ändert sie. Das Besetztlampenfeld
+    /// geht in der Bearbeitungsform an die Anlage; im flachen Format
+    /// übernimmt sie den Besitzer statt des gewählten Users.
     pub async fn save(&self, set: &str, key: &FunctionKey) -> Result<(), BoxError> {
         let (method, path) = if key.id.is_empty() {
             (
@@ -148,8 +190,15 @@ impl Rest {
                 format!("/rest/functionkeysets/{set}/{}", key.id),
             )
         };
-        check(self.req(method, &path)?.json(key).send().await?).await?;
-        Ok(())
+        if let Some(edit) = edit_form(key) {
+            match self.send_json(method.clone(), &path, &edit).await {
+                Ok(()) => return Ok(()),
+                Err(e) => {
+                    tracing::warn!(error = %e, "Bearbeitungsform abgelehnt, versuche flaches Format")
+                }
+            }
+        }
+        self.send_json(method, &path, key).await
     }
 
     pub async fn delete(&self, set: &str, id: &str) -> Result<(), BoxError> {
@@ -158,25 +207,37 @@ impl Rest {
         Ok(())
     }
 
-    /// Speichert die Reihenfolge (alle Tasten mit neuer `position`).
-    pub async fn reorder(&self, set: &str, keys: &[FunctionKey]) -> Result<(), BoxError> {
-        let keys: Vec<FunctionKey> = keys
+    /// Speichert die Platzbelegung (`""` = leerer Platz) im Tastensatz.
+    pub async fn reorder(
+        &self,
+        set: &str,
+        name: &str,
+        order: &[String],
+        keys: &[FunctionKey],
+    ) -> Result<(), BoxError> {
+        let path = format!("/rest/functionkeysets/{set}");
+        let body = KeySet {
+            id: set.to_owned(),
+            name: name.to_owned(),
+            key_order: trim_gaps(order),
+        };
+        let Err(e) = self.send_json(reqwest::Method::PUT, &path, &body).await else {
+            return Ok(());
+        };
+        // Laut REST-Doku eine Liste der Tasten mit neuer Position
+        tracing::warn!(error = %e, "keyOrder abgelehnt, versuche Tastenliste");
+        let list: Vec<FunctionKey> = order
             .iter()
             .enumerate()
-            .map(|(i, k)| FunctionKey {
-                position: i as i32,
-                ..k.clone()
+            .filter_map(|(i, id)| {
+                let k = keys.iter().find(|k| !id.is_empty() && k.id == *id)?;
+                Some(FunctionKey {
+                    position: i as i32,
+                    ..k.clone()
+                })
             })
             .collect();
-        let path = format!("/rest/functionkeysets/{set}");
-        check(
-            self.req(reqwest::Method::PUT, &path)?
-                .json(&keys)
-                .send()
-                .await?,
-        )
-        .await?;
-        Ok(())
+        self.send_json(reqwest::Method::PUT, &path, &list).await
     }
 }
 
@@ -191,14 +252,53 @@ async fn check(resp: reqwest::Response) -> Result<reqwest::Response, BoxError> {
     Err(format!("Anlage antwortet {status}: {detail}").into())
 }
 
-fn order(keys: &mut [FunctionKey], key_order: &[String]) {
-    let rank = |k: &FunctionKey| {
-        key_order
-            .iter()
-            .position(|id| *id == k.id)
-            .unwrap_or(usize::MAX)
-    };
-    keys.sort_by_key(|k| (rank(k), k.position));
+/// Platzbelegung aus `keyOrder`; Tasten, die dort fehlen, kommen ans Ende.
+fn slot_order(key_order: &[String], keys: &[FunctionKey]) -> Vec<String> {
+    let mut order: Vec<String> = key_order
+        .iter()
+        .map(|id| {
+            if keys.iter().any(|k| k.id == *id) {
+                id.clone()
+            } else {
+                String::new()
+            }
+        })
+        .collect();
+    let mut rest: Vec<&FunctionKey> = keys.iter().filter(|k| !order.contains(&k.id)).collect();
+    rest.sort_by_key(|k| k.position);
+    order.extend(rest.into_iter().map(|k| k.id.clone()));
+    trim_gaps(&order)
+}
+
+/// Leere Plätze am Ende braucht die Anlage nicht.
+fn trim_gaps(order: &[String]) -> Vec<String> {
+    let end = order
+        .iter()
+        .rposition(|id| !id.is_empty())
+        .map_or(0, |i| i + 1);
+    order[..end].to_vec()
+}
+
+/// Bearbeitungsform für Typen, deren flaches Format die Anlage falsch übernimmt
+fn edit_form(k: &FunctionKey) -> Option<serde_json::Value> {
+    match k.function_key_type.as_str() {
+        "BUSYLAMPFIELD" => Some(serde_json::json!({
+            "editFunctionKeyBusyLampField": {
+                "name": k.name,
+                "blfDisplayInformation": k.name,
+                "blfAccountId": k.blf_account_id?,
+                "number": k.direct_call_targetnumber.clone().unwrap_or_default(),
+            }
+        })),
+        _ => None,
+    }
+}
+
+fn str_of(v: &serde_json::Value, key: &str) -> String {
+    v.get(key)
+        .and_then(|v| v.as_str())
+        .unwrap_or_default()
+        .to_owned()
 }
 
 fn accounts(defaults: &serde_json::Value) -> Vec<Account> {
@@ -211,20 +311,58 @@ fn accounts(defaults: &serde_json::Value) -> Vec<Account> {
         .filter_map(|a| {
             Some(Account {
                 account_id: a.get("accountId")?.as_i64()? as i32,
-                uuid: a.get("uuid")?.as_str()?.to_owned(),
-                name: a
-                    .get("displayInformation")
-                    .and_then(|v| v.as_str())
-                    .unwrap_or_default()
-                    .to_owned(),
-                number: a
-                    .get("primaryInternalPhoneNumber")
-                    .and_then(|v| v.as_str())
-                    .unwrap_or_default()
-                    .to_owned(),
+                user_ids: Vec::new(),
+                name: str_of(a, "displayInformation"),
+                number: str_of(a, "primaryInternalPhoneNumber"),
             })
         })
         .collect()
+}
+
+/// Der gewählte User aus der Bearbeitungsform eines Besetztlampenfelds
+fn blf_account(edit: &serde_json::Value) -> Option<Account> {
+    let b = edit.get("editFunctionKeyBusyLampField")?;
+    Some(Account {
+        account_id: b.get("blfAccountId")?.as_i64()? as i32,
+        user_ids: Vec::new(),
+        name: str_of(b, "blfDisplayInformation"),
+        number: str_of(b, "number"),
+    })
+}
+
+/// OneHub-IDs zu REST-Account-IDs (für Präsenz und Heranholen)
+pub async fn user_ids(
+    hub: &OneHub,
+    account_ids: &[i32],
+) -> sf_onehub::Result<HashMap<i32, Vec<String>>> {
+    use v1::useridlookup::user_identifier::Identifier;
+    let resp = hub
+        .user_id_lookup()
+        .batch_get_user_identifiers(v1::useridlookup::BatchGetUserIdentifiersRequest {
+            user_identifiers: account_ids
+                .iter()
+                .map(|id| v1::useridlookup::UserIdentifier {
+                    identifier: Some(Identifier::AccountId(id.to_string())),
+                })
+                .collect(),
+        })
+        .await?
+        .into_inner();
+    Ok(resp
+        .user_identifiers_list
+        .into_iter()
+        .filter_map(|u| {
+            let account = u.account_id.parse().ok()?;
+            let mut ids: Vec<String> = [u.user_id, u.one_hub_user_id]
+                .into_iter()
+                .flatten()
+                .map(|i| i.id)
+                .filter(|i| !i.is_empty())
+                .collect();
+            ids.dedup();
+            Some((account, ids))
+        })
+        .collect())
 }
 
 /// Telefonie- und Ruhe-Zustand eines Users für die Tastenfarben
@@ -350,15 +488,34 @@ pub async fn set_dnd(hub: &OneHub, enabled: bool) -> sf_onehub::Result<()> {
     Ok(())
 }
 
-/// Parkt das Gespräch `call_id` auf dem Platz `number`.
-pub async fn park(hub: &OneHub, call_id: &str, number: &str) -> sf_onehub::Result<()> {
+/// Parkt das Gespräch `call_id` auf dem Platz `number`. Ohne `call_id`
+/// holt die Anlage das dort geparkte Gespräch auf `phone_id` zurück.
+pub async fn park(
+    hub: &OneHub,
+    call_id: Option<&str>,
+    number: &str,
+    phone_id: Option<&str>,
+) -> sf_onehub::Result<()> {
     hub.call()
         .park_and_orbit(v1::call::ParkAndOrbitRequest {
             number: number.to_owned(),
-            call_id: Some(v1::types::CallId {
-                id: call_id.to_owned(),
-            }),
-            phone_id: None,
+            call_id: call_id.map(|id| v1::types::CallId { id: id.to_owned() }),
+            phone_id: phone_id.map(|id| v1::types::PhoneId { id: id.to_owned() }),
+        })
+        .await?;
+    Ok(())
+}
+
+/// Holt einen Anruf heran, der beim User `user_id` klingelt.
+pub async fn grab(hub: &OneHub, user_id: &str, phone_id: Option<&str>) -> sf_onehub::Result<()> {
+    hub.call()
+        .grab_call(v1::call::GrabCallRequest {
+            target: Some(v1::call::grab_call_request::Target::UserId(
+                v1::types::UserId {
+                    id: user_id.to_owned(),
+                },
+            )),
+            phone_id: phone_id.map(|id| v1::types::PhoneId { id: id.to_owned() }),
         })
         .await?;
     Ok(())
@@ -371,15 +528,24 @@ mod tests {
     const SET: &str = r#"[{"functionKeyType":"BUSYLAMPFIELD","id":"1000","accountId":"1003","valid":true,"name":"Claude2, Star2","position":1,"blfAccountId":1004,"directCallTargetnumber":null,"redirectNumberIds":[],"forwardTarget":null,"forwardTargetType":null,"forwardType":null,"groupIds":[],"poNumber":null,"displayNumberId":null,"activateModuleIds":[],"addressbookRequest":null,"addressBookFolderName":null,"callListRequest":null,"dtmf":null,"genericURL":null},
       {"functionKeyType":"PHONEGENERICURL","id":"1013","accountId":"1003","valid":true,"name":"URL","position":0,"genericURL":"https://claude.ai"}]"#;
 
+    fn ids(v: &[&str]) -> Vec<String> {
+        v.iter().map(|s| s.to_string()).collect()
+    }
+
     #[test]
-    fn parses_and_orders_keys() {
-        let mut keys: Vec<FunctionKey> = serde_json::from_str(SET).unwrap();
+    fn parses_keys_and_keeps_gaps() {
+        let keys: Vec<FunctionKey> = serde_json::from_str(SET).unwrap();
         assert_eq!(keys[0].blf_account_id, Some(1004));
         assert_eq!(keys[1].generic_url.as_deref(), Some("https://claude.ai"));
-        order(&mut keys, &["1000".into(), "1013".into()]);
-        assert_eq!(keys[0].id, "1000");
-        order(&mut keys, &[]);
-        assert_eq!(keys[0].id, "1013");
+        // Lücke bleibt, verschwundene Taste wird zur Lücke
+        assert_eq!(
+            slot_order(&ids(&["1000", "", "999", "1013"]), &keys),
+            ids(&["1000", "", "", "1013"])
+        );
+        // Fehlt die Taste in keyOrder, kommt sie ans Ende
+        assert_eq!(slot_order(&ids(&["1000"]), &keys), ids(&["1000", "1013"]));
+        assert_eq!(slot_order(&[], &keys), ids(&["1013", "1000"]));
+        assert_eq!(trim_gaps(&ids(&["1000", "", ""])), ids(&["1000"]));
     }
 
     #[test]
@@ -393,21 +559,50 @@ mod tests {
         assert_eq!(v["functionKeyType"], "QUICKDIAL");
         assert_eq!(v["directCallTargetnumber"], "12");
         assert!(v.get("genericURL").is_some());
+        let set = serde_json::to_value(KeySet {
+            id: "0".into(),
+            name: "default".into(),
+            key_order: ids(&["1", ""]),
+        })
+        .unwrap();
+        assert_eq!(
+            set,
+            serde_json::json!({"id": "0", "name": "default", "keyOrder": ["1", ""]})
+        );
     }
 
     #[test]
-    fn blf_accounts_from_defaults() {
+    fn blf_goes_out_in_edit_form() {
+        let k = FunctionKey {
+            function_key_type: "BUSYLAMPFIELD".into(),
+            name: "System, Cloud".into(),
+            blf_account_id: Some(1000),
+            direct_call_targetnumber: Some("10".into()),
+            ..Default::default()
+        };
+        let v = edit_form(&k).unwrap();
+        assert_eq!(v["editFunctionKeyBusyLampField"]["blfAccountId"], 1000);
+        assert_eq!(v["editFunctionKeyBusyLampField"]["number"], "10");
+        assert!(
+            edit_form(&FunctionKey {
+                function_key_type: "QUICKDIAL".into(),
+                ..Default::default()
+            })
+            .is_none()
+        );
+    }
+
+    #[test]
+    fn blf_accounts() {
         let d = serde_json::json!({"editFunctionKeyBusyLampField": {"availableAccounts": [
             {"uuid": "9d58", "accountId": 1003, "displayInformation": "Claude, Star", "primaryInternalPhoneNumber": "11"}
         ]}});
+        assert_eq!(accounts(&d)[0].number, "11");
+        let e = serde_json::json!({"editFunctionKeyBusyLampField": {"name": "x", "blfDisplayInformation": "Claude2, Star2", "blfAccountId": 1004, "number": "12"}});
+        let a = blf_account(&e).unwrap();
         assert_eq!(
-            accounts(&d),
-            vec![Account {
-                account_id: 1003,
-                uuid: "9d58".into(),
-                name: "Claude, Star".into(),
-                number: "11".into()
-            }]
+            (a.account_id, a.number.as_str(), a.name.as_str()),
+            (1004, "12", "Claude2, Star2")
         );
     }
 }

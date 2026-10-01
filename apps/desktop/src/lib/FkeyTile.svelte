@@ -14,7 +14,7 @@
       default: return key.name ? info.label : "";
     }
   });
-  const stateText: Record<string, string> = { on: "aktiv", busy: "im Gespräch", ringing: "klingelt", free: "frei", off: "nicht erreichbar" };
+  const stateText: Record<string, string> = { on: "aktiv", busy: "im Gespräch", ringing: "klingelt", free: "frei", off: "nicht erreichbar", parked: "Gespräch geparkt" };
 </script>
 
 <button
@@ -37,6 +37,7 @@
   .busy .lamp, .on .lamp { background: var(--red); }
   .on .lamp { background: var(--accent); }
   .ringing .lamp { background: var(--red); animation: blink 0.6s steps(2) infinite; }
+  .parked .lamp { background: var(--accent); animation: blink 0.6s steps(2) infinite; }
   .off .lamp { background: transparent; border: 1px solid var(--muted); }
   .txt { min-width: 0; display: flex; flex-direction: column; }
   .txt strong { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

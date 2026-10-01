@@ -50,12 +50,23 @@ pub async fn fkeys_load(
     let (rest, hub, me) = rest(&state).await?;
     let mut keys = rest.load().await.map_err(|e| e.to_string())?;
     keys.me.clone_from(&me);
+    let ids: Vec<i32> = keys.accounts.iter().map(|a| a.account_id).collect();
+    match sf_core::fkeys::user_ids(&hub, &ids).await {
+        Ok(map) => {
+            for a in &mut keys.accounts {
+                if let Some(u) = map.get(&a.account_id) {
+                    a.user_ids.clone_from(u);
+                }
+            }
+        }
+        Err(e) => tracing::warn!(error = %e, "User-IDs für Funktionstasten nicht ermittelt"),
+    }
     let mut users: Vec<String> = keys
         .keys
         .iter()
         .filter_map(|k| k.blf_account_id)
         .filter_map(|id| keys.accounts.iter().find(|a| a.account_id == id))
-        .map(|a| a.uuid.clone())
+        .flat_map(|a| a.user_ids.iter().cloned())
         .collect();
     users.push(me);
     users.sort();
@@ -101,10 +112,14 @@ pub async fn fkey_delete(
 pub async fn fkeys_reorder(
     state: State<'_, AppState>,
     set: String,
+    name: String,
+    order: Vec<String>,
     keys: Vec<FunctionKey>,
 ) -> Result<(), String> {
     let (rest, ..) = rest(&state).await?;
-    rest.reorder(&set, &keys).await.map_err(|e| e.to_string())
+    rest.reorder(&set, &name, &order, &keys)
+        .await
+        .map_err(|e| e.to_string())
 }
 
 #[tauri::command]
@@ -114,13 +129,38 @@ pub async fn fkey_dnd(state: State<'_, AppState>, enabled: bool) -> Result<(), S
         .map_err(|e| e.to_string())
 }
 
+async fn softphone(state: &AppState) -> Option<String> {
+    state
+        .phone
+        .lock()
+        .await
+        .as_ref()
+        .map(|p| p.phone_id().to_owned())
+}
+
+/// Ohne `call_id` wird das auf `number` geparkte Gespräch zurückgeholt.
 #[tauri::command]
 pub async fn fkey_park(
     state: State<'_, AppState>,
-    call_id: String,
+    call_id: Option<String>,
     number: String,
 ) -> Result<(), String> {
-    sf_core::fkeys::park(&hub(&state).await?, &call_id, &number)
+    let phone = softphone(&state).await;
+    sf_core::fkeys::park(
+        &hub(&state).await?,
+        call_id.as_deref(),
+        &number,
+        phone.as_deref(),
+    )
+    .await
+    .map_err(|e| e.to_string())
+}
+
+/// Holt den Anruf heran, der beim überwachten User klingelt.
+#[tauri::command]
+pub async fn fkey_grab(state: State<'_, AppState>, user_id: String) -> Result<(), String> {
+    let phone = softphone(&state).await;
+    sf_core::fkeys::grab(&hub(&state).await?, &user_id, phone.as_deref())
         .await
         .map_err(|e| e.to_string())
 }
