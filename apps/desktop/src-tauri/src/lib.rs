@@ -426,6 +426,40 @@ async fn set_signaling_number(state: State<'_, AppState>, id: String) -> Result<
 }
 
 #[tauri::command]
+async fn contacts_search(
+    state: State<'_, AppState>,
+    term: String,
+) -> Result<Vec<sf_core::directory::ContactView>, String> {
+    if term.trim().chars().count() < 2 {
+        return Ok(Vec::new());
+    }
+    sf_core::directory::search(&hub(&state).await?, &term, 8)
+        .await
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+async fn contacts_folders(
+    state: State<'_, AppState>,
+) -> Result<Vec<sf_core::directory::Folder>, String> {
+    sf_core::directory::folders(&hub(&state).await?)
+        .await
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+async fn contacts_list(
+    state: State<'_, AppState>,
+    folder: String,
+    term: String,
+    offset: i32,
+) -> Result<sf_core::directory::Page, String> {
+    sf_core::directory::list(&hub(&state).await?, &folder, &term, offset, 50)
+        .await
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
 async fn logout(app: AppHandle, state: State<'_, AppState>) -> Result<(), String> {
     let session = state.session.lock().await.take();
     set_session(&app, None).await;
@@ -586,7 +620,10 @@ pub fn run() {
             get_prefs,
             save_prefs,
             signaling_numbers,
-            set_signaling_number
+            set_signaling_number,
+            contacts_search,
+            contacts_folders,
+            contacts_list
         ])
         .run(tauri::generate_context!())
         .expect("Tauri-App konnte nicht starten");
