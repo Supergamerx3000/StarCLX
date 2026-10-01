@@ -9,6 +9,7 @@ mod desktop;
 mod presence;
 mod reach;
 mod settings;
+mod voicemail;
 
 use serde::Serialize;
 use settings::Prefs;
@@ -100,6 +101,7 @@ async fn set_session(app: &AppHandle, session: Option<Session>) {
     *state.session.lock().await = session;
     *state.journal.lock().await = hub.clone().map(|hub| start_journal(app, hub));
     reach::restart(app, hub.clone()).await;
+    voicemail::restart(app, hub.clone()).await;
     chat::stop(app).await;
     if let (Some(hub), Some(host), Some(user_id)) = (&hub, &host, user_id) {
         chat::start(app, hub.clone(), host.clone(), user_id);
@@ -693,6 +695,7 @@ pub fn run() {
         .plugin(tauri_plugin_dialog::init())
         .manage(chat::ChatState::default())
         .manage(reach::ReachState::default())
+        .manage(voicemail::VoicemailState::default())
         .manage(audio::AudioState::default())
         .manage(busylight::BusylightState::default())
         .manage(AppState {
@@ -792,6 +795,12 @@ pub fn run() {
             reach::fmc_delete,
             reach::mailboxes,
             reach::mailbox_record,
+            voicemail::voicemails,
+            voicemail::voicemail_audio,
+            voicemail::voicemail_save,
+            voicemail::voicemail_move,
+            voicemail::voicemail_delete,
+            voicemail::voicemail_via_phone,
             chat::pick_download_dir,
             audio::audio_info,
             audio::audio_preview,

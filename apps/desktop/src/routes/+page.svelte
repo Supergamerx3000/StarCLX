@@ -7,6 +7,8 @@
   import DialSearch from "$lib/DialSearch.svelte";
   import Journal from "$lib/Journal.svelte";
   import Chat from "$lib/Chat.svelte";
+  import Voicemail from "$lib/Voicemail.svelte";
+  import { initVoicemail, loadVoicemails, unheard, voicemail } from "$lib/voicemail.svelte";
   import { initChat, unreadTotal } from "$lib/chat.svelte";
   import Icon, { type IconName } from "$lib/Icon.svelte";
   import Settings from "$lib/Settings.svelte";
@@ -22,13 +24,14 @@
 
   onMount(() => {
     const offs = [
-      listen<SessionInfo>("session", (e) => { session = e.payload; notice = ""; phase = "session"; }),
+      listen<SessionInfo>("session", (e) => { session = e.payload; notice = ""; phase = "session"; loadVoicemails(); }),
       listen<string>("login-error", (e) => { notice = e.payload; phase = "login"; }),
-      listen<string>("logged-out", (e) => { session = null; notice = e.payload; phase = "login"; }),
+      listen<string>("logged-out", (e) => { session = null; notice = e.payload; phase = "login"; voicemail.list = []; }),
       listen<{ action: string; text: string | null }>("hotkey", (e) => hotkey(e.payload.action, e.payload.text)),
     ];
     initPhone();
     initChat();
+    initVoicemail();
     loadPrefs().catch(() => {});
     restore();
     return () => offs.forEach((p) => p.then((off) => off()));
@@ -66,7 +69,7 @@
     server = (await invoke<string | null>("last_server")) ?? "";
     try {
       const info = await invoke<SessionInfo | null>("restore_session");
-      if (info) { session = info; phase = "session"; return; }
+      if (info) { session = info; phase = "session"; loadVoicemails(); return; }
     } catch (e) {
       notice = `Automatische Anmeldung fehlgeschlagen: ${e}`;
     }
@@ -87,10 +90,11 @@
 
   let menuOpen = $state(false);
   let settingsOpen = $state(false);
-  type Tab = "journal" | "contacts" | "chat";
+  type Tab = "journal" | "voicemail" | "contacts" | "chat";
   let tab = $state<Tab>("journal");
   const tabs: { id: Tab; icon: IconName; label: string }[] = [
     { id: "journal", icon: "history", label: "Rufliste" },
+    { id: "voicemail", icon: "voicemail", label: "Voicemail" },
     { id: "contacts", icon: "contacts", label: "Adressbuch" },
     { id: "chat", icon: "chat", label: "Chat" },
   ];
@@ -154,6 +158,7 @@
         <button class="tab" class:active={tab === t.id} onclick={() => (tab = t.id)}>
           <Icon name={t.icon} size={20} /><span>{t.label}</span>
           {#if t.id === "chat" && unreadTotal()}<span class="unread">{unreadTotal()}</span>{/if}
+          {#if t.id === "voicemail" && unheard()}<span class="unread">{unheard()}</span>{/if}
         </button>
       {/each}
     </nav>
@@ -165,6 +170,8 @@
       {#if notice}<p class="banner">{notice}</p>{/if}
       {#if tab === "journal"}
         <Journal />
+      {:else if tab === "voicemail"}
+        <Voicemail />
       {:else if tab === "contacts"}
         <Contacts />
       {:else}
