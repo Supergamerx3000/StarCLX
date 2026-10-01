@@ -170,9 +170,35 @@ pub struct Untrusted {
 /// Baut eine TLS-Verbindung zu `host:port` auf und prüft das Zertifikat.
 /// `None`: vertrauenswürdig (System oder bereits bestätigt).
 pub async fn probe(host: &str, port: u16) -> Result<Option<Untrusted>, Error> {
+    let (fingerprint, reason) = inspect(host, port).await?;
+    Ok(match reason {
+        Some(reason) if !TRUSTED.read().unwrap().contains(&fingerprint) => Some(Untrusted {
+            fingerprint,
+            reason,
+        }),
+        _ => None,
+    })
+}
+
+/// Gilt das Zertifikat von `host:port` nur, weil der Benutzer es bestätigt
+/// hat? Fehler (z. B. nicht erreichbar) zählen als `false`.
+pub async fn is_confirmed(host: &str, port: u16) -> bool {
+    match inspect(host, port).await {
+        Ok((fingerprint, Some(_))) => TRUSTED.read().unwrap().contains(&fingerprint),
+        Ok((_, None)) => false,
+        Err(e) => {
+            tracing::info!(error = %e, host, port, "Zertifikat nicht geprüft");
+            false
+        }
+    }
+}
+
+/// Fingerabdruck des Serverzertifikats und, falls die Systemzertifikate es
+/// nicht abdecken, der Grund.
+async fn inspect(host: &str, port: u16) -> Result<(String, Option<String>), Error> {
     let name = ServerName::try_from(host.to_owned()).map_err(|_| Error::ServerName(host.into()))?;
     let seen = Arc::new(Probe {
-        inner: verifier(),
+        inner: webpki(),
         seen: Mutex::default(),
     });
     let config = ClientConfig::builder_with_provider(provider())
@@ -190,11 +216,7 @@ pub async fn probe(host: &str, port: u16) -> Result<Option<Untrusted>, Error> {
         .await
         .map_err(|_| Error::Timeout)?;
     match seen.seen.lock().unwrap().take() {
-        Some((_, None)) => Ok(None),
-        Some((fingerprint, Some(reason))) => Ok(Some(Untrusted {
-            fingerprint,
-            reason,
-        })),
+        Some(seen) => Ok(seen),
         // Kein Zertifikat gesehen: der Fehler liegt vor der Prüfung.
         None => match result {
             Ok(_) => Err(Error::NoCertificate),
@@ -203,11 +225,11 @@ pub async fn probe(host: &str, port: u16) -> Result<Option<Untrusted>, Error> {
     }
 }
 
-/// Merkt sich das Ergebnis der Prüfung und bricht den Handshake bei einem
-/// nicht vertrauenswürdigen Zertifikat ab.
+/// Merkt sich das Ergebnis der Prüfung gegen die Systemzertifikate (ohne
+/// bestätigte Zertifikate) und bricht den Handshake bei einem Fehler ab.
 #[derive(Debug)]
 struct Probe {
-    inner: Arc<Verifier>,
+    inner: Arc<WebPkiServerVerifier>,
     seen: Mutex<Option<(String, Option<String>)>>,
 }
 
@@ -306,8 +328,13 @@ mod tests {
         assert_eq!(untrusted.fingerprint, fp);
         assert!(untrusted.reason.contains("UnknownIssuer"), "{untrusted:?}");
 
+        assert!(!is_confirmed("localhost", port).await);
+
         trust(&fp.to_lowercase());
         assert_eq!(probe("localhost", port).await.unwrap(), None);
+        assert!(is_confirmed("localhost", port).await);
+        // Auch unter der IP, auf die das Zertifikat nicht ausgestellt ist
+        assert!(is_confirmed("127.0.0.1", port).await);
 
         // Anderes Zertifikat unter derselben Adresse: wieder nachfragen
         let (other, _) = self_signed_server().await;
