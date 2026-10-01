@@ -55,6 +55,15 @@ pub struct Prefs {
     /// Statustext bei Abwesenheit bzw. beim Abmelden
     pub away_text: String,
     pub offline_text: String,
+    /// Erscheinungsbild: "system", "dark" oder "light"
+    pub theme: String,
+    /// Sprache der Oberfläche (bisher nur "de")
+    pub language: String,
+    pub start_minimized: bool,
+    /// Beim Minimieren nur noch im Tray anzeigen
+    pub minimize_to_tray: bool,
+    pub always_on_top: bool,
+    pub hotkeys: crate::desktop::Hotkeys,
 }
 
 impl Default for Prefs {
@@ -84,6 +93,12 @@ impl Default for Prefs {
             away_on_lock: true,
             away_text: String::new(),
             offline_text: String::new(),
+            theme: "system".into(),
+            language: "de".into(),
+            start_minimized: false,
+            minimize_to_tray: false,
+            always_on_top: false,
+            hotkeys: crate::desktop::Hotkeys::default(),
         }
     }
 }

@@ -5,7 +5,7 @@
   import DeviceList, { DEFAULT, mergeOrder, type Device } from "./DeviceList.svelte";
   import Icon, { type IconName } from "./Icon.svelte";
   import Toggle from "./Toggle.svelte";
-  import { loadPrefs, savePrefs, type Prefs } from "./prefs.svelte";
+  import { type Hotkeys, loadPrefs, savePrefs, type Prefs } from "./prefs.svelte";
 
   type SignalingNumber = { id: string; number: string; suppressed: boolean; read_only: boolean; selected: boolean };
 
@@ -42,6 +42,48 @@
     { id: "chat-status", icon: "person", label: "Status" },
   ];
   let defaultDownloads = $state("");
+  const personalSections: { id: string; icon: IconName; label: string }[] = [
+    { id: "appearance", icon: "workspace", label: "Darstellung" },
+    { id: "hotkeys", icon: "dialpad", label: "Hotkeys" },
+  ];
+  const hotkeyRows: { key: Exclude<keyof Hotkeys, "enabled">; label: string }[] = [
+    { key: "dial_selection", label: "Markierte Rufnummer wählen" },
+    { key: "dial_clipboard", label: "Rufnummer aus Zwischenablage wählen" },
+    { key: "answer", label: "Softphone-Anruf annehmen" },
+    { key: "hangup", label: "Aktuellen Anruf beenden" },
+    { key: "toggle_view", label: "Ansicht umschalten" },
+  ];
+  let desktop = $state({ wayland: false, gnome: false, command: "" });
+  let recording = $state<string | null>(null);
+
+  /** `<Control><Shift>w` → `Strg+Umschalt+W` */
+  function showAccel(a: string) {
+    if (!a) return "Keine";
+    const names: Record<string, string> = { Control: "Strg", Shift: "Umschalt", Alt: "Alt", Super: "Super" };
+    const mods = [...a.matchAll(/<(\w+)>/g)].map((m) => names[m[1]] ?? m[1]);
+    const key = a.replace(/<\w+>/g, "");
+    return [...mods, key.length === 1 ? key.toUpperCase() : key].join("+");
+  }
+
+  /** Tastendruck im GTK-Format aufnehmen; Esc bricht ab, Entf löscht. */
+  function recordKey(e: KeyboardEvent, key: Exclude<keyof Hotkeys, "enabled">) {
+    if (!draft) return;
+    e.preventDefault();
+    if (["Control", "Shift", "Alt", "Meta", "AltGraph"].includes(e.key)) return;
+    if (e.key === "Escape") return void (recording = null);
+    if (e.key === "Delete" || e.key === "Backspace") {
+      draft.hotkeys[key] = "";
+      return void (recording = null);
+    }
+    let name = e.code.startsWith("Key") ? e.code.slice(3).toLowerCase()
+      : e.code.startsWith("Digit") ? e.code.slice(5)
+      : /^F\d+$/.test(e.key) ? e.key
+      : e.key.length === 1 ? e.key.toLowerCase() : e.key;
+    const mods = (e.ctrlKey ? "<Control>" : "") + (e.shiftKey ? "<Shift>" : "") + (e.altKey ? "<Alt>" : "") + (e.metaKey ? "<Super>" : "");
+    if (!mods && !/^F\d+$/.test(name)) return; // ohne Zusatztaste würde sie überall fehlen
+    draft.hotkeys[key] = mods + name;
+    recording = null;
+  }
 
   onMount(() => {
     const off = listen<number>("mic-level", (e) => (micLevel = e.payload));
@@ -106,6 +148,7 @@
     } catch (e) {
       notice = `Audiogeräte nicht gelesen: ${e}`;
     }
+    invoke<typeof desktop>("desktop_info").then((d) => (desktop = d), () => {});
     invoke<string>("default_download_dir").then((d) => (defaultDownloads = d), () => {});
     invoke<typeof busylight>("busylight_info").then((b) => (busylight = b), () => {});
     try {
@@ -171,6 +214,10 @@
     {/each}
     <h2>Chat</h2>
     {#each chatSections as s}
+      <button class="nav" onclick={() => jump(s.id)}><Icon name={s.icon} size={18} /><span>{s.label}</span></button>
+    {/each}
+    <h2>Personalisierung</h2>
+    {#each personalSections as s}
       <button class="nav" onclick={() => jump(s.id)}><Icon name={s.icon} size={18} /><span>{s.label}</span></button>
     {/each}
     <h2>Konto</h2>
@@ -335,6 +382,56 @@
         </div>
       </section>
 
+      <section id="appearance">
+        <h3>Darstellung</h3>
+        <div class="card">
+          <h4>Erscheinungsbild</h4>
+          {#each [["dark", "Dunkel"], ["light", "Hell"], ["system", "System"]] as [value, label]}
+            <label class="radio"><input type="radio" name="theme" {value} bind:group={draft.theme} /> {label}</label>
+          {/each}
+          <hr />
+          <label class="field">
+            <span>Sprache</span>
+            <select bind:value={draft.language} disabled>
+              <option value="de">Deutsch</option>
+            </select>
+          </label>
+          <p class="small muted">Weitere Sprachen folgen später.</p>
+          <hr />
+          <Toggle bind:checked={draft.start_minimized} label="Programm minimiert starten" />
+          <Toggle bind:checked={draft.minimize_to_tray} label="Beim Minimieren nur als Symbol im Infobereich anzeigen" />
+          <Toggle bind:checked={draft.always_on_top} label="Immer im Vordergrund" />
+          {#if desktop.wayland && draft.always_on_top}
+            <p class="small muted">Unter Wayland bestimmt der Desktop, ob ein Fenster oben bleibt. Bei GNOME geht es über Alt+Leertaste → „Immer im Vordergrund“.</p>
+          {/if}
+        </div>
+      </section>
+
+      <section id="hotkeys">
+        <h3>Hotkeys</h3>
+        <div class="card">
+          {#if desktop.gnome}
+            <Toggle bind:checked={draft.hotkeys.enabled} label="Tastenkürzel systemweit in GNOME eintragen" />
+            <p class="small muted">Die Kürzel gelten dann in allen Programmen und überschreiben dort gleiche Kombinationen. Andere eigene Tastenkürzel bleiben unverändert.</p>
+          {:else}
+            <p class="muted">Dieser Desktop erlaubt Programmen keine globalen Tastenkürzel. Lege in den Systemeinstellungen eine eigene Tastenkombination mit diesem Befehl an:</p>
+            <code>{desktop.command}</code>
+            <p class="small muted">Aktionen: dial-selection, dial-clipboard, answer, hangup, toggle-view</p>
+          {/if}
+          <div class="keys" class:off={desktop.gnome && !draft.hotkeys.enabled}>
+            {#each hotkeyRows as r}
+              <div class="keyrow">
+                <span>{r.label}</span>
+                <button class="key" class:rec={recording === r.key} onclick={() => (recording = r.key)} onkeydown={(e) => recording === r.key && recordKey(e, r.key)} onblur={() => recording === r.key && (recording = null)}>
+                  {recording === r.key ? "Tasten drücken …" : showAccel(draft.hotkeys[r.key])}
+                </button>
+                <button class="x" title="Entfernen" onclick={() => draft && (draft.hotkeys[r.key] = "")} disabled={!draft.hotkeys[r.key]}><Icon name="close" size={18} /></button>
+              </div>
+            {/each}
+          </div>
+        </div>
+      </section>
+
       <section id="account">
         <h3>Konto</h3>
         <div class="card">
@@ -397,6 +494,13 @@
   .path { display: flex; gap: 0.6rem; max-width: 34rem; }
   .path input, .field input { flex: 1; padding: 0.35rem 0.5rem; background: var(--panel-2); color: inherit; border: 1px solid var(--line); border-radius: 4px; }
   .field { display: flex; flex-direction: column; gap: 0.3rem; margin-top: 0.6rem; max-width: 34rem; }
+  .field select { padding: 0.35rem 0.5rem; background: var(--panel-2); color: inherit; border: 1px solid var(--line); border-radius: 4px; max-width: 16rem; }
+  .keys { display: flex; flex-direction: column; margin-top: 0.4rem; }
+  .keys.off { opacity: 0.5; }
+  .keyrow { display: grid; grid-template-columns: minmax(0, 18rem) 12rem auto; align-items: center; gap: 0.8rem; padding: 0.3rem 0; border-bottom: 1px solid var(--line); }
+  .key { padding: 0.3rem 0.6rem; text-align: center; }
+  .key.rec { border-color: var(--accent); color: var(--accent); }
+  code { background: var(--panel-2); padding: 0.4rem 0.6rem; border-radius: 4px; font-size: 0.85rem; overflow-wrap: anywhere; }
   .logout { align-self: flex-start; display: flex; align-items: center; gap: 0.5rem; }
   footer {
     grid-column: 1 / -1; display: flex; justify-content: flex-end; align-items: center; gap: 1rem;
