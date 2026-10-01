@@ -232,7 +232,7 @@ async fn start_phone(app: AppHandle, hub: sf_onehub::OneHub, host: String) {
     }
     let (tx, mut rx) = mpsc::unbounded_channel();
     let mut config = audio::softphone_config(&prefs).await;
-    if certs::has_trusted(&app, &host) {
+    if certs::is_confirmed(&host).await {
         config.verify_server = false;
     }
     match Phone::start(hub.clone(), &host, &config, env!("CARGO_PKG_VERSION"), tx).await {

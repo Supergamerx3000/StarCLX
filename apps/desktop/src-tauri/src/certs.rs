@@ -34,15 +34,17 @@ pub fn normalize_server(server: &str) -> String {
     }
 }
 
-/// Hat der Benutzer für diese Anlage ein Zertifikat bestätigt? Dann prüft
-/// auch das Softphone das Zertifikat nicht gegen die Systemzertifikate:
-/// die Anlage nutzt für SIP ein Zertifikat ihrer eigenen CA, und baresip
-/// kann keine einzelnen Zertifikate bestätigen.
-pub fn has_trusted(app: &AppHandle, host: &str) -> bool {
-    settings::load(app)
-        .trusted_certs
-        .keys()
-        .any(|server| host_of(server).as_deref() == Some(host))
+/// Gilt das Zertifikat der Anlage nur, weil der Benutzer es bestätigt hat?
+/// Dann prüft auch das Softphone das Zertifikat nicht gegen die
+/// Systemzertifikate: die Anlage nutzt für SIP ein Zertifikat ihrer eigenen
+/// CA, und baresip kann keine einzelnen Zertifikate bestätigen. Geprüft wird
+/// das Zertifikat selbst, nicht die Adresse, weil dieselbe Anlage über
+/// Hostname und IP erreichbar ist.
+///
+/// Geprüft wird der gRPC-Port, weil der immer TLS spricht (auch wenn die
+/// Anlage per `http://` angemeldet wurde).
+pub async fn is_confirmed(host: &str) -> bool {
+    sf_tls::is_confirmed(host, sf_onehub::DEFAULT_PORT).await
 }
 
 fn host_of(server: &str) -> Option<String> {
