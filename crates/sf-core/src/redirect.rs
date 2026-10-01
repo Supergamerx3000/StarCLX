@@ -32,6 +32,8 @@ pub struct Redirect {
     pub kind: &'static str,
     /// Umgeleitete Rufnummer (eigene oder Gruppennummer)
     pub called_number: String,
+    /// ID dieser Nummer auf der Anlage (für Funktionstasten)
+    pub called_number_id: String,
     pub group: bool,
     pub enabled: bool,
     pub target: RedirectTarget,
@@ -85,6 +87,7 @@ fn view_of(r: v1::redirect::RedirectResponse) -> Option<Redirect> {
         id: r.redirect_id?.id,
         kind: kind_of(r.redirect_type),
         called_number: r.called_number,
+        called_number_id: r.called_number_id.map(|i| i.id).unwrap_or_default(),
         group: r.group_id.is_some_and(|g| !g.id.is_empty()),
         enabled: r.enabled,
         target: target_of(r.redirect_target),

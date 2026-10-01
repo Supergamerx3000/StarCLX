@@ -4,6 +4,7 @@
   import { onMount } from "svelte";
   import DeviceList, { DEFAULT, mergeOrder, type Device } from "./DeviceList.svelte";
   import Icon, { type IconName } from "./Icon.svelte";
+  import FkeyEditor from "./FkeyEditor.svelte";
   import Reach from "./Reach.svelte";
   import Toggle from "./Toggle.svelte";
   import { type Hotkeys, loadPrefs, savePrefs, type Prefs } from "./prefs.svelte";
@@ -47,6 +48,7 @@
     { id: "voicemail", icon: "voicemail", label: "Voicemail" },
     { id: "redirects", icon: "forward", label: "Umleitungen" },
     { id: "fmc", icon: "call2go", label: "Parallelruf" },
+    { id: "fkeys", icon: "dialpad", label: "Funktionstasten" },
   ];
   const personalSections: { id: string; icon: IconName; label: string }[] = [
     { id: "appearance", icon: "workspace", label: "Darstellung" },
@@ -356,6 +358,14 @@
       </section>
 
       <Reach {server} />
+
+      <section id="fkeys">
+        <h3>Funktionstasten</h3>
+        <div class="card">
+          <FkeyEditor bind:columns={draft.fkey_columns} />
+          <p class="small muted">Tasten werden sofort auf der Anlage gespeichert; die Spaltenzahl mit „Speichern“.</p>
+        </div>
+      </section>
 
       <section id="chat-notify">
         <h3>Chat: Benachrichtigungen</h3>
