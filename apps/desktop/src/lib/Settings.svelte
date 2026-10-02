@@ -8,7 +8,7 @@
   import FkeyEditor from "./FkeyEditor.svelte";
   import Reach from "./Reach.svelte";
   import Toggle from "./Toggle.svelte";
-  import { type Hotkeys, loadPrefs, prefs, savePrefs, type Prefs } from "./prefs.svelte";
+  import { type CallAction, type Hotkeys, loadPrefs, prefs, savePrefs, type Prefs } from "./prefs.svelte";
   import { setLanguage, t } from "./i18n.svelte";
 
   type SignalingNumber = { id: string; number: string; suppressed: boolean; read_only: boolean; selected: boolean };
@@ -38,6 +38,7 @@
     { id: "ringtones", icon: "music", label: t("Klingeltöne") },
     { id: "signaling", icon: "numbers", label: t("Rufnummer signalisieren") },
     { id: "callmanager", icon: "forward", label: "Call Manager" },
+    { id: "callactions", icon: "call2go", label: t("URL oder Programm bei Anruf") },
     { id: "busylight", icon: "light", label: "Busylight" },
   ]);
   const chatSections: { id: string; icon: IconName; label: string }[] = $derived([
@@ -55,7 +56,27 @@
   const personalSections: { id: string; icon: IconName; label: string }[] = $derived([
     { id: "appearance", icon: "workspace", label: t("Darstellung") },
     { id: "hotkeys", icon: "dialpad", label: t("Hotkeys") },
+    { id: "integration", icon: "call", label: t("Desktop-Integration") },
   ]);
+  const triggers: { value: CallAction["trigger"]; label: string }[] = $derived([
+    { value: "ringing", label: t("Bei eingehendem Anruf (klingelt)") },
+    { value: "answered", label: t("Bei Annahme") },
+    { value: "outgoing", label: t("Bei ausgehendem Anruf") },
+  ]);
+
+  function addCallAction() {
+    if (draft) draft.call_actions = [...draft.call_actions, { enabled: true, trigger: "ringing", filter: "", external_only: false, target: "" }];
+  }
+
+  /** Ziel mit einer Beispielnummer ausführen */
+  async function testCallAction(target: string) {
+    notice = "";
+    try {
+      await invoke("call_action_run", { target, number: "+41441234567" });
+    } catch (e) {
+      notice = String(e);
+    }
+  }
   const hotkeyRows: { key: Exclude<keyof Hotkeys, "enabled">; label: string }[] = $derived([
     { key: "dial_selection", label: t("Markierte Rufnummer wählen") },
     { key: "dial_clipboard", label: t("Rufnummer aus Zwischenablage wählen") },
@@ -335,6 +356,33 @@
         </div>
       </section>
 
+      <section id="callactions">
+        <h3>{t("URL oder Programm bei Anruf")}</h3>
+        <div class="card">
+          {#each draft.call_actions as rule, i}
+            <div class="rule">
+              <div class="rulehead">
+                <Toggle bind:checked={rule.enabled} label={t("Aktiv")} />
+                <select bind:value={rule.trigger}>
+                  {#each triggers as tr}<option value={tr.value}>{tr.label}</option>{/each}
+                </select>
+                <input type="text" class="filter" bind:value={rule.filter} placeholder={t("z. B. +41* (leer = alle)")} />
+                <label class="check"><input type="checkbox" bind:checked={rule.external_only} /> {t("nur externe")}</label>
+                <button onclick={() => testCallAction(rule.target)} disabled={!rule.target.trim()}>{t("Testen")}</button>
+                <button class="x" title={t("Entfernen")} onclick={() => draft && (draft.call_actions = draft.call_actions.filter((_, j) => j !== i))}><Icon name="trash" size={18} /></button>
+              </div>
+              <input type="text" class="target" bind:value={rule.target} placeholder={t("https://crm.example/suche?nr=$(calleridCanonical) oder Programm")} />
+            </div>
+          {/each}
+          <button class="add" onclick={addCallAction}>{t("Regel hinzufügen")}</button>
+          <p class="small muted hint">{t("Variablen: $(callerid) = Nummer wie empfangen, $(calleridNational) = nationales Format, $(calleridCanonical) = internationales Format (+41…). Ziele mit „://“ öffnen im Browser, alles andere wird als Programm ohne Shell gestartet. „Testen“ verwendet +41441234567.")}</p>
+          <label class="field">
+            <span>{t("Eigene Landesvorwahl")}</span>
+            <span class="cc">+<input type="text" inputmode="numeric" bind:value={draft.default_country_code} placeholder="41" /></span>
+          </label>
+        </div>
+      </section>
+
       <section id="busylight">
         <h3>Busylight</h3>
         <div class="card">
@@ -446,6 +494,7 @@
             <button class="add" onclick={() => draft && (draft.workspace_tiles = null)}>{t("Anordnung zurücksetzen")}</button>
           {/if}
           <hr />
+          <Toggle bind:checked={draft.autostart} label={t("Beim Anmelden am Rechner starten")} />
           <Toggle bind:checked={draft.start_minimized} label={t("Programm minimiert starten")} />
           <Toggle bind:checked={draft.minimize_to_tray} label={t("Beim Minimieren nur als Symbol im Infobereich anzeigen")} />
           <Toggle bind:checked={draft.always_on_top} label={t("Immer im Vordergrund")} />
@@ -477,6 +526,14 @@
               </div>
             {/each}
           </div>
+        </div>
+      </section>
+
+      <section id="integration">
+        <h3>{t("Desktop-Integration")}</h3>
+        <div class="card">
+          <Toggle bind:checked={draft.handle_tel_links} label={t("Rufnummern-Links (tel:, callto:, sip:) mit StarCLX öffnen")} />
+          <p class="small muted">{t("Ein Klick auf eine Rufnummer im Browser oder Mailprogramm wählt sie mit dem Softphone.")}</p>
         </div>
       </section>
 
@@ -551,6 +608,16 @@
   .key { padding: 0.3rem 0.6rem; text-align: center; }
   .key.rec { border-color: var(--accent); color: var(--accent); }
   code { background: var(--panel-2); padding: 0.4rem 0.6rem; border-radius: 4px; font-size: 0.85rem; overflow-wrap: anywhere; }
+  .rule { display: flex; flex-direction: column; gap: 0.4rem; padding: 0.5rem 0; border-bottom: 1px solid var(--line); }
+  .rulehead { display: flex; flex-wrap: wrap; align-items: center; gap: 0.6rem; }
+  .rule select, .rule input[type="text"], .cc input { padding: 0.3rem 0.5rem; background: var(--panel-2); color: inherit; border: 1px solid var(--line); border-radius: 4px; }
+  .rule .filter { width: 13rem; }
+  .rule .target { width: 100%; box-sizing: border-box; }
+  .check { display: flex; align-items: center; gap: 0.4rem; cursor: pointer; }
+  .check input { accent-color: var(--accent); }
+  .hint { margin-top: 0.6rem; }
+  .cc { display: flex; align-items: center; gap: 0.3rem; }
+  .cc input { width: 4rem; }
   .logout { align-self: flex-start; display: flex; align-items: center; gap: 0.5rem; }
   footer {
     grid-column: 1 / -1; display: flex; justify-content: flex-end; align-items: center; gap: 1rem;

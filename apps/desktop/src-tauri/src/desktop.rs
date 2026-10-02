@@ -1,10 +1,12 @@
-//! Personalisierung: Fensterverhalten, Erscheinungsbild und Tastenkürzel.
+//! Personalisierung und Desktop-Integration: Fensterverhalten,
+//! Erscheinungsbild, Tastenkürzel, Rufnummern-Links und Autostart.
 //!
 //! Unter Wayland darf eine App keine globalen Tastenkürzel abfangen. Die
 //! Kürzel werden deshalb als eigene Tastenkombinationen in GNOME eingetragen;
 //! diese starten `starclx --action …`, und single-instance reicht
 //! die Aktion an die laufende App weiter.
 
+use std::path::PathBuf;
 use std::process::Command;
 
 use serde::{Deserialize, Serialize};
@@ -174,6 +176,143 @@ fn read_text(primary: bool) -> Option<String> {
     text.ok().filter(|t| !t.trim().is_empty())
 }
 
+/// Rufnummern-Links, die StarCLX auf Wunsch öffnet
+pub const TEL_SCHEMES: [&str; 3] = ["tel", "callto", "sip"];
+
+/// Registriert starface-app:// immer, tel:/callto:/sip: nur mit `tel`. Läuft
+/// im Hintergrund (xdg-mime ist langsam); Fehler landen nur im Log.
+pub fn register_schemes(app: &AppHandle, tel: bool) {
+    // Wichtig für AppImage und `tauri dev`; das .deb bringt eine eigene
+    // .desktop-Datei mit. Fehlt z. B. xdg-mime, startet die App trotzdem.
+    #[cfg(any(target_os = "linux", all(debug_assertions, windows)))]
+    {
+        let app = app.clone();
+        std::thread::spawn(move || {
+            use tauri_plugin_deep_link::DeepLinkExt;
+            let dl = app.deep_link();
+            if let Err(e) = dl.register("starface-app") {
+                tracing::warn!(error = %e, "starface-app:// nicht registriert");
+            }
+            for scheme in TEL_SCHEMES {
+                let result = if tel {
+                    dl.register(scheme)
+                } else if dl.is_registered(scheme).unwrap_or(false) {
+                    dl.unregister(scheme)
+                } else {
+                    Ok(())
+                };
+                if let Err(e) = result {
+                    tracing::warn!(error = %e, scheme, "Rufnummern-Link nicht (ab)gemeldet");
+                }
+            }
+        });
+    }
+    #[cfg(not(any(target_os = "linux", all(debug_assertions, windows))))]
+    let _ = (app, tel);
+}
+
+/// Ist das ein tel:-, callto:- oder sip:-Link?
+pub fn is_tel_url(url: &str) -> bool {
+    url.split_once(':')
+        .is_some_and(|(s, _)| TEL_SCHEMES.iter().any(|t| t.eq_ignore_ascii_case(s)))
+}
+
+/// Rufnummer aus einem tel:/callto:/sip:-Link: ohne Schema und `//`, bis
+/// `;`, `?` oder `@`, dekodiert, nur Ziffern, `+`, `*` und `#`.
+pub fn number_from_url(url: &str) -> Option<String> {
+    if !is_tel_url(url) {
+        return None;
+    }
+    let rest = url.split_once(':')?.1.trim_start_matches('/');
+    let end = rest.find([';', '?', '@']).unwrap_or(rest.len());
+    let number: String = percent_decode(&rest[..end])
+        .chars()
+        .filter(|c| c.is_ascii_digit() || matches!(c, '+' | '*' | '#'))
+        .collect();
+    number.chars().any(|c| c.is_ascii_digit()).then_some(number)
+}
+
+fn percent_decode(s: &str) -> String {
+    let b = s.as_bytes();
+    let mut out = Vec::with_capacity(b.len());
+    let mut i = 0;
+    while i < b.len() {
+        let hex = (b[i] == b'%')
+            .then(|| s.get(i + 1..i + 3))
+            .flatten()
+            .and_then(|h| u8::from_str_radix(h, 16).ok());
+        match hex {
+            Some(v) => {
+                out.push(v);
+                i += 3;
+            }
+            None => {
+                out.push(b[i]);
+                i += 1;
+            }
+        }
+    }
+    String::from_utf8_lossy(&out).into_owned()
+}
+
+/// `$XDG_CONFIG_HOME/autostart/starclx.desktop` (sonst ~/.config/autostart)
+fn autostart_file() -> Option<PathBuf> {
+    let base = std::env::var_os("XDG_CONFIG_HOME")
+        .filter(|v| !v.is_empty())
+        .map(PathBuf::from)
+        .or_else(|| std::env::var_os("HOME").map(|h| PathBuf::from(h).join(".config")))?;
+    Some(base.join("autostart").join("starclx.desktop"))
+}
+
+/// Pfad als Argument der Exec-Zeile: in Anführungszeichen, Sonderzeichen
+/// maskiert, danach `\` für den Zeichenketten-Wert verdoppelt, `%` als `%%`.
+fn exec_quote(path: &str) -> String {
+    let mut q = String::from("\"");
+    for c in path.chars().filter(|c| !c.is_control()) {
+        match c {
+            '"' | '`' | '$' => {
+                q.push_str("\\\\");
+                q.push(c);
+            }
+            '\\' => q.push_str("\\\\\\\\"),
+            '%' => q.push_str("%%"),
+            _ => q.push(c),
+        }
+    }
+    q.push('"');
+    q
+}
+
+fn autostart_entry(program: &str) -> String {
+    format!(
+        "[Desktop Entry]\nType=Application\nName=StarCLX\nExec={}\nIcon=starclx\nTerminal=false\nX-GNOME-Autostart-enabled=true\n",
+        exec_quote(program)
+    )
+}
+
+/// Legt den Autostart-Eintrag an bzw. entfernt ihn. Beim Start erneut
+/// aufgerufen, damit der Pfad nach einem Update stimmt.
+pub fn apply_autostart(on: bool) -> Result<(), String> {
+    let Some(path) = autostart_file() else {
+        return Ok(());
+    };
+    if on {
+        let entry = autostart_entry(&program());
+        if std::fs::read_to_string(&path).is_ok_and(|old| old == entry) {
+            return Ok(());
+        }
+        path.parent()
+            .map_or(Ok(()), std::fs::create_dir_all)
+            .and_then(|()| std::fs::write(&path, entry))
+            .map_err(|e| e.to_string())
+    } else {
+        match std::fs::remove_file(&path) {
+            Err(e) if e.kind() != std::io::ErrorKind::NotFound => Err(e.to_string()),
+            _ => Ok(()),
+        }
+    }
+}
+
 const MEDIA_KEYS: &str = "org.gnome.settings-daemon.plugins.media-keys";
 const KEYBINDING_DIR: &str = "/org/gnome/settings-daemon/plugins/media-keys/custom-keybindings";
 
@@ -308,5 +447,36 @@ mod tests {
             quote(r#""/opt/x" --action answer"#),
             r#"'"/opt/x" --action answer'"#
         );
+    }
+
+    #[test]
+    fn tel_numbers() {
+        assert_eq!(
+            number_from_url("tel:+41%2044%20123").as_deref(),
+            Some("+4144123")
+        );
+        assert_eq!(
+            number_from_url("callto://0041441234567").as_deref(),
+            Some("0041441234567")
+        );
+        assert_eq!(
+            number_from_url("sip:12@pbx.local;transport=tls").as_deref(),
+            Some("12")
+        );
+        assert_eq!(number_from_url("tel:044-123?x").as_deref(), Some("044123"));
+        assert_eq!(number_from_url("SIP:*21#").as_deref(), Some("*21#"));
+        assert_eq!(number_from_url("tel:abc"), None);
+        assert_eq!(number_from_url("starface-app://login?code=1"), None);
+        assert_eq!(number_from_url("garbage"), None);
+        assert!(is_tel_url("callto:x") && !is_tel_url("https://x"));
+    }
+
+    #[test]
+    fn autostart_exec() {
+        let e = autostart_entry("/opt/Star CLX/starclx");
+        assert!(e.contains("Exec=\"/opt/Star CLX/starclx\"\n"));
+        assert!(e.contains("X-GNOME-Autostart-enabled=true"));
+        assert_eq!(exec_quote("/a$b%c"), r#""/a\\$b%%c""#);
+        assert_eq!(exec_quote("/a\\b"), r#""/a\\\\b""#);
     }
 }

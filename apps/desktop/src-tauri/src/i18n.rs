@@ -283,6 +283,39 @@ const TEXTS: &[(&str, [&str; 3])] = &[
             "Impossibile eseguire gsettings: {e}",
         ],
     ),
+    (
+        "Gespeichert, aber Autostart nicht eingerichtet: {e}",
+        [
+            "Saved, but autostart not set up: {e}",
+            "Enregistré, mais démarrage automatique non configuré : {e}",
+            "Salvato, ma avvio automatico non configurato: {e}",
+        ],
+    ),
+    // URL oder Programm bei Anruf
+    (
+        "Anführungszeichen nicht geschlossen",
+        [
+            "Unclosed quotation mark",
+            "Guillemet non fermé",
+            "Virgolette non chiuse",
+        ],
+    ),
+    (
+        "Kein Programm angegeben",
+        [
+            "No program specified",
+            "Aucun programme indiqué",
+            "Nessun programma indicato",
+        ],
+    ),
+    (
+        "Programm nicht gestartet: {e}",
+        [
+            "Program not started: {e}",
+            "Programme non démarré : {e}",
+            "Programma non avviato: {e}",
+        ],
+    ),
 ];
 
 /// Sprache setzen ("de", "en", "fr", "it"); Unbekanntes heisst Deutsch.

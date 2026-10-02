@@ -17,6 +17,7 @@
   import Icon, { type IconName } from "$lib/Icon.svelte";
   import Settings from "$lib/Settings.svelte";
   import { initPhone, phone, run, isRingingIn } from "$lib/phone.svelte";
+  import { initCallActions } from "$lib/callactions.svelte";
   import { loadPrefs, prefs, savePrefs, type Tile } from "$lib/prefs.svelte";
   import Workspace, { tilesOf } from "$lib/Workspace.svelte";
   import { t } from "$lib/i18n.svelte";
@@ -37,8 +38,11 @@
       listen<string>("login-error", (e) => { notice = e.payload; phase = "login"; }),
       listen<string>("logged-out", (e) => { session = null; notice = e.payload; phase = "login"; voicemail.list = []; }),
       listen<{ action: string; text: string | null }>("hotkey", (e) => hotkey(e.payload.action, e.payload.text)),
+      listen("dial-request", takeDialRequest),
     ];
     initPhone();
+    initCallActions();
+    takeDialRequest();
     initChat();
     initVoicemail();
     loadPrefs().catch(() => {});
@@ -73,6 +77,27 @@
         break;
     }
   }
+
+  /** Rufnummer aus einem tel:-, callto:- oder sip:-Link; wartet aufs Softphone */
+  let dialPending = $state<{ number: string; until: number } | null>(null);
+
+  async function takeDialRequest() {
+    const number = await invoke<string | null>("take_dial_request").catch(() => null);
+    if (number === null) return;
+    if (number) dialPending = { number, until: Date.now() + 60_000 };
+    else phone.notice = t("Der Link enthält keine Rufnummer");
+  }
+
+  $effect(() => {
+    if (!dialPending) return;
+    if (phone.status.state === "ready") {
+      run("phone_dial", { number: dialPending.number });
+      dialPending = null;
+    } else if (phone.now > dialPending.until) {
+      phone.notice = t("Softphone nicht bereit, {number} nicht gewählt", { number: dialPending.number });
+      dialPending = null;
+    }
+  });
 
   async function restore() {
     server = (await invoke<string | null>("last_server")) ?? "";
