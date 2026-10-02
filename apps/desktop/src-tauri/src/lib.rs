@@ -8,6 +8,7 @@ mod certs;
 mod chat;
 mod desktop;
 mod fkeys;
+mod login;
 mod presence;
 mod reach;
 mod settings;
@@ -333,12 +334,14 @@ async fn restore_session(
     }
 }
 
-/// Startet den Login im Systembrowser.
+/// Startet den Login im eigenen Anmeldefenster oder, mit `browser`, im
+/// Systembrowser.
 #[tauri::command]
 async fn start_login(
     app: AppHandle,
     state: State<'_, AppState>,
     server: String,
+    browser: Option<bool>,
 ) -> Result<(), String> {
     let server = certs::normalize_server(&server);
     let auth = sf_auth::Client::discover(&server)
@@ -357,9 +360,13 @@ async fn start_login(
         pkce,
         state: login_state,
     });
-    app.opener()
-        .open_url(url.as_str(), None::<&str>)
-        .map_err(|e| e.to_string())
+    if browser.unwrap_or(false) {
+        app.opener()
+            .open_url(url.as_str(), None::<&str>)
+            .map_err(|e| e.to_string())
+    } else {
+        login::open(&app, &url).map_err(|e| e.to_string())
+    }
 }
 
 #[tauri::command]
@@ -654,7 +661,7 @@ async fn finish_login(app: &AppHandle, redirect: &str) -> Result<SessionInfo, St
     Ok(info)
 }
 
-fn handle_urls(app: &AppHandle, urls: Vec<String>) {
+pub(crate) fn handle_urls(app: &AppHandle, urls: Vec<String>) {
     for url in urls
         .into_iter()
         .filter(|u| u.starts_with(sf_auth::REDIRECT_URI))

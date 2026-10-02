@@ -82,6 +82,9 @@
     phase = "login";
   }
 
+  /** Anmeldung im Systembrowser statt im eigenen Fenster */
+  let viaBrowser = $state(false);
+
   async function login(event?: Event) {
     event?.preventDefault();
     notice = "";
@@ -94,7 +97,7 @@
         phase = "login";
         return;
       }
-      await invoke("start_login", { server });
+      await invoke("start_login", { server, browser: viaBrowser });
     } catch (e) {
       notice = String(e);
       phase = "login";
@@ -277,8 +280,12 @@
     <h1>Anmelden</h1>
     <form onsubmit={login}>
       <input placeholder="https://anlage.example.com" bind:value={server} required />
-      <button class="primary" type="submit" disabled={phase === "waiting"}>
-        {phase === "waiting" ? "Warte auf Browser …" : "Im Browser anmelden"}
+      <!-- Bleibt klickbar: schliesst der Benutzer das Anmeldefenster, kann er neu beginnen. -->
+      <button class="primary" type="submit" onclick={() => (viaBrowser = false)}>
+        {phase === "waiting" ? "Warte auf Anmeldung …" : "Anmelden"}
+      </button>
+      <button type="submit" class="link" onclick={() => (viaBrowser = true)}>
+        Stattdessen im Browser anmelden
       </button>
     </form>
     {#if untrusted}
@@ -353,6 +360,7 @@
   .login { max-width: 26rem; margin: 15vh auto 0; padding: 0 1rem; }
   .login form { display: flex; flex-direction: column; gap: 0.75rem; }
   .primary { background: var(--accent); border-color: var(--accent); color: #111; font-weight: 600; }
+  .link { background: none; border: none; color: var(--muted); text-decoration: underline; padding: 0; }
   .cert { margin-top: 1rem; padding: 0.75rem 1rem; border: 1px solid var(--accent); border-radius: 6px; background: var(--panel); }
   .cert h2 { margin: 0 0 0.5rem; font-size: 1rem; }
   .cert code { display: block; font-size: 0.8rem; word-break: break-all; }
