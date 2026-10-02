@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { portal } from "./portal";
   // Anruf mit Notiz an einen Kollegen weitergeben: per Chat direkt an einen
   // STARFACE-Benutzer oder per E-Mail über das Mailprogramm.
   import { invoke } from "@tauri-apps/api/core";
@@ -46,6 +47,7 @@
 
 <svelte:window onkeydown={(e) => e.key === "Escape" && onclose()} />
 
+<div class="layer" use:portal>
 <div class="scrim" role="presentation" onclick={onclose}></div>
 <div class="dialog" role="dialog" aria-label="Anruf weitergeben">
   <h4>Anruf weitergeben</h4>
@@ -70,6 +72,7 @@
     <button onclick={onclose}>Abbrechen</button>
     <button class="primary" disabled={busy || !peer || !text.trim()} onclick={sendChat}>Per Chat senden</button>
   </div>
+</div>
 </div>
 
 <style>
