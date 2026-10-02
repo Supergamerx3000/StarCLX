@@ -5,6 +5,7 @@
   import Icon from "./Icon.svelte";
   import { phone, run } from "./phone.svelte";
   import { newContact } from "./contactform.svelte";
+  import ShareNote from "./ShareNote.svelte";
 
   type Entry = {
     id: string;
@@ -75,6 +76,18 @@
     if (!s) return "";
     const m = Math.floor(s / 60);
     return m ? `${m}:${String(s % 60).padStart(2, "0")} min` : `${s} s`;
+  }
+
+  /** Anruf, der gerade weitergegeben wird */
+  let sharing = $state<Entry | null>(null);
+
+  function shareText(e: Entry) {
+    const who = [e.name, e.number].filter(Boolean).join(", ") || "Unbekannt";
+    const kind = e.missed && e.incoming ? "Verpasster Anruf" : e.incoming ? "Eingehender Anruf" : "Ausgehender Anruf";
+    const when = new Date(e.start).toLocaleString("de-CH", { dateStyle: "medium", timeStyle: "short" });
+    return [`${kind} ${e.incoming ? "von" : "an"} ${who}`, `Zeit: ${when}`, e.comment && `Notiz: ${e.comment}`]
+      .filter(Boolean)
+      .join("\n");
   }
 
   async function act(action: string, id: string, text?: string) {
@@ -153,6 +166,7 @@
               <button class="icon" title="Ins Adressbuch übernehmen" onclick={() => newContact({ number: e.number })}><Icon name="person" size={18} /></button>
             {/if}
             <button class="icon" title="Notiz" onclick={() => startComment(e)}>✎</button>
+            <button class="icon" title="Weitergeben (Chat oder E-Mail)" onclick={() => (sharing = e)}><Icon name="send" size={18} /></button>
             <button
               class="icon"
               class:warn={confirmDelete === e.id}
@@ -171,6 +185,10 @@
     {/each}
   </div>
 </div>
+
+{#if sharing}
+  <ShareNote text={shareText(sharing)} subject={`Anruf ${sharing.name || sharing.number}`} onclose={() => (sharing = null)} />
+{/if}
 
 <style>
   .journal { display: flex; flex-direction: column; height: 100%; min-height: 0; gap: 0.5rem; }
