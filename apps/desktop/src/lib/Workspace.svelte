@@ -33,12 +33,14 @@
     tiles = $bindable(),
     editing = false,
     meta,
+    badge,
     body,
     onchange,
   }: {
     tiles: Tile[];
     editing?: boolean;
     meta: Record<string, { icon: IconName; label: string }>;
+    badge?: (id: string) => number;
     body: Snippet<[string]>;
     onchange?: () => void;
   } = $props();
@@ -117,6 +119,7 @@
       <header role="toolbar" tabindex="-1" onpointerdown={(e) => start(e, t, "move")}>
         <Icon name={meta[t.id].icon} size={16} />
         <span>{meta[t.id].label}</span>
+        {#if badge?.(t.id)}<b class="unread">{badge(t.id)}</b>{/if}
         {#if editing}<button class="x" title="Ausblenden" onclick={() => hide(t)}><Icon name="close" size={16} /></button>{/if}
       </header>
       <div class="body">{@render body(t.id)}</div>
@@ -139,6 +142,7 @@
   header span { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .editing header { cursor: grab; touch-action: none; }
   .editing .tile .body { outline: 1px dashed var(--accent); outline-offset: -1px; }
+  .unread { background: var(--accent); color: #111; border-radius: 999px; padding: 0 0.45rem; font-size: 0.78rem; }
   .x { background: none; border: none; padding: 0.1rem; color: var(--muted); display: grid; }
   .body { flex: 1; min-height: 0; overflow: auto; background: var(--bg); border: 1px solid var(--line); border-radius: 0 0 6px 6px; padding: 0.4rem; }
   .grip {

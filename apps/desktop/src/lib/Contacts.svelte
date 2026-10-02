@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { splitter } from "./splitter";
   import { invoke } from "@tauri-apps/api/core";
   import { onMount } from "svelte";
   import Icon from "./Icon.svelte";
@@ -88,6 +89,7 @@
         <button class="more" onclick={() => load(false)} disabled={loading}>{loading ? "Lade …" : `Weitere laden (${total - contacts.length})`}</button>
       {/if}
     </div>
+    <div class="divider" role="separator" aria-orientation="vertical" use:splitter={"contacts"}></div>
     <div class="detail">
       {#if selected}
         <div class="head">
@@ -119,7 +121,11 @@
   .folders { display: flex; gap: 0.3rem; flex-wrap: wrap; padding-bottom: 0.5rem; }
   .folders button { padding: 0.3rem 0.8rem; border-radius: 999px; font-size: 0.9rem; background: var(--panel); }
   .folders button.active { background: var(--accent); color: #111; border-color: var(--accent); }
-  .cols { flex: 1; min-height: 0; display: grid; grid-template-columns: minmax(16rem, 22rem) 1fr; gap: 0.5rem; }
+  .cols { flex: 1; min-height: 0; display: grid; grid-template-columns: min(var(--split, 20rem), calc(100% - 12rem)) 0.5rem minmax(0, 1fr); }
+  .divider { cursor: col-resize; touch-action: none; position: relative; }
+  .divider::after { content: ""; position: absolute; inset: 0 3px; border-radius: 2px; }
+  .divider:hover::after, .divider:global(.dragging)::after { background: var(--accent); }
+
   .list { overflow: auto; background: var(--panel); border-radius: 4px; padding: 0.4rem; display: flex; flex-direction: column; gap: 0.1rem; }
   .filter { display: flex; align-items: center; gap: 0.4rem; padding: 0 0.6rem; margin-bottom: 0.3rem; background: var(--bar-2); border: 1px solid var(--line); border-radius: 999px; }
   .filter input { border: none; background: none; flex: 1; outline: none; padding: 0.45rem 0; }
