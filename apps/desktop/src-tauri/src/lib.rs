@@ -741,6 +741,10 @@ fn take_dial_request(state: State<'_, AppState>) -> Option<String> {
 pub(crate) fn handle_urls(app: &AppHandle, urls: Vec<String>) {
     for url in urls {
         if desktop::is_tel_url(&url) {
+            // Ausgeschaltet: Die .desktop-Datei des Pakets meldet tel: trotzdem an
+            if !settings::load(app).prefs.handle_tel_links {
+                continue;
+            }
             let number = desktop::number_from_url(&url).unwrap_or_default();
             *app.state::<AppState>().dial_request.lock().unwrap() = Some(number);
             show_main_window(app);
