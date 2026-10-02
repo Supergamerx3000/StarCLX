@@ -2,5 +2,5 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 fn main() {
-    starface_desktop_lib::run()
+    starclx_lib::run()
 }

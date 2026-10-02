@@ -189,7 +189,7 @@ async fn softphone(hub: &OneHub, host: &str, opts: SoftphoneOpts) -> Result<()> 
         verify_server: !insecure_sip,
         ..Default::default()
     };
-    let software = concat!("starface-linuxclient/", env!("CARGO_PKG_VERSION"));
+    let software = concat!("starclx/", env!("CARGO_PKG_VERSION"));
     let (phone, mut sip) = sf_sip::Softphone::start(&config, software)?;
     phone.add_account(&sf_sip::Account {
         user: creds.user.clone(),

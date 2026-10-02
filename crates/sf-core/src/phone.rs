@@ -136,7 +136,7 @@ impl Phone {
             .await?
             .ok_or_else(|| PhoneError::NoPhone(creds.user.clone()))?;
 
-        let software = format!("starface-linuxclient/{app_version}");
+        let software = format!("starclx/{app_version}");
         let (sip, mut sip_rx) = Softphone::start(config, &software)?;
         let sip = Arc::new(sip);
         sip.add_account(&sf_sip::Account {

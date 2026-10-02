@@ -2,7 +2,7 @@
 //!
 //! Unter Wayland darf eine App keine globalen Tastenkürzel abfangen. Die
 //! Kürzel werden deshalb als eigene Tastenkombinationen in GNOME eingetragen;
-//! diese starten `starface-desktop --action …`, und single-instance reicht
+//! diese starten `starclx --action …`, und single-instance reicht
 //! die Aktion an die laufende App weiter.
 
 use std::process::Command;
@@ -87,7 +87,7 @@ fn program() -> String {
                 .ok()
                 .map(|p| p.to_string_lossy().into_owned())
         })
-        .unwrap_or_else(|| "starface-desktop".into())
+        .unwrap_or_else(|| "starclx".into())
 }
 
 fn command_for(action: &str) -> String {
@@ -238,12 +238,7 @@ pub fn apply_hotkeys(hotkeys: &Hotkeys) -> Result<(), String> {
         let schema = format!("{MEDIA_KEYS}.custom-keybinding:{}", own_path(action));
         let binding = hotkeys.binding(action);
         if hotkeys.enabled && !binding.is_empty() {
-            gsettings(&[
-                "set",
-                &schema,
-                "name",
-                &quote(&format!("STARFACE: {label}")),
-            ])?;
+            gsettings(&["set", &schema, "name", &quote(&format!("StarCLX: {label}"))])?;
             gsettings(&["set", &schema, "command", &quote(&command_for(action))])?;
             gsettings(&["set", &schema, "binding", &quote(binding)])?;
         } else if current.contains(&own_path(action)) {

@@ -112,7 +112,7 @@ impl OneHub {
     pub async fn connect(host: &str, port: u16, token: TokenHandle) -> Result<Self> {
         let channel = Endpoint::from_shared(format!("https://{host}:{port}"))?
             .tls_config_with_verifier(ClientTlsConfig::new().domain_name(host), sf_tls::verifier())?
-            .user_agent(concat!("starface-linuxclient/", env!("CARGO_PKG_VERSION")))?
+            .user_agent(concat!("starclx/", env!("CARGO_PKG_VERSION")))?
             .connect()
             .await?;
         Ok(Self { channel, token })

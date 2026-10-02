@@ -51,7 +51,7 @@ pub struct Devices {
 pub fn list() -> Result<Devices, Error> {
     let err = |e: &dyn std::fmt::Display| Error::Pulse(e.to_string());
     let mut ml = Mainloop::new().ok_or_else(|| Error::Pulse("Mainloop".into()))?;
-    let mut ctx = Context::new(&ml, "STARFACE").ok_or_else(|| Error::Pulse("Kontext".into()))?;
+    let mut ctx = Context::new(&ml, "StarCLX").ok_or_else(|| Error::Pulse("Kontext".into()))?;
     ctx.connect(None, FlagSet::NOAUTOSPAWN, None)
         .map_err(|e| err(&e))?;
     loop {
@@ -135,7 +135,7 @@ impl Playback {
         let thread = std::thread::spawn(move || {
             let simple = match Simple::new(
                 None,
-                "STARFACE",
+                "StarCLX",
                 Direction::Playback,
                 device.as_deref(),
                 "Klingelton",
@@ -194,7 +194,7 @@ impl MicMeter {
         std::thread::spawn(move || {
             let simple = match Simple::new(
                 None,
-                "STARFACE",
+                "StarCLX",
                 Direction::Record,
                 device.as_deref(),
                 "Mikrofontest",
