@@ -248,7 +248,7 @@ fn view_of(e: &v1::journal::JournalEntry) -> Entry {
             .as_ref()
             .map(|i| i.id.clone())
             .unwrap_or_default(),
-        name: remote.name,
+        name: resolved_name(remote.name),
         number: remote.number,
         incoming: e.call_direction == v1::types::CallDirection::Inbound as i32,
         missed: e.answer_type == v1::journal::AnswerType::Missed as i32,
@@ -259,6 +259,15 @@ fn view_of(e: &v1::journal::JournalEntry) -> Entry {
         comment,
         called_back,
         voicemail: e.voicemail_id.is_some(),
+    }
+}
+
+/// Nicht aufgelöste Nummern liefert die Anlage mit dem Namen "---"
+fn resolved_name(name: String) -> String {
+    if name.trim().chars().all(|c| c == '-') {
+        String::new()
+    } else {
+        name
     }
 }
 
@@ -293,6 +302,13 @@ mod tests {
         E::JournalEntryCreated(v1::journal::JournalEntryCreatedEvent {
             journal_entry: Some(e),
         })
+    }
+
+    #[test]
+    fn unresolved_number_has_no_name() {
+        assert_eq!(resolved_name("---".into()), "");
+        assert_eq!(resolved_name(" ".into()), "");
+        assert_eq!(resolved_name("Claude Star".into()), "Claude Star");
     }
 
     #[test]

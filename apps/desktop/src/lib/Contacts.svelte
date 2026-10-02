@@ -5,6 +5,7 @@
   import Icon from "./Icon.svelte";
   import { phone, run } from "./phone.svelte";
   import { initials, type Contact, type Folder } from "./contacts";
+  import { contactEdit, editContact, newContact } from "./contactform.svelte";
 
   let folders = $state<Folder[]>([]);
   let folder = $state("");
@@ -26,6 +27,17 @@
     } catch (e) {
       error = String(e);
     }
+  });
+
+  const writable = $derived(folders.find((f) => f.id === folder)?.writable ?? false);
+
+  // Nach Anlegen, Ändern oder Löschen die Liste neu laden
+  let seen = contactEdit.changed;
+  $effect(() => {
+    if (contactEdit.changed === seen) return;
+    seen = contactEdit.changed;
+    const id = selected?.id;
+    load(true).then(() => (selected = contacts.find((c) => c.id === id) ?? null));
   });
 
   function pick(id: string) {
@@ -66,6 +78,10 @@
     {#each folders as f (f.id)}
       <button class:active={f.id === folder} onclick={() => pick(f.id)}>{f.name}</button>
     {/each}
+    {#if folders.some((f) => f.writable)}
+      <span class="spacer"></span>
+      <button class="add" title="Kontakt anlegen" onclick={() => newContact({ folder: writable ? folder : "" })}><Icon name="person" size={18} /> Neuer Kontakt</button>
+    {/if}
   </nav>
   <div class="cols">
     <div class="list">
@@ -98,6 +114,10 @@
             <h3>{selected.name || "Ohne Namen"}</h3>
             {#if selected.company && selected.company !== selected.name}<p class="muted">{selected.company}</p>{/if}
           </div>
+          {#if selected.editable}
+            <span class="spacer"></span>
+            <button class="edit" title="Kontakt bearbeiten" onclick={() => selected && editContact(selected.id)}><Icon name="edit" size={18} /> Bearbeiten</button>
+          {/if}
         </div>
         {#each selected.numbers as n}
           <div class="num">
@@ -120,6 +140,8 @@
   .book { display: flex; flex-direction: column; height: 100%; min-height: 0; }
   .folders { display: flex; gap: 0.3rem; flex-wrap: wrap; padding-bottom: 0.5rem; }
   .folders button { padding: 0.3rem 0.8rem; border-radius: 999px; font-size: 0.9rem; background: var(--panel); }
+  .spacer { flex: 1; }
+  .folders .add, .edit { display: flex; align-items: center; gap: 0.35rem; }
   .folders button.active { background: var(--accent); color: #111; border-color: var(--accent); }
   .cols { flex: 1; min-height: 0; display: grid; grid-template-columns: min(var(--split, 20rem), calc(100% - 12rem)) 0.5rem minmax(0, 1fr); }
   .divider { cursor: col-resize; touch-action: none; position: relative; }

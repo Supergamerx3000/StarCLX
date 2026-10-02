@@ -4,6 +4,7 @@
   import { onMount } from "svelte";
   import Icon from "./Icon.svelte";
   import { phone, run } from "./phone.svelte";
+  import { contactEdit, newContact } from "./contactform.svelte";
 
   type Entry = {
     id: string;
@@ -76,6 +77,29 @@
     return m ? `${m}:${String(s % 60).padStart(2, "0")} min` : `${s} s`;
   }
 
+  /** Nummern ohne Namen, die schon im Adressbuch stehen (Anlage löst alte Einträge nicht nach) */
+  let known = $state<Record<string, boolean>>({});
+  $effect(() => {
+    for (const e of entries) {
+      if (e.name || !e.number || e.number in known) continue;
+      known[e.number] = false;
+      invoke<{ numbers: { number: string }[] }[]>("contacts_search", { term: e.number })
+        .then((hits) => {
+          const digits = (s: string) => s.replace(/\D/g, "").slice(-9);
+          known[e.number] = hits?.some((h) => h.numbers.some((n) => digits(n.number) === digits(e.number))) ?? false;
+        })
+        .catch(() => {});
+    }
+  });
+  // Nach dem Anlegen eines Kontakts neu prüfen
+  let seenChange = contactEdit.changed;
+  $effect(() => {
+    if (contactEdit.changed !== seenChange) {
+      seenChange = contactEdit.changed;
+      known = {};
+    }
+  });
+
   async function act(action: string, id: string, text?: string) {
     try {
       await invoke("journal_action", { action, id, text });
@@ -147,6 +171,9 @@
                 title={e.called_back ? "Als nicht zurückgerufen markieren" : "Als zurückgerufen markieren"}
                 onclick={() => act(e.called_back ? "not_called_back" : "called_back", e.id)}
               >✓</button>
+            {/if}
+            {#if e.number && !e.name && !known[e.number]}
+              <button class="icon" title="Ins Adressbuch übernehmen" onclick={() => newContact({ number: e.number })}><Icon name="person" size={18} /></button>
             {/if}
             <button class="icon" title="Notiz" onclick={() => startComment(e)}>✎</button>
             <button
