@@ -67,21 +67,31 @@ jobs:
           npm run check
           npm run i18n:check
 
-      # Ein Tag v1.2.3 baut genau diese Version (muss zu Cargo.toml passen).
-      # Alle anderen Builds hängen die Laufnummer an (1.0.0+123): unterscheidbar,
-      # für apt neuer als das Release und älter als das nächste.
+      # Release: der erste Build auf main mit einer neuen Version in Cargo.toml
+      # (oder ein Tag v1.2.3 mit genau dieser Version). Alle anderen Builds
+      # hängen die Laufnummer an (1.0.0+123): unterscheidbar, für apt neuer
+      # als das Release und älter als das nächste.
       - name: Version setzen
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
           BASE=$(grep -m1 '^version' Cargo.toml | cut -d'"' -f2)
+          RELEASE=0
           if [[ "$GITHUB_REF" == refs/tags/v* ]]; then
             VERSION="${GITHUB_REF_NAME#v}"
             if [ "$VERSION" != "$BASE" ]; then
               echo "::error::Tag $GITHUB_REF_NAME passt nicht zu Cargo.toml ($BASE)"
               exit 1
             fi
+            RELEASE=1
+          elif [ "$GITHUB_EVENT_NAME" = push ] && [ "$GITHUB_REF" = refs/heads/main ] \
+              && ! gh release view "v$BASE" >/dev/null 2>&1; then
+            VERSION="$BASE"
+            RELEASE=1
           else
             VERSION="$BASE+${{ github.run_number }}"
           fi
+          echo "RELEASE=$RELEASE" >> "$GITHUB_ENV"
           echo "VERSION=$VERSION" >> "$GITHUB_ENV"
           sed -i "0,/^version = \".*\"/s//version = \"$VERSION\"/" Cargo.toml
           sed -i "s/\"version\": \"[^\"]*\"/\"version\": \"$VERSION\"/" apps/desktop/src-tauri/tauri.conf.json
@@ -104,14 +114,14 @@ jobs:
             target/release/sfctl
 
       - name: Release veröffentlichen
-        if: startsWith(github.ref, 'refs/tags/v')
+        if: env.RELEASE == '1'
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           cp target/release/sfctl "sfctl-${VERSION}-linux-x86_64"
           # Abschnitt dieser Version aus CHANGELOG.md als Release-Text
           awk -v v="## $VERSION" '$0 ~ "^## " {p = index($0, v) == 1} p' CHANGELOG.md > notes.md
-          gh release create "$GITHUB_REF_NAME" --title "StarCLX $VERSION" --notes-file notes.md \
+          gh release create "v$VERSION" --target "$GITHUB_SHA" --title "StarCLX $VERSION" --notes-file notes.md \
             target/release/bundle/deb/*.deb \
             target/release/bundle/appimage/*.AppImage \
             "sfctl-${VERSION}-linux-x86_64"

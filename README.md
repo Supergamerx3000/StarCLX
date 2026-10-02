@@ -52,10 +52,10 @@ Zwischenstände: Jeder Build auf `main` legt unter **Actions** das Artefakt
 
 ## Neue Version veröffentlichen
 
-1. Version in `Cargo.toml`, `apps/desktop/src-tauri/tauri.conf.json` und `apps/desktop/package.json`
-   anheben, Abschnitt in `CHANGELOG.md` ergänzen, mergen.
-2. Tag setzen: `git tag v1.2.3 && git push origin v1.2.3`. Die CI baut die Pakete und legt das
-   GitHub-Release mit dem CHANGELOG-Abschnitt an.
+Version in `Cargo.toml`, `apps/desktop/src-tauri/tauri.conf.json` und `apps/desktop/package.json`
+anheben, Abschnitt in `CHANGELOG.md` ergänzen und mergen. Der erste Build auf `main` mit der neuen
+Version legt das GitHub-Release `v<Version>` mit Paketen und dem CHANGELOG-Abschnitt an. Ein
+Tag `v<Version>` von Hand bewirkt dasselbe.
 
 ## Aufbau
 
