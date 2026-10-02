@@ -17,8 +17,11 @@ export function numberParts(text: string): { text: string; number?: string }[] {
   return parts;
 }
 
-/** Form, in der die Kontaktsuche der Anlage eine Nummer findet: 0041… → +41… */
+/** Suchbegriff, mit dem die Kontaktsuche der Anlage eine Nummer findet. Die
+ *  Anlage speichert Nummern international (+41…), die Rufliste liefert sie
+ *  aber auch als 0041… oder national (076…); die letzten 9 Ziffern passen
+ *  auf alle Formen. */
 export function searchable(number: string): string {
-  const n = number.replace(/[^\d+]/g, "");
-  return n.startsWith("00") ? `+${n.slice(2)}` : n;
+  const digits = number.replace(/\D/g, "");
+  return digits.length > 9 ? digits.slice(-9) : digits;
 }

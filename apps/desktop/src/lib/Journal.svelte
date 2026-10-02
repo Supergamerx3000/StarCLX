@@ -101,7 +101,7 @@
     for (const e of entries) {
       if (e.name || !external(e.number) || e.number in known) continue;
       known[e.number] = "";
-      // Die Kontaktsuche findet 0041… nicht, nur +41…
+      // Die Kontaktsuche findet 0041… nicht, die letzten Ziffern schon
       invoke<{ name: string; numbers: { number: string }[] }[]>("contacts_search", { term: searchable(e.number) })
         .then((hits) => {
           const digits = (s: string) => s.replace(/\D/g, "").slice(-9);
