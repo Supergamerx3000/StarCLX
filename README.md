@@ -1,16 +1,16 @@
-# starface-linuxclient
+# StarCLX
 
-Freier Desktop-Client für STARFACE-Telefonanlagen, mit Linux als Hauptplattform.
+StarCLX ist ein freier Desktop-Client für STARFACE-Telefonanlagen, mit Linux als Hauptplattform.
 
 Nicht mit der STARFACE GmbH verbunden. „STARFACE“ wird nur beschreibend verwendet.
 
 ## Installieren (ohne selbst zu kompilieren)
 
 Jeder Build auf GitHub erzeugt fertige Pakete. Unter **Actions** den neuesten Lauf öffnen, das Artefakt
-`starface-linuxclient-linux-x86_64` herunterladen und entpacken:
+`starclx-<version>-linux-x86_64` herunterladen und entpacken:
 
 ```sh
-sudo apt install ./starface-linuxclient_*_amd64.deb
+sudo apt install ./starclx_*_amd64.deb
 ```
 
 Das Paket registriert den Link-Handler `starface-app://`, über den der Browser-Login zur App zurückkehrt.

@@ -90,7 +90,7 @@ pub(crate) fn show_quick_window(app: &AppHandle) {
     }
     let built =
         tauri::WebviewWindowBuilder::new(app, "quick", tauri::WebviewUrl::App("quick".into()))
-            .title("STARFACE Schnellwahl")
+            .title("StarCLX Schnellwahl")
             .inner_size(340.0, 480.0)
             .min_inner_size(260.0, 240.0)
             .build();
@@ -110,8 +110,8 @@ fn quick_hide(app: AppHandle) {
 async fn set_session(app: &AppHandle, session: Option<Session>) {
     let tooltip = session
         .as_ref()
-        .map_or("STARFACE: abgemeldet".to_owned(), |s| {
-            format!("STARFACE: {}", SessionInfo::from(s.info()).display_name)
+        .map_or("StarCLX: abgemeldet".to_owned(), |s| {
+            format!("StarCLX: {}", SessionInfo::from(s.info()).display_name)
         });
     if let Some(tray) = app.tray_by_id("main") {
         let _ = tray.set_tooltip(Some(tooltip));
@@ -684,7 +684,7 @@ fn build_tray(app: &AppHandle) -> tauri::Result<()> {
     let quit = MenuItem::with_id(app, "quit", "Beenden", true, None::<&str>)?;
     let menu = Menu::with_items(app, &[&open, &quick, &logout_item, &quit])?;
     let mut tray = TrayIconBuilder::with_id("main")
-        .tooltip("STARFACE: abgemeldet")
+        .tooltip("StarCLX: abgemeldet")
         .menu(&menu)
         .on_menu_event(|app, event| match event.id.as_ref() {
             "open" => show_main_window(app),
@@ -755,6 +755,13 @@ pub fn run() {
             let prefs = settings::load(app.handle()).prefs;
             desktop::apply_window(app.handle(), &prefs);
             desktop::show_on_start(app.handle(), &prefs);
+            // Tastenkürzel neu eintragen, damit sie nach einem Update oder
+            // der Umbenennung auf das aktuelle Programm zeigen.
+            if prefs.hotkeys.enabled
+                && let Err(e) = desktop::apply_hotkeys(&prefs.hotkeys)
+            {
+                tracing::warn!(error = %e, "Tastenkürzel nicht eingetragen");
+            }
             // Registriert starface-app:// für das laufende Binary (wichtig für
             // AppImage und `tauri dev`; das .deb bringt eine eigene .desktop-Datei
             // mit). Fehlt z. B. xdg-mime, soll die App trotzdem starten.

@@ -1,6 +1,6 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "starface-linuxclient",
+  "productName": "starclx",
   "version": "0.1.0",
   "identifier": "ch.crazmoe.starface-linuxclient",
   "build": {
@@ -13,7 +13,7 @@
     "windows": [
       {
         "label": "main",
-        "title": "STARFACE Linux-Client",
+        "title": "StarCLX",
         "width": 1000,
         "height": 700,
         "visible": false
@@ -37,10 +37,12 @@
       "icons/icon.ico"
     ],
     "category": "Productivity",
-    "shortDescription": "Freier Client für STARFACE-Telefonanlagen",
+    "shortDescription": "StarCLX – freier Client für STARFACE-Telefonanlagen",
     "linux": {
       "deb": {
-        "desktopTemplate": "./starface-linuxclient.desktop",
+        "desktopTemplate": "./starclx.desktop",
+        "conflicts": ["starface-linuxclient"],
+        "replaces": ["starface-linuxclient"],
         "depends": [
           "libpipewire-0.3-0t64 | libpipewire-0.3-0",
           "libpulse0",
@@ -48,7 +50,7 @@
           "libssl3t64 | libssl3"
         ],
         "files": {
-          "/usr/lib/udev/rules.d/60-starface-busylight.rules": "udev/60-starface-busylight.rules"
+          "/usr/lib/udev/rules.d/60-starclx-busylight.rules": "udev/60-starclx-busylight.rules"
         }
       },
       "appimage": {}

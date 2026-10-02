@@ -1,4 +1,5 @@
 <script lang="ts">
+  import logo from "$lib/assets/logo.png";
   import { invoke } from "@tauri-apps/api/core";
   import { listen } from "@tauri-apps/api/event";
   import { onMount } from "svelte";
@@ -42,7 +43,7 @@
     return () => offs.forEach((p) => p.then((off) => off()));
   });
 
-  /** Tastenkürzel aus GNOME (`starface-desktop --action …`) */
+  /** Tastenkürzel aus GNOME (`starclx --action …`) */
   function hotkey(action: string, text: string | null) {
     const calls = phone.status.calls;
     switch (action) {
@@ -214,7 +215,7 @@
         <button class="arrange" title="Anordnung bearbeiten" onclick={editStart}><Icon name="edit" size={20} /></button>
       {/if}
       <CallManager />
-      <div class="brand"><span class="star">✱</span> STARFACE</div>
+      <div class="brand"><img src={logo} alt="" /> StarCLX</div>
     </header>
 
     {#if !free || editing}
@@ -272,7 +273,7 @@
   {/if}
 {:else}
 <main class="login">
-  <div class="brand big"><span class="star">✱</span> STARFACE</div>
+  <div class="brand big"><img src={logo} alt="" /> StarCLX</div>
   {#if phase === "restoring"}
     <p>Verbinde …</p>
   {:else}
@@ -330,7 +331,8 @@
   .reg.error { background: var(--red); }
   .spacer { flex: 1; }
   .brand { font-weight: 700; letter-spacing: 0.12em; color: var(--accent); white-space: nowrap; }
-  .brand .star { display: inline-grid; place-items: center; width: 1.6rem; height: 1.6rem; background: var(--accent); color: #fff; border-radius: 5px; letter-spacing: 0; margin-right: 0.3rem; }
+  .brand { display: flex; align-items: center; gap: 0.4rem; letter-spacing: 0.06em; }
+  .brand img { width: 1.6em; height: 1.6em; }
   .brand.big { font-size: 1.6rem; margin-bottom: 1.5rem; }
 
   .scrim { position: fixed; inset: 0; z-index: 14; background: transparent; border: none; padding: 0; cursor: default; }

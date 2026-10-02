@@ -80,7 +80,7 @@ jobs:
 
       - uses: actions/upload-artifact@v7
         with:
-          name: starface-linuxclient-${{ env.VERSION }}-linux-x86_64
+          name: starclx-${{ env.VERSION }}-linux-x86_64
           path: |
             target/release/bundle/deb/*.deb
             target/release/bundle/appimage/*.AppImage
