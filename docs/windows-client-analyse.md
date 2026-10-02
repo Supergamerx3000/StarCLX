@@ -1,6 +1,6 @@
 # Analyse STARFACE App für Windows 10.0.2.7
 
-Stand: 30.09.2026. Quelle: `STARFACE_v10.0.2.7_x64.msi` (von Moe bereitgestellt), entpackt mit `msiextract` und dekompiliert mit ILSpy 9.1. Ziel ist ausschließlich die Interoperabilität: Protokolle und Schnittstellen werden abgeleitet, Code wird nicht übernommen.
+Stand: 30.09.2026. Quelle: `STARFACE_v10.0.2.7_x64.msi`, entpackt mit `msiextract` und dekompiliert mit ILSpy 9.1. Ziel ist ausschließlich die Interoperabilität: Protokolle und Schnittstellen werden abgeleitet, Code wird nicht übernommen.
 
 ## 1. Kurzfazit
 
@@ -38,7 +38,7 @@ Die im Paket enthaltene `uci-all.dll` (Java-UCI per IKVM) wird nur noch für Hil
   3. für REST.
 - Der User-Agent lautet `STARFACE (win) 10.0.2.7 (<OS-Version>; <.NET-Version>; x64)`.
 
-**Offene Frage für Linux:** Wir brauchen eine eigene Client-ID mit Redirect auf `http://127.0.0.1:<port>/`. Die REST-Spezifikation erlaubt diesen Redirect ausdrücklich, aber es ist nicht klar, ob der Client `windows-app` Loopback-Redirects akzeptiert. Den Client `windows-app` weiterzuverwenden wäre technisch der einfachste Weg; wie sauber das ist, sollte Moe entscheiden. Unter Linux lässt sich `starface-app://` zudem als `x-scheme-handler` registrieren.
+**Offene Frage für Linux:** Wir brauchen eine eigene Client-ID mit Redirect auf `http://127.0.0.1:<port>/`. Die REST-Spezifikation erlaubt diesen Redirect ausdrücklich, aber es ist nicht klar, ob der Client `windows-app` Loopback-Redirects akzeptiert. Den Client `windows-app` weiterzuverwenden wäre technisch der einfachste Weg. Unter Linux lässt sich `starface-app://` zudem als `x-scheme-handler` registrieren.
 
 ## 4. gRPC-API „OneHub“ (Port 9092)
 
