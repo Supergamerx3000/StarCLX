@@ -9,7 +9,7 @@ export type Contact = {
   editable: boolean;
   deletable: boolean;
 };
-export type Folder = { id: string; name: string; writable: boolean };
+export type Folder = { id: string; name: string; writable: boolean; private: boolean };
 
 export function initials(name: string) {
   return name.split(/\s+/).filter(Boolean).slice(0, 2).map((w) => w[0]).join("").toUpperCase() || "?";

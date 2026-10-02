@@ -33,6 +33,8 @@ pub struct Folder {
     pub name: String,
     /// Darf der Benutzer hier Kontakte anlegen?
     pub writable: bool,
+    /// Das eigene, private Adressbuch
+    pub private: bool,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -81,6 +83,7 @@ pub async fn folders(hub: &OneHub, server: &str) -> sf_onehub::Result<Vec<Folder
                 name: display_name(&f.folder_name, f.folder_type(), alias),
                 id,
                 writable: f.is_writable,
+                private: f.folder_type() == v1::contact::FolderType::Private,
             })
         })
         .collect())

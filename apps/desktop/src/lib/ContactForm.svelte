@@ -21,7 +21,7 @@
       fields = await invoke<ContactField[]>("contact_form", { id: contactEdit.id });
       if (isNew) {
         folders = (await invoke<Folder[]>("contacts_folders")).filter((f) => f.writable);
-        folder = folders.find((f) => f.id === contactEdit.folder)?.id ?? folders[0]?.id ?? "";
+        folder = (folders.find((f) => f.id === contactEdit.folder) ?? folders.find((f) => f.private) ?? folders[0])?.id ?? "";
         if (contactEdit.number) {
           const slot = PHONE_KEYS.map((k) => fields.find((f) => f.key === k)).find(Boolean);
           if (slot) slot.value = contactEdit.number;
@@ -33,6 +33,12 @@
       loading = false;
     }
   })();
+
+  const SURNAME = 2;
+  /** Cursor gleich in den Nachnamen, z. B. bei Übernahme aus der Rufliste */
+  function focusIf(node: HTMLInputElement, on: boolean) {
+    if (on) setTimeout(() => node.focus());
+  }
 
   const filled = $derived(fields.some((f) => f.value.trim()));
 
@@ -91,7 +97,7 @@
         {#if i < 2}
           <h5>{g}</h5>
           {#each fields.filter((f) => f.group === g) as f}
-            <label class="row"><span>{f.label}</span><input type="text" bind:value={f.value} /></label>
+            <label class="row"><span>{f.label}</span><input type="text" bind:value={f.value} use:focusIf={isNew && f.key === SURNAME} /></label>
           {/each}
         {:else}
           <details open={fields.some((f) => f.group === g && f.value)}>
