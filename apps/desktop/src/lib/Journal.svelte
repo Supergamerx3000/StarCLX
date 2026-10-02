@@ -6,6 +6,7 @@
   import { phone, run } from "./phone.svelte";
   import { contactEdit, newContact } from "./contactform.svelte";
   import ShareNote from "./ShareNote.svelte";
+  import { searchable } from "./numbers";
 
   type Entry = {
     id: string;
@@ -43,7 +44,7 @@
   });
 
   const shown = $derived(
-    entries.filter((e) => {
+    entries.map((e) => (e.name || !known[e.number] ? e : { ...e, name: known[e.number] })).filter((e) => {
       if (filter === "missed" && !(e.missed && e.incoming)) return false;
       if (filter === "in" && !e.incoming) return false;
       if (filter === "out" && e.incoming) return false;
@@ -85,7 +86,7 @@
     const who = [e.name, e.number].filter(Boolean).join(", ") || "Unbekannt";
     const kind = e.missed && e.incoming ? "Verpasster Anruf" : e.incoming ? "Eingehender Anruf" : "Ausgehender Anruf";
     const when = new Date(e.start).toLocaleString("de-CH", { dateStyle: "medium", timeStyle: "short" });
-    return [`${kind} ${e.incoming ? "von" : "an"} ${who}`, `Zeit: ${when}${e.duration_secs ? `, Dauer ${dur(e.duration_secs)}` : ""}`, e.comment && `Notiz: ${e.comment}`]
+    return ["Gesprächsnotiz", `${kind} ${e.incoming ? "von" : "an"} ${who}`, `Zeit: ${when}${e.duration_secs ? `, Dauer ${dur(e.duration_secs)}` : ""}`, e.comment && `Notiz: ${e.comment}`]
       .filter(Boolean)
       .join("\n");
   }
@@ -93,16 +94,19 @@
   /** Kurze interne Nummern (Parkplatz "00", Kurzwahlen) gehören nicht ins Adressbuch */
   const external = (n: string) => n.replace(/\D/g, "").length >= 5;
 
-  /** Nummern ohne Namen, die schon im Adressbuch stehen (Anlage löst alte Einträge nicht nach) */
-  let known = $state<Record<string, boolean>>({});
+  /** Namen aus dem Adressbuch für Nummern, die die Anlage nicht aufgelöst
+   *  hat (alte Einträge löst sie nicht nach); "" = nicht gefunden */
+  let known = $state<Record<string, string>>({});
   $effect(() => {
     for (const e of entries) {
       if (e.name || !external(e.number) || e.number in known) continue;
-      known[e.number] = false;
-      invoke<{ numbers: { number: string }[] }[]>("contacts_search", { term: e.number })
+      known[e.number] = "";
+      // Die Kontaktsuche findet 0041… nicht, nur +41…
+      invoke<{ name: string; numbers: { number: string }[] }[]>("contacts_search", { term: searchable(e.number) })
         .then((hits) => {
           const digits = (s: string) => s.replace(/\D/g, "").slice(-9);
-          known[e.number] = hits?.some((h) => h.numbers.some((n) => digits(n.number) === digits(e.number))) ?? false;
+          const hit = hits?.find((h) => h.numbers.some((n) => digits(n.number) === digits(e.number)));
+          known[e.number] = hit?.name || "";
         })
         .catch(() => {});
     }
