@@ -4,6 +4,7 @@
 
 mod audio;
 mod busylight;
+mod callactions;
 mod certs;
 mod chat;
 mod desktop;
@@ -44,6 +45,9 @@ pub(crate) struct AppState {
     /// Letzter Stand fürs Neuladen der Oberfläche
     phone_status: std::sync::Mutex<PhoneStatus>,
     journal: Mutex<Option<Journal>>,
+    /// Rufnummer aus einem tel:-Link, bis die Oberfläche sie abholt; leer
+    /// heisst: Link ohne Nummer
+    dial_request: std::sync::Mutex<Option<String>>,
 }
 
 #[derive(Clone, Default, Serialize)]
@@ -507,6 +511,15 @@ async fn save_prefs(
     }
     busylight::refresh(&app);
     desktop::apply_window(&app, &prefs);
+    if old.handle_tel_links != prefs.handle_tel_links {
+        desktop::register_schemes(&app, prefs.handle_tel_links);
+    }
+    desktop::apply_autostart(prefs.autostart).map_err(|e| {
+        tf(
+            "Gespeichert, aber Autostart nicht eingerichtet: {e}",
+            &[("e", &e)],
+        )
+    })?;
     if old.hotkeys != prefs.hotkeys || prefs.hotkeys.enabled {
         desktop::apply_hotkeys(&prefs.hotkeys).map_err(|e| {
             tf(
@@ -719,11 +732,28 @@ async fn finish_login(app: &AppHandle, redirect: &str) -> Result<SessionInfo, St
     Ok(info)
 }
 
+/// Rufnummer aus einem tel:-Link abholen (beim Start und nach "dial-request")
+#[tauri::command]
+fn take_dial_request(state: State<'_, AppState>) -> Option<String> {
+    state.dial_request.lock().unwrap().take()
+}
+
 pub(crate) fn handle_urls(app: &AppHandle, urls: Vec<String>) {
-    for url in urls
-        .into_iter()
-        .filter(|u| u.starts_with(sf_auth::REDIRECT_URI))
-    {
+    for url in urls {
+        if desktop::is_tel_url(&url) {
+            // Ausgeschaltet: Die .desktop-Datei des Pakets meldet tel: trotzdem an
+            if !settings::load(app).prefs.handle_tel_links {
+                continue;
+            }
+            let number = desktop::number_from_url(&url).unwrap_or_default();
+            *app.state::<AppState>().dial_request.lock().unwrap() = Some(number);
+            show_main_window(app);
+            let _ = app.emit("dial-request", ());
+            continue;
+        }
+        if !url.starts_with(sf_auth::REDIRECT_URI) {
+            continue;
+        }
         let app = app.clone();
         tauri::async_runtime::spawn(async move {
             show_main_window(&app);
@@ -827,6 +857,7 @@ pub fn run() {
             phone: Mutex::default(),
             phone_status: std::sync::Mutex::default(),
             journal: Mutex::default(),
+            dial_request: std::sync::Mutex::default(),
         })
         .setup(move |app| {
             certs::init(app.handle());
@@ -842,12 +873,21 @@ pub fn run() {
             {
                 tracing::warn!(error = %e, "Tastenkürzel nicht eingetragen");
             }
-            // Registriert starface-app:// für das laufende Binary (wichtig für
-            // AppImage und `tauri dev`; das .deb bringt eine eigene .desktop-Datei
-            // mit). Fehlt z. B. xdg-mime, soll die App trotzdem starten.
-            #[cfg(any(target_os = "linux", all(debug_assertions, windows)))]
-            if let Err(e) = app.deep_link().register_all() {
-                tracing::warn!(error = %e, "starface-app:// nicht registriert");
+            if let Err(e) = desktop::apply_autostart(prefs.autostart) {
+                tracing::warn!(error = %e, "Autostart nicht eingerichtet");
+            }
+            // starface-app:// und ggf. tel:/callto:/sip: für das laufende Binary
+            desktop::register_schemes(app.handle(), prefs.handle_tel_links);
+            // Kaltstart über einen tel:-Link; ein Login-Rücksprung kann jetzt
+            // keinen ausstehenden Login mehr haben.
+            if let Ok(Some(urls)) = app.deep_link().get_current() {
+                handle_urls(
+                    app.handle(),
+                    urls.iter()
+                        .map(|u| u.to_string())
+                        .filter(|u| !u.starts_with(sf_auth::REDIRECT_URI))
+                        .collect(),
+                );
             }
             let handle = app.handle().clone();
             app.deep_link().on_open_url(move |event| {
@@ -926,6 +966,9 @@ pub fn run() {
             chat::chat_send,
             chat::default_download_dir,
             desktop::desktop_info,
+            take_dial_request,
+            callactions::call_action_run,
+            callactions::call_actions_fire,
             reach::redirects,
             reach::redirect_enable,
             reach::redirect_update,

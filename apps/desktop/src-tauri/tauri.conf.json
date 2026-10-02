@@ -60,7 +60,10 @@
     "deep-link": {
       "desktop": {
         "schemes": [
-          "starface-app"
+          "starface-app",
+          "tel",
+          "callto",
+          "sip"
         ]
       }
     }

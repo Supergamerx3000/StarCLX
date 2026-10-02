@@ -30,6 +30,11 @@ export type Prefs = {
   theme: "system" | "dark" | "light";
   language: string;
   start_minimized: boolean;
+  autostart: boolean;
+  handle_tel_links: boolean;
+  call_actions: CallAction[];
+  /** Landesvorwahl ohne "+", z. B. "41" */
+  default_country_code: string;
   minimize_to_tray: boolean;
   always_on_top: boolean;
   hotkeys: Hotkeys;
@@ -40,6 +45,17 @@ export type Prefs = {
 
 /** Kachel im freien Arbeitsbereich: Lage in Rasterzellen (12 Spalten) */
 export type Tile = { id: string; x: number; y: number; w: number; h: number; visible: boolean };
+
+/** URL oder Programm bei Anruf (siehe callactions.rs) */
+export type CallAction = {
+  enabled: boolean;
+  trigger: "ringing" | "answered" | "outgoing";
+  /** Platzhalter auf die Nummer, z. B. "+41*"; leer heisst alle */
+  filter: string;
+  external_only: boolean;
+  /** URL (mit "://") oder Befehlszeile */
+  target: string;
+};
 
 export type Hotkeys = {
   enabled: boolean;

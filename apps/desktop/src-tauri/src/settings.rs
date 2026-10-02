@@ -64,6 +64,14 @@ pub struct Prefs {
     /// Sprache der Oberfläche (bisher nur "de")
     pub language: String,
     pub start_minimized: bool,
+    /// Beim Anmelden am Rechner starten (XDG-Autostart)
+    pub autostart: bool,
+    /// tel:-, callto:- und sip:-Links mit StarCLX öffnen
+    pub handle_tel_links: bool,
+    /// URL oder Programm bei Anruf
+    pub call_actions: Vec<crate::callactions::CallAction>,
+    /// Landesvorwahl ohne "+" für die Umrechnung nationaler Nummern
+    pub default_country_code: String,
     /// Beim Minimieren nur noch im Tray anzeigen
     pub minimize_to_tray: bool,
     pub always_on_top: bool,
@@ -106,6 +114,10 @@ impl Default for Prefs {
             theme: "system".into(),
             language: "de".into(),
             start_minimized: false,
+            autostart: false,
+            handle_tel_links: true,
+            call_actions: Vec::new(),
+            default_country_code: "41".into(),
             minimize_to_tray: false,
             always_on_top: false,
             hotkeys: crate::desktop::Hotkeys::default(),

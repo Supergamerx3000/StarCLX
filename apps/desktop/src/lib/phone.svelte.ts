@@ -8,6 +8,7 @@ export type Call = {
   id: string;
   phase: Phase;
   incoming: boolean;
+  internal: boolean;
   remote_name: string;
   remote_number: string;
   local_name: string;
