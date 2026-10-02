@@ -55,7 +55,7 @@
     <input type="text" bind:value={filter} placeholder="Kollegen suchen" />
     <div class="people">
       {#each people as c (c.jid)}
-        <button class:active={peer === c.jid} onclick={() => (peer = c.jid)}>{c.name}</button>
+        <button class:active={peer === c.jid} aria-pressed={peer === c.jid} onclick={() => (peer = c.jid)}>{peer === c.jid ? "✓ " : ""}{c.name}</button>
       {:else}
         <p class="muted">Keine Kollegen gefunden.</p>
       {/each}
@@ -83,7 +83,7 @@
   textarea { resize: vertical; font: inherit; padding: 0.5rem; }
   .people { display: flex; flex-wrap: wrap; gap: 0.3rem; max-height: 9rem; overflow: auto; }
   .people button { padding: 0.25rem 0.7rem; border-radius: 999px; font-size: 0.9rem; }
-  .people button.active { background: var(--accent); border-color: var(--accent); color: #111; }
+  .people button.active, .people button.active:hover { background: var(--accent); border-color: var(--accent); color: #111; }
   .actions { display: flex; gap: 0.6rem; margin-top: 0.3rem; }
   .spacer { flex: 1; }
   .primary { background: var(--accent); border-color: var(--accent); color: #111; font-weight: 600; }

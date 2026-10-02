@@ -258,7 +258,7 @@ fn view_of(e: &v1::journal::JournalEntry) -> Entry {
         answered_by: group.group_call_answered_by,
         comment,
         called_back,
-        voicemail: e.voicemail_id.is_some(),
+        voicemail: e.voicemail_id.as_ref().is_some_and(|v| !v.id.is_empty()),
     }
 }
 

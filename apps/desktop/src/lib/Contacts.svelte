@@ -165,7 +165,7 @@
   .head h3 { margin: 0; font-size: 1.15rem; }
   .head p { margin: 0.1rem 0 0; }
   .num { display: flex; align-items: center; gap: 0.8rem; padding: 0.45rem 0; border-top: 1px solid var(--line); }
-  .lbl { width: 6rem; color: var(--muted); font-size: 0.9rem; }
+  .lbl { flex: 0 0 6rem; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--muted); font-size: 0.9rem; }
   .val { flex: 1; color: inherit; }
   .call { width: 2.2rem; height: 2.2rem; padding: 0; border-radius: 50%; display: grid; place-items: center; background: var(--green); border: none; color: #fff; }
   .call:disabled { opacity: 0.4; }

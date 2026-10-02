@@ -5,6 +5,8 @@
   import Icon from "./Icon.svelte";
   import { chat, nameOf, openConversation, type ChatContact } from "./chat.svelte";
   import { initials } from "./contacts";
+  import { numberParts } from "./numbers";
+  import { phone, run } from "./phone.svelte";
 
   let term = $state("");
   let draft = $state("");
@@ -103,7 +105,7 @@
       <div class="messages" bind:this={scroller}>
         {#each chat.messages as m (m.id)}
           <div class="msg" class:out={m.outgoing}>
-            <div class="bubble">{m.body}</div>
+            <div class="bubble">{#each numberParts(m.body) as p}{#if p.number}<button class="num" title="Anrufen" disabled={phone.status.state !== "ready"} onclick={() => run("phone_dial", { number: p.number })}>{p.text}</button>{:else}{p.text}{/if}{/each}</div>
             <small>{time(m.ts)}</small>
           </div>
         {:else}
@@ -153,6 +155,8 @@
   .msg { display: flex; flex-direction: column; align-items: flex-start; max-width: 75%; }
   .msg.out { align-self: flex-end; align-items: flex-end; }
   .bubble { background: var(--panel-2); padding: 0.45rem 0.75rem; border-radius: 12px 12px 12px 3px; white-space: pre-wrap; overflow-wrap: anywhere; }
+  .num { display: inline; padding: 0; border: none; background: none; color: inherit; font: inherit; text-decoration: underline; cursor: pointer; }
+  .num:disabled { cursor: default; text-decoration: none; }
   .msg.out .bubble { background: #7a5410; border-radius: 12px 12px 3px 12px; }
   .msg small { color: var(--muted); font-size: 0.72rem; margin: 0.1rem 0.3rem; }
   .compose { display: flex; gap: 0.5rem; align-items: flex-end; padding: 0.6rem; border-top: 1px solid var(--line); }
