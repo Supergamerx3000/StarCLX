@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { portal } from "./portal";
   // Funktionstasten-Editor wie im Windows-Client: links das Raster, rechts
   // die Tastentypen. Änderungen gehen sofort an die Anlage.
   import { invoke } from "@tauri-apps/api/core";
@@ -238,6 +239,7 @@
 
 {#if editing}
   {@const k = editing}
+  <div class="layer" use:portal>
   <div class="scrim" role="presentation" onclick={() => (editing = null)}></div>
   <div class="dialog" role="dialog" aria-label="Funktionstaste bearbeiten">
     <h4>{typeInfo(k.functionKeyType).label}{k.id ? "" : " hinzufügen"}</h4>
@@ -312,6 +314,7 @@
       <button onclick={() => (editing = null)}>Abbrechen</button>
       <button class="primary" disabled={busy} onclick={save}>{k.id ? "Speichern" : "Hinzufügen"}</button>
     </div>
+  </div>
   </div>
 {/if}
 

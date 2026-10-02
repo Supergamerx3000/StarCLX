@@ -234,6 +234,7 @@
   .row:not(.missed) .dir { color: var(--muted); }
   .row.missed .dir, .row.missed .who strong { color: #ff6b6b; }
   .who { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+  .who strong, .who small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .who small { color: var(--muted); }
   .when { display: flex; flex-direction: column; align-items: flex-end; font-variant-numeric: tabular-nums; }
   .when small { color: var(--muted); font-size: 0.75rem; }
