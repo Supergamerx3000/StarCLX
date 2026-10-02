@@ -59,6 +59,7 @@ jobs:
         run: |
           npm ci
           npm run check
+          npm run i18n:check
 
       # Jeder Build bekommt eine eigene, steigende Version (0.1.<Laufnummer>),
       # damit Pakete unterscheidbar sind und apt sie als Update erkennt.

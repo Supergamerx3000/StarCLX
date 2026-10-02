@@ -7,6 +7,7 @@
   import { initials } from "./contacts";
   import { numberParts } from "./numbers";
   import { phone, run } from "./phone.svelte";
+  import { locale, t } from "./i18n.svelte";
 
   let term = $state("");
   let draft = $state("");
@@ -19,19 +20,19 @@
     return () => (chat.visible = false);
   });
 
-  const showText: Record<string, string> = {
-    online: "Online", chat: "Online", away: "Abwesend", xa: "Länger abwesend", dnd: "Nicht stören", offline: "Offline",
-  };
+  const showText: Record<string, string> = $derived({
+    online: t("Online"), chat: t("Online"), away: t("Abwesend"), xa: t("Länger abwesend"), dnd: t("Nicht stören"), offline: t("Offline"),
+  });
 
   // Kontakte mit Gesprächen zuerst (neueste oben), dann alphabetisch
   const list = $derived.by(() => {
-    const t = term.trim().toLowerCase();
+    const q = term.trim().toLowerCase();
     const known = new Map<string, ChatContact>(chat.status.contacts.map((c) => [c.jid, c]));
     for (const peer of Object.keys(chat.last)) {
       if (!known.has(peer)) known.set(peer, { jid: peer, name: peer.split("@")[0], show: "offline", status: "" });
     }
     return [...known.values()]
-      .filter((c) => !t || c.name.toLowerCase().includes(t) || c.jid.includes(t))
+      .filter((c) => !q || c.name.toLowerCase().includes(q) || c.jid.includes(q))
       .sort((a, b) => (chat.last[b.jid]?.ts ?? 0) - (chat.last[a.jid]?.ts ?? 0) || a.name.localeCompare(b.name));
   });
 
@@ -61,8 +62,8 @@
   const time = (ms: number) => {
     const d = new Date(ms);
     return d.toDateString() === new Date().toDateString()
-      ? d.toLocaleTimeString("de-CH", { hour: "2-digit", minute: "2-digit" })
-      : d.toLocaleString("de-CH", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" });
+      ? d.toLocaleTimeString(locale(), { hour: "2-digit", minute: "2-digit" })
+      : d.toLocaleString(locale(), { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" });
   };
   const openContact = $derived(chat.status.contacts.find((c) => c.jid === chat.open));
 </script>
@@ -70,11 +71,11 @@
 <div class="chat">
   <aside>
     <div class="state" class:on={chat.status.online}>
-      <span class="dot"></span>{chat.status.online ? "Chat verbunden" : chat.status.detail || "Chat nicht verbunden"}
+      <span class="dot"></span>{chat.status.online ? t("Chat verbunden") : chat.status.detail || t("Chat nicht verbunden")}
     </div>
     <label class="filter">
       <Icon name="search" size={18} />
-      <input bind:value={term} placeholder="Kontakt suchen" />
+      <input bind:value={term} placeholder={t("Kontakt suchen")} />
     </label>
     <div class="contacts">
       {#each list as c (c.jid)}
@@ -87,7 +88,7 @@
           {#if chat.unread[c.jid]}<span class="badge">{chat.unread[c.jid]}</span>{/if}
         </button>
       {:else}
-        <p class="muted">{chat.status.online ? "Keine Kontakte." : ""}</p>
+        <p class="muted">{chat.status.online ? t("Keine Kontakte.") : ""}</p>
       {/each}
     </div>
   </aside>
@@ -105,20 +106,20 @@
       <div class="messages" bind:this={scroller}>
         {#each chat.messages as m (m.id)}
           <div class="msg" class:out={m.outgoing}>
-            <div class="bubble">{#each numberParts(m.body) as p}{#if p.number}<button class="num" title="Anrufen" disabled={phone.status.state !== "ready"} onclick={() => run("phone_dial", { number: p.number })}>{p.text}</button>{:else}{p.text}{/if}{/each}</div>
+            <div class="bubble">{#each numberParts(m.body) as p}{#if p.number}<button class="num" title={t("Anrufen")} disabled={phone.status.state !== "ready"} onclick={() => run("phone_dial", { number: p.number })}>{p.text}</button>{:else}{p.text}{/if}{/each}</div>
             <small>{time(m.ts)}</small>
           </div>
         {:else}
-          <p class="muted center">Noch keine Nachrichten.</p>
+          <p class="muted center">{t("Noch keine Nachrichten.")}</p>
         {/each}
       </div>
       <form class="compose" onsubmit={send}>
-        <textarea bind:value={draft} {onkeydown} rows="2" placeholder={chat.status.online ? "Nachricht schreiben (Enter sendet, Umschalt+Enter neue Zeile)" : "Chat nicht verbunden"} disabled={!chat.status.online}></textarea>
-        <button class="send" type="submit" title="Senden" disabled={!draft.trim() || !chat.status.online}><Icon name="send" size={20} /></button>
+        <textarea bind:value={draft} {onkeydown} rows="2" placeholder={chat.status.online ? t("Nachricht schreiben (Enter sendet, Umschalt+Enter neue Zeile)") : t("Chat nicht verbunden")} disabled={!chat.status.online}></textarea>
+        <button class="send" type="submit" title={t("Senden")} disabled={!draft.trim() || !chat.status.online}><Icon name="send" size={20} /></button>
       </form>
       {#if error}<p class="error">{error}</p>{/if}
     {:else}
-      <p class="muted center">Kontakt auswählen, um zu chatten.</p>
+      <p class="muted center">{t("Kontakt auswählen, um zu chatten.")}</p>
     {/if}
   </section>
 </div>

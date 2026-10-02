@@ -8,7 +8,8 @@
   import FkeyEditor from "./FkeyEditor.svelte";
   import Reach from "./Reach.svelte";
   import Toggle from "./Toggle.svelte";
-  import { type Hotkeys, loadPrefs, savePrefs, type Prefs } from "./prefs.svelte";
+  import { type Hotkeys, loadPrefs, prefs, savePrefs, type Prefs } from "./prefs.svelte";
+  import { setLanguage, t } from "./i18n.svelte";
 
   type SignalingNumber = { id: string; number: string; suppressed: boolean; read_only: boolean; selected: boolean };
 
@@ -30,45 +31,45 @@
   let busylight = $state<{ devices: string[]; error: string | null; tones: string[] }>({ devices: [], error: null, tones: [] });
   let blTesting = $state(false);
 
-  const sections: { id: string; icon: IconName; label: string }[] = [
+  const sections: { id: string; icon: IconName; label: string }[] = $derived([
     { id: "softphone", icon: "call", label: "Softphone" },
-    { id: "notifications", icon: "bell", label: "Benachrichtigungen" },
-    { id: "audio", icon: "headset", label: "Audio" },
-    { id: "ringtones", icon: "music", label: "Klingeltöne" },
-    { id: "signaling", icon: "numbers", label: "Rufnummer signalisieren" },
+    { id: "notifications", icon: "bell", label: t("Benachrichtigungen") },
+    { id: "audio", icon: "headset", label: t("Audio") },
+    { id: "ringtones", icon: "music", label: t("Klingeltöne") },
+    { id: "signaling", icon: "numbers", label: t("Rufnummer signalisieren") },
     { id: "callmanager", icon: "forward", label: "Call Manager" },
     { id: "busylight", icon: "light", label: "Busylight" },
-  ];
-  const chatSections: { id: string; icon: IconName; label: string }[] = [
-    { id: "chat-notify", icon: "bell", label: "Benachrichtigungen" },
-    { id: "chat-files", icon: "folder", label: "Dateien empfangen" },
-    { id: "chat-status", icon: "person", label: "Status" },
-  ];
+  ]);
+  const chatSections: { id: string; icon: IconName; label: string }[] = $derived([
+    { id: "chat-notify", icon: "bell", label: t("Benachrichtigungen") },
+    { id: "chat-files", icon: "folder", label: t("Dateien empfangen") },
+    { id: "chat-status", icon: "person", label: t("Status") },
+  ]);
   let defaultDownloads = $state("");
-  const reachSections: { id: string; icon: IconName; label: string }[] = [
+  const reachSections: { id: string; icon: IconName; label: string }[] = $derived([
     { id: "voicemail", icon: "voicemail", label: "Voicemail" },
-    { id: "redirects", icon: "forward", label: "Umleitungen" },
-    { id: "fmc", icon: "call2go", label: "Parallelruf" },
-    { id: "fkeys", icon: "dialpad", label: "Funktionstasten" },
-  ];
-  const personalSections: { id: string; icon: IconName; label: string }[] = [
-    { id: "appearance", icon: "workspace", label: "Darstellung" },
-    { id: "hotkeys", icon: "dialpad", label: "Hotkeys" },
-  ];
-  const hotkeyRows: { key: Exclude<keyof Hotkeys, "enabled">; label: string }[] = [
-    { key: "dial_selection", label: "Markierte Rufnummer wählen" },
-    { key: "dial_clipboard", label: "Rufnummer aus Zwischenablage wählen" },
-    { key: "answer", label: "Softphone-Anruf annehmen" },
-    { key: "hangup", label: "Aktuellen Anruf beenden" },
-    { key: "toggle_view", label: "Ansicht umschalten" },
-  ];
+    { id: "redirects", icon: "forward", label: t("Umleitungen") },
+    { id: "fmc", icon: "call2go", label: t("Parallelruf") },
+    { id: "fkeys", icon: "dialpad", label: t("Funktionstasten") },
+  ]);
+  const personalSections: { id: string; icon: IconName; label: string }[] = $derived([
+    { id: "appearance", icon: "workspace", label: t("Darstellung") },
+    { id: "hotkeys", icon: "dialpad", label: t("Hotkeys") },
+  ]);
+  const hotkeyRows: { key: Exclude<keyof Hotkeys, "enabled">; label: string }[] = $derived([
+    { key: "dial_selection", label: t("Markierte Rufnummer wählen") },
+    { key: "dial_clipboard", label: t("Rufnummer aus Zwischenablage wählen") },
+    { key: "answer", label: t("Softphone-Anruf annehmen") },
+    { key: "hangup", label: t("Aktuellen Anruf beenden") },
+    { key: "toggle_view", label: t("Ansicht umschalten") },
+  ]);
   let desktop = $state({ wayland: false, gnome: false, command: "" });
   let recording = $state<string | null>(null);
 
   /** `<Control><Shift>w` → `Strg+Umschalt+W` */
   function showAccel(a: string) {
-    if (!a) return "Keine";
-    const names: Record<string, string> = { Control: "Strg", Shift: "Umschalt", Alt: "Alt", Super: "Super" };
+    if (!a) return t("Keine");
+    const names: Record<string, string> = { Control: t("Strg"), Shift: t("Umschalt"), Alt: "Alt", Super: "Super" };
     const mods = [...a.matchAll(/<(\w+)>/g)].map((m) => names[m[1]] ?? m[1]);
     const key = a.replace(/<\w+>/g, "");
     return [...mods, key.length === 1 ? key.toUpperCase() : key].join("+");
@@ -137,7 +138,7 @@
       const path = await invoke<string | null>("pick_ringtone");
       if (path && !draft.custom_ringtones.includes(path)) draft.custom_ringtones = [...draft.custom_ringtones, path];
     } catch (e) {
-      notice = `Klingelton nicht übernommen: ${e}`;
+      notice = t("Klingelton nicht übernommen: {e}", { e: String(e) });
     }
   }
 
@@ -158,7 +159,7 @@
       draft.microphones = mergeOrder(draft.microphones, devices.microphones);
       draft.ring_devices = mergeOrder(draft.ring_devices, devices.speakers);
     } catch (e) {
-      notice = `Audiogeräte nicht gelesen: ${e}`;
+      notice = t("Audiogeräte nicht gelesen: {e}", { e: String(e) });
     }
     invoke<typeof desktop>("desktop_info").then((d) => (desktop = d), () => {});
     invoke<string>("default_download_dir").then((d) => (defaultDownloads = d), () => {});
@@ -195,6 +196,12 @@
     content.querySelector(`#${id}`)?.scrollIntoView({ behavior: "smooth", block: "start" });
   }
 
+  /** Schliessen ohne Speichern: probeweise gewählte Sprache zurücknehmen */
+  function cancel() {
+    setLanguage(prefs.value?.language);
+    onclose();
+  }
+
   async function save() {
     if (!draft) return;
     saving = true;
@@ -216,15 +223,15 @@
 
 <div class="settings">
   <header>
-    <button class="icon" title="Zurück" onclick={onclose}><Icon name="back" /></button>
-    <h1>Einstellungen</h1>
+    <button class="icon" title={t("Zurück")} onclick={cancel}><Icon name="back" /></button>
+    <h1>{t("Einstellungen")}</h1>
   </header>
   <nav>
-    <h2>Telefonie</h2>
+    <h2>{t("Telefonie")}</h2>
     {#each sections as s}
       <button class="nav" onclick={() => jump(s.id)}><Icon name={s.icon} size={18} /><span>{s.label}</span></button>
     {/each}
-    <h2>Erreichbarkeit</h2>
+    <h2>{t("Erreichbarkeit")}</h2>
     {#each reachSections as s}
       <button class="nav" onclick={() => jump(s.id)}><Icon name={s.icon} size={18} /><span>{s.label}</span></button>
     {/each}
@@ -232,46 +239,46 @@
     {#each chatSections as s}
       <button class="nav" onclick={() => jump(s.id)}><Icon name={s.icon} size={18} /><span>{s.label}</span></button>
     {/each}
-    <h2>Personalisierung</h2>
+    <h2>{t("Personalisierung")}</h2>
     {#each personalSections as s}
       <button class="nav" onclick={() => jump(s.id)}><Icon name={s.icon} size={18} /><span>{s.label}</span></button>
     {/each}
-    <h2>Konto</h2>
-    <button class="nav" onclick={() => jump("account")}><Icon name="account" size={18} /><span>Konto</span></button>
+    <h2>{t("Konto")}</h2>
+    <button class="nav" onclick={() => jump("account")}><Icon name="account" size={18} /><span>{t("Konto")}</span></button>
   </nav>
 
   <div class="content" bind:this={content}>
     {#if !draft}
-      <p class="muted">Lade …</p>
+      <p class="muted">{t("Lade …")}</p>
     {:else}
       <section id="softphone">
         <h3>Softphone</h3>
         <div class="card">
-          <Toggle bind:checked={draft.softphone} label="Softphone verwenden" />
-          <Toggle bind:checked={draft.primary_on_login} disabled={!draft.softphone} label="Softphone bei der Anmeldung am Server als primäres Telefon auswählen" />
-          <Toggle bind:checked={draft.primary_on_answer} disabled={!draft.softphone} label="Bei Rufannahme das Softphone als primäres Telefon auswählen" />
+          <Toggle bind:checked={draft.softphone} label={t("Softphone verwenden")} />
+          <Toggle bind:checked={draft.primary_on_login} disabled={!draft.softphone} label={t("Softphone bei der Anmeldung am Server als primäres Telefon auswählen")} />
+          <Toggle bind:checked={draft.primary_on_answer} disabled={!draft.softphone} label={t("Bei Rufannahme das Softphone als primäres Telefon auswählen")} />
         </div>
       </section>
 
       <section id="notifications">
-        <h3>Benachrichtigungen</h3>
+        <h3>{t("Benachrichtigungen")}</h3>
         <div class="card">
-          <Toggle bind:checked={draft.notify_missed} label="Benachrichtigung über verpasste Anrufe anzeigen (ohne Gruppenanrufe)" />
-          <Toggle bind:checked={draft.notify_missed_group} label="Benachrichtigung bei verpassten Gruppenanrufen anzeigen" />
+          <Toggle bind:checked={draft.notify_missed} label={t("Benachrichtigung über verpasste Anrufe anzeigen (ohne Gruppenanrufe)")} />
+          <Toggle bind:checked={draft.notify_missed_group} label={t("Benachrichtigung bei verpassten Gruppenanrufen anzeigen")} />
         </div>
       </section>
 
       <section id="audio">
-        <h3>Audio</h3>
-        <p class="muted small">Die Geräte werden in der aufgelisteten Reihenfolge verwendet: das erste angeschlossene Gerät gewinnt. Änderungen gelten nach dem Speichern, das Softphone startet dann neu.</p>
+        <h3>{t("Audio")}</h3>
+        <p class="muted small">{t("Die Geräte werden in der aufgelisteten Reihenfolge verwendet: das erste angeschlossene Gerät gewinnt. Änderungen gelten nach dem Speichern, das Softphone startet dann neu.")}</p>
         <div class="card">
-          <h4>Lautsprecher</h4>
-          <button class="play" onclick={() => preview(null)}><Icon name={playing === "@test" ? "pause" : "play"} size={18} /> Testton abspielen</button>
+          <h4>{t("Lautsprecher")}</h4>
+          <button class="play" onclick={() => preview(null)}><Icon name={playing === "@test" ? "pause" : "play"} size={18} /> {t("Testton abspielen")}</button>
           <DeviceList bind:order={draft.speakers} devices={devices.speakers} />
           <hr />
-          <h4>Mikrofon</h4>
+          <h4>{t("Mikrofon")}</h4>
           <div class="mic">
-            <button class="play" onclick={toggleMic}>{micTesting ? "Test beenden" : "Mikrofon testen"}</button>
+            <button class="play" onclick={toggleMic}>{micTesting ? t("Test beenden") : t("Mikrofon testen")}</button>
             <div class="meter"><div class="bar" style="width: {Math.round(micLevel * 100)}%"></div></div>
           </div>
           <DeviceList bind:order={draft.microphones} devices={devices.microphones} />
@@ -279,42 +286,42 @@
       </section>
 
       <section id="ringtones">
-        <h3>Klingeltöne</h3>
+        <h3>{t("Klingeltöne")}</h3>
         <div class="card">
-          <Toggle bind:checked={draft.ringtone} label="Klingelton verwenden" />
+          <Toggle bind:checked={draft.ringtone} label={t("Klingelton verwenden")} />
           <div class="tones" class:off={!draft.ringtone}>
-            <div class="tone head"><span>Intern</span><span>Extern</span></div>
-            {#each [...builtinTones, ...draft.custom_ringtones] as t (t)}
+            <div class="tone head"><span>{t("Intern")}</span><span>{t("Extern")}</span></div>
+            {#each [...builtinTones, ...draft.custom_ringtones] as tone (tone)}
               <div class="tone">
-                <input type="radio" name="tone-int" value={t} bind:group={draft.ringtone_internal} title="Interne Anrufe" />
-                <input type="radio" name="tone-ext" value={t} bind:group={draft.ringtone_external} title="Externe Anrufe" />
-                <button class="round" title="Anhören" onclick={() => preview(t)}><Icon name={playing === t ? "pause" : "play"} size={16} /></button>
-                <span class="tname">{fileName(t)}</span>
-                {#if draft.custom_ringtones.includes(t)}
-                  <button class="x" title="Entfernen" onclick={() => removeRingtone(t)}><Icon name="close" size={16} /></button>
+                <input type="radio" name="tone-int" value={tone} bind:group={draft.ringtone_internal} title={t("Interne Anrufe")} />
+                <input type="radio" name="tone-ext" value={tone} bind:group={draft.ringtone_external} title={t("Externe Anrufe")} />
+                <button class="round" title={t("Anhören")} onclick={() => preview(tone)}><Icon name={playing === tone ? "pause" : "play"} size={16} /></button>
+                <span class="tname">{fileName(tone)}</span>
+                {#if draft.custom_ringtones.includes(tone)}
+                  <button class="x" title={t("Entfernen")} onclick={() => removeRingtone(tone)}><Icon name="close" size={16} /></button>
                 {/if}
               </div>
             {/each}
-            <button class="add" onclick={addRingtone}>Eigenen Klingelton hinzufügen (WAV)</button>
+            <button class="add" onclick={addRingtone}>{t("Eigenen Klingelton hinzufügen (WAV)")}</button>
           </div>
           <hr />
-          <h4>Ausgabegerät zum Klingeln</h4>
+          <h4>{t("Ausgabegerät zum Klingeln")}</h4>
           <DeviceList bind:order={draft.ring_devices} devices={devices.speakers} />
         </div>
       </section>
 
       <section id="signaling">
-        <h3>Rufnummer signalisieren</h3>
+        <h3>{t("Rufnummer signalisieren")}</h3>
         <div class="card">
           {#if numbersError}
-            <p class="notice">Rufnummern nicht geladen: {numbersError}</p>
+            <p class="notice">{t("Rufnummern nicht geladen: {e}", { e: numbersError })}</p>
           {:else if numbers.length === 0}
-            <p class="muted">Die Anlage bietet keine Auswahl an.</p>
+            <p class="muted">{t("Die Anlage bietet keine Auswahl an.")}</p>
           {:else}
             {#each numbers as n (n.id)}
               <label class="radio" class:disabled={n.read_only}>
                 <input type="radio" name="signaling" value={n.id} bind:group={signaling} disabled={n.read_only} />
-                <span>{n.suppressed ? "Nummer unterdrücken" : n.number}</span>
+                <span>{n.suppressed ? t("Nummer unterdrücken") : n.number}</span>
               </label>
             {/each}
           {/if}
@@ -324,38 +331,38 @@
       <section id="callmanager">
         <h3>Call Manager</h3>
         <div class="card">
-          <Toggle bind:checked={draft.bring_to_front} label="Beim Empfang eines Anrufs die App in den Vordergrund bringen" />
+          <Toggle bind:checked={draft.bring_to_front} label={t("Beim Empfang eines Anrufs die App in den Vordergrund bringen")} />
         </div>
       </section>
 
       <section id="busylight">
         <h3>Busylight</h3>
         <div class="card">
-          <Toggle bind:checked={draft.busylight} label="Kuando Busylight verwenden" />
-          <p class="small muted">Grün: frei · Rot: im Gespräch · Rot blinkend: eingehender Anruf</p>
+          <Toggle bind:checked={draft.busylight} label={t("Kuando Busylight verwenden")} />
+          <p class="small muted">{t("Grün: frei · Rot: im Gespräch · Rot blinkend: eingehender Anruf")}</p>
           <p class="muted">
             {#if busylight.devices.length}
-              Angeschlossen: {busylight.devices.length === 1 ? "1 Gerät" : `${busylight.devices.length} Geräte`}
+              {t("Angeschlossen:")} {busylight.devices.length === 1 ? t("1 Gerät") : t("{n} Geräte", { n: busylight.devices.length })}
             {:else}
-              Kein Busylight angeschlossen.
+              {t("Kein Busylight angeschlossen.")}
             {/if}
           </p>
           {#if busylight.error}<p class="notice">{busylight.error}</p>{/if}
           <div class="bl" class:off={!draft.busylight}>
             <label>
-              <span>Ton bei Anruf</span>
+              <span>{t("Ton bei Anruf")}</span>
               <select bind:value={draft.busylight_sound}>
-                <option value="">Kein Ton</option>
-                {#each busylight.tones as t}<option value={t}>{t}</option>{/each}
+                <option value="">{t("Kein Ton")}</option>
+                {#each busylight.tones as tone}<option value={tone}>{tone}</option>{/each}
               </select>
             </label>
             <label>
-              <span>Lautstärke</span>
+              <span>{t("Lautstärke")}</span>
               <input type="range" min="0" max="100" step="5" bind:value={draft.busylight_volume} disabled={!draft.busylight_sound} />
               <span class="vol">{draft.busylight_volume} %</span>
             </label>
             <button class="play" onclick={testBusylight} disabled={blTesting || !busylight.devices.length}>
-              <Icon name="light" size={18} /> {blTesting ? "Teste …" : "Testen"}
+              <Icon name="light" size={18} /> {blTesting ? t("Teste …") : t("Testen")}
             </button>
           </div>
         </div>
@@ -364,106 +371,109 @@
       <Reach {server} />
 
       <section id="fkeys">
-        <h3>Funktionstasten</h3>
+        <h3>{t("Funktionstasten")}</h3>
         <div class="card">
           <FkeyEditor bind:columns={draft.fkey_columns} />
-          <p class="small muted">Tasten werden sofort auf der Anlage gespeichert; die Spaltenzahl mit „Speichern“.</p>
+          <p class="small muted">{t("Tasten werden sofort auf der Anlage gespeichert; die Spaltenzahl mit „Speichern“.")}</p>
         </div>
       </section>
 
       <section id="chat-notify">
-        <h3>Chat: Benachrichtigungen</h3>
+        <h3>{t("Chat: Benachrichtigungen")}</h3>
         <div class="card">
-          <Toggle bind:checked={draft.chat_notify} label="Benachrichtigung bei neuer Chatnachricht anzeigen" />
-          <Toggle bind:checked={draft.chat_sound} label="Ton bei neuer Chatnachricht abspielen" />
+          <Toggle bind:checked={draft.chat_notify} label={t("Benachrichtigung bei neuer Chatnachricht anzeigen")} />
+          <Toggle bind:checked={draft.chat_sound} label={t("Ton bei neuer Chatnachricht abspielen")} />
         </div>
       </section>
 
       <section id="chat-files">
-        <h3>Dateien empfangen</h3>
+        <h3>{t("Dateien empfangen")}</h3>
         <div class="card">
-          <p class="muted">Empfangene Dateien speichern unter</p>
+          <p class="muted">{t("Empfangene Dateien speichern unter")}</p>
           <div class="path">
             <input type="text" bind:value={draft.download_dir} placeholder={defaultDownloads || "Downloads"} />
-            <button onclick={pickDownloadDir}>Suchen</button>
+            <button onclick={pickDownloadDir}>{t("Suchen")}</button>
           </div>
-          <p class="small muted">Leer lassen für den Standardordner. Der Dateiempfang im Chat folgt in einem späteren Schritt.</p>
+          <p class="small muted">{t("Leer lassen für den Standardordner. Der Dateiempfang im Chat folgt in einem späteren Schritt.")}</p>
         </div>
       </section>
 
       <section id="chat-status">
-        <h3>Status</h3>
+        <h3>{t("Status")}</h3>
         <div class="card">
-          <Toggle bind:checked={draft.away_on_idle} label="Bei Inaktivität (10 Minuten) Status auf „Abwesend“ setzen" />
-          <Toggle bind:checked={draft.away_on_screensaver} label="Bei aktivem Bildschirmschoner Status auf „Abwesend“ setzen" />
-          <Toggle bind:checked={draft.away_on_lock} label="Bei gesperrtem Bildschirm Status auf „Abwesend“ setzen" />
+          <Toggle bind:checked={draft.away_on_idle} label={t("Bei Inaktivität (10 Minuten) Status auf „Abwesend“ setzen")} />
+          <Toggle bind:checked={draft.away_on_screensaver} label={t("Bei aktivem Bildschirmschoner Status auf „Abwesend“ setzen")} />
+          <Toggle bind:checked={draft.away_on_lock} label={t("Bei gesperrtem Bildschirm Status auf „Abwesend“ setzen")} />
           <label class="field">
-            <span>Statustext bei automatischer Abwesenheit</span>
-            <input type="text" bind:value={draft.away_text} placeholder="z. B. Bin gleich zurück" />
+            <span>{t("Statustext bei automatischer Abwesenheit")}</span>
+            <input type="text" bind:value={draft.away_text} placeholder={t("z. B. Bin gleich zurück")} />
           </label>
           <label class="field">
-            <span>Statustext beim Abmelden</span>
-            <input type="text" bind:value={draft.offline_text} placeholder="z. B. Feierabend" />
+            <span>{t("Statustext beim Abmelden")}</span>
+            <input type="text" bind:value={draft.offline_text} placeholder={t("z. B. Feierabend")} />
           </label>
         </div>
       </section>
 
       <section id="appearance">
-        <h3>Darstellung</h3>
+        <h3>{t("Darstellung")}</h3>
         <div class="card">
-          <h4>Erscheinungsbild</h4>
-          {#each [["dark", "Dunkel"], ["light", "Hell"], ["system", "System"]] as [value, label]}
+          <h4>{t("Erscheinungsbild")}</h4>
+          {#each [["dark", t("Dunkel")], ["light", t("Hell")], ["system", t("System")]] as [value, label]}
             <label class="radio"><input type="radio" name="theme" {value} bind:group={draft.theme} /> {label}</label>
           {/each}
           <hr />
           <label class="field">
-            <span>Sprache</span>
-            <select bind:value={draft.language} disabled>
+            <span>{t("Sprache")}</span>
+            <!-- Wirkt sofort zur Vorschau; gespeichert wird mit „Speichern“ -->
+            <select bind:value={draft.language} onchange={() => setLanguage(draft?.language)}>
               <option value="de">Deutsch</option>
+              <option value="en">English</option>
+              <option value="fr">Français</option>
+              <option value="it">Italiano</option>
             </select>
           </label>
-          <p class="small muted">Weitere Sprachen folgen später.</p>
           <hr />
           <label class="field">
-            <span>Arbeitsbereich</span>
+            <span>{t("Arbeitsbereich")}</span>
             <select bind:value={draft.workspace}>
-              <option value="tabs">Reiter</option>
-              <option value="free">Frei anordnen</option>
+              <option value="tabs">{t("Reiter")}</option>
+              <option value="free">{t("Frei anordnen")}</option>
             </select>
           </label>
           {#if draft.workspace === "free"}
-            <p class="small muted">Kacheln an der Titelleiste verschieben und an der Ecke unten rechts in der Grösse ändern. Über die Leiste oben blendest du Kacheln ein und aus.</p>
-            <button class="add" onclick={() => draft && (draft.workspace_tiles = null)}>Anordnung zurücksetzen</button>
+            <p class="small muted">{t("Kacheln an der Titelleiste verschieben und an der Ecke unten rechts in der Grösse ändern. Über die Leiste oben blendest du Kacheln ein und aus.")}</p>
+            <button class="add" onclick={() => draft && (draft.workspace_tiles = null)}>{t("Anordnung zurücksetzen")}</button>
           {/if}
           <hr />
-          <Toggle bind:checked={draft.start_minimized} label="Programm minimiert starten" />
-          <Toggle bind:checked={draft.minimize_to_tray} label="Beim Minimieren nur als Symbol im Infobereich anzeigen" />
-          <Toggle bind:checked={draft.always_on_top} label="Immer im Vordergrund" />
+          <Toggle bind:checked={draft.start_minimized} label={t("Programm minimiert starten")} />
+          <Toggle bind:checked={draft.minimize_to_tray} label={t("Beim Minimieren nur als Symbol im Infobereich anzeigen")} />
+          <Toggle bind:checked={draft.always_on_top} label={t("Immer im Vordergrund")} />
           {#if desktop.wayland && draft.always_on_top}
-            <p class="small muted">Unter Wayland bestimmt der Desktop, ob ein Fenster oben bleibt. Bei GNOME geht es über Alt+Leertaste → „Immer im Vordergrund“.</p>
+            <p class="small muted">{t("Unter Wayland bestimmt der Desktop, ob ein Fenster oben bleibt. Bei GNOME geht es über Alt+Leertaste → „Immer im Vordergrund“.")}</p>
           {/if}
         </div>
       </section>
 
       <section id="hotkeys">
-        <h3>Hotkeys</h3>
+        <h3>{t("Hotkeys")}</h3>
         <div class="card">
           {#if desktop.gnome}
-            <Toggle bind:checked={draft.hotkeys.enabled} label="Tastenkürzel systemweit in GNOME eintragen" />
-            <p class="small muted">Die Kürzel gelten dann in allen Programmen und überschreiben dort gleiche Kombinationen. Andere eigene Tastenkürzel bleiben unverändert.</p>
+            <Toggle bind:checked={draft.hotkeys.enabled} label={t("Tastenkürzel systemweit in GNOME eintragen")} />
+            <p class="small muted">{t("Die Kürzel gelten dann in allen Programmen und überschreiben dort gleiche Kombinationen. Andere eigene Tastenkürzel bleiben unverändert.")}</p>
           {:else}
-            <p class="muted">Dieser Desktop erlaubt Programmen keine globalen Tastenkürzel. Lege in den Systemeinstellungen eine eigene Tastenkombination mit diesem Befehl an:</p>
+            <p class="muted">{t("Dieser Desktop erlaubt Programmen keine globalen Tastenkürzel. Lege in den Systemeinstellungen eine eigene Tastenkombination mit diesem Befehl an:")}</p>
             <code>{desktop.command}</code>
-            <p class="small muted">Aktionen: dial-selection, dial-clipboard, answer, hangup, toggle-view</p>
+            <p class="small muted">{t("Aktionen:")} dial-selection, dial-clipboard, answer, hangup, toggle-view</p>
           {/if}
           <div class="keys" class:off={desktop.gnome && !draft.hotkeys.enabled}>
             {#each hotkeyRows as r}
               <div class="keyrow">
                 <span>{r.label}</span>
                 <button class="key" class:rec={recording === r.key} onclick={() => (recording = r.key)} onkeydown={(e) => recording === r.key && recordKey(e, r.key)} onblur={() => recording === r.key && (recording = null)}>
-                  {recording === r.key ? "Tasten drücken …" : showAccel(draft.hotkeys[r.key])}
+                  {recording === r.key ? t("Tasten drücken …") : showAccel(draft.hotkeys[r.key])}
                 </button>
-                <button class="x" title="Entfernen" onclick={() => draft && (draft.hotkeys[r.key] = "")} disabled={!draft.hotkeys[r.key]}><Icon name="close" size={18} /></button>
+                <button class="x" title={t("Entfernen")} onclick={() => draft && (draft.hotkeys[r.key] = "")} disabled={!draft.hotkeys[r.key]}><Icon name="close" size={18} /></button>
               </div>
             {/each}
           </div>
@@ -471,10 +481,10 @@
       </section>
 
       <section id="account">
-        <h3>Konto</h3>
+        <h3>{t("Konto")}</h3>
         <div class="card">
-          <button class="logout" onclick={onlogout}><Icon name="logout" size={18} /> Abmelden</button>
-          {#if version}<p class="version">Version {version}</p>{/if}
+          <button class="logout" onclick={onlogout}><Icon name="logout" size={18} /> {t("Abmelden")}</button>
+          {#if version}<p class="version">{t("Version {v}", { v: version })}</p>{/if}
         </div>
       </section>
     {/if}
@@ -482,8 +492,8 @@
 
   <footer>
     {#if notice}<p class="notice">{notice}</p>{/if}
-    <button class="primary" onclick={save} disabled={!draft || saving}>{saving ? "Speichere …" : "Speichern"}</button>
-    <button onclick={onclose}>Abbrechen</button>
+    <button class="primary" onclick={save} disabled={!draft || saving}>{saving ? t("Speichere …") : t("Speichern")}</button>
+    <button onclick={cancel}>{t("Abbrechen")}</button>
   </footer>
 </div>
 

@@ -3,6 +3,7 @@
   import Icon from "./Icon.svelte";
   import { phone, run } from "./phone.svelte";
   import type { Contact } from "./contacts";
+  import { t } from "./i18n.svelte";
 
   let text = $state("");
   let results = $state<Contact[]>([]);
@@ -84,31 +85,31 @@
       {onkeydown}
       onfocus={() => (open = true)}
       onblur={() => setTimeout(() => (open = false), 150)}
-      placeholder="Name/Nummer eingeben"
+      placeholder={t("Name/Nummer eingeben")}
       autocomplete="off"
       spellcheck="false"
     />
   </label>
-  <button class="dialbtn" class:armed={text.trim() && ready} type="submit" title="Anrufen" disabled={!ready || dialing || !text.trim()}>
+  <button class="dialbtn" class:armed={text.trim() && ready} type="submit" title={t("Anrufen")} disabled={!ready || dialing || !text.trim()}>
     <Icon name="call" />
   </button>
   {#if open && text.trim().length >= 2 && (results.length || searchError)}
     <div class="results">
-      {#if searchError}<p class="err">Suche nicht möglich: {searchError}</p>{/if}
+      {#if searchError}<p class="err">{t("Suche nicht möglich: {e}", { e: searchError })}</p>{/if}
       {#each results as c (c.id + c.name)}
         <div class="hit">
           <div class="who">
-            <strong>{c.name || c.company || "Ohne Namen"}</strong>
+            <strong>{c.name || c.company || t("Ohne Namen")}</strong>
             {#if c.company && c.company !== c.name}<span>{c.company}</span>{/if}
           </div>
           <div class="nums">
             {#each c.numbers as n}
               {@const i = flat.findIndex((f) => f.contact === c && f.number === n.number)}
-              <button type="button" class="num" class:active={i === active} disabled={!ready} onmousedown={(e) => e.preventDefault()} onclick={() => dial(n.number)} title="{n.label} anrufen">
-                <Icon name="call" size={14} /><span class="lbl">{n.label}</span>{n.number}
+              <button type="button" class="num" class:active={i === active} disabled={!ready} onmousedown={(e) => e.preventDefault()} onclick={() => dial(n.number)} title={t("{label} anrufen", { label: t(n.label) })}>
+                <Icon name="call" size={14} /><span class="lbl">{t(n.label)}</span>{n.number}
               </button>
             {:else}
-              <span class="none">Keine Nummer</span>
+              <span class="none">{t("Keine Nummer")}</span>
             {/each}
           </div>
         </div>

@@ -5,6 +5,7 @@ use tauri::{AppHandle, Emitter, Manager, State};
 use tauri_plugin_notification::NotificationExt;
 use tokio::sync::{Mutex, mpsc};
 
+use crate::i18n::{t, tf};
 use crate::{AppState, hub};
 
 #[derive(Default)]
@@ -34,15 +35,15 @@ pub async fn restart(app: &AppHandle, hub: Option<sf_onehub::OneHub>) {
 
 fn notify(app: &AppHandle, v: &Voicemail) {
     let who = match (v.name.trim(), v.number.trim()) {
-        ("", "") => "Unbekannt".to_owned(),
+        ("", "") => t("Unbekannt").to_owned(),
         ("", n) | (n, "") => n.to_owned(),
         (name, n) => format!("{name} ({n})"),
     };
     if let Err(e) = app
         .notification()
         .builder()
-        .title("Neue Voicemail")
-        .body(format!("von {who}"))
+        .title(t("Neue Voicemail"))
+        .body(tf("von {who}", &[("who", &who)]))
         .show()
     {
         tracing::warn!(error = %e, "Benachrichtigung nicht angezeigt");
@@ -79,7 +80,7 @@ pub async fn voicemail_save(
     let (tx, rx) = tokio::sync::oneshot::channel();
     app.dialog()
         .file()
-        .set_title("Voicemail speichern")
+        .set_title(t("Voicemail speichern"))
         .set_file_name(format!("{name}.wav"))
         .add_filter("WAV-Audio", &["wav"])
         .save_file(move |f| {
@@ -92,7 +93,8 @@ pub async fn voicemail_save(
     let data = voicemail::download(&hub(&state).await?, &id)
         .await
         .map_err(|e| e.to_string())?;
-    std::fs::write(&path, data).map_err(|e| format!("Nicht gespeichert: {e}"))?;
+    std::fs::write(&path, data)
+        .map_err(|e| tf("Nicht gespeichert: {e}", &[("e", &e.to_string())]))?;
     Ok(true)
 }
 
@@ -102,7 +104,7 @@ pub async fn voicemail_move(
     id: String,
     folder: String,
 ) -> Result<(), String> {
-    let folder = voicemail::folder_of(&folder).ok_or("Unbekannter Ordner")?;
+    let folder = voicemail::folder_of(&folder).ok_or(t("Unbekannter Ordner"))?;
     voicemail::move_to(&hub(&state).await?, &id, folder)
         .await
         .map_err(|e| e.to_string())
@@ -124,7 +126,7 @@ pub async fn voicemail_via_phone(state: State<'_, AppState>, id: String) -> Resu
         .await
         .as_ref()
         .map(|p| p.phone_id().to_owned())
-        .ok_or("Das Softphone ist nicht aktiv.")?;
+        .ok_or(t("Das Softphone ist nicht aktiv."))?;
     voicemail::play_via_phone(&hub(&state).await?, &id, &phone_id)
         .await
         .map_err(|e| e.to_string())

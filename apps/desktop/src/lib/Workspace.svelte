@@ -28,6 +28,7 @@
   // Zeigerereignisse (HTML5-Drag&Drop funktioniert im Linux-Fenster nicht).
   import type { Snippet } from "svelte";
   import Icon, { type IconName } from "./Icon.svelte";
+  import { t } from "./i18n.svelte";
 
   let {
     tiles = $bindable(),
@@ -110,20 +111,20 @@
 <svelte:window onpointermove={onmove} onpointerup={onup} onpointercancel={onup} />
 
 <div class="area" class:editing bind:clientWidth={width} style="height: {height}px">
-  {#each tiles.filter((t) => t.visible) as t (t.id)}
+  {#each tiles.filter((x) => x.visible) as tile (tile.id)}
     <section
       class="tile"
-      data-tile={t.id}
-      style="left: {t.x * col}px; top: {t.y * ROW}px; width: {t.w * col}px; height: {t.h * ROW}px; z-index: {z(t.id)}"
+      data-tile={tile.id}
+      style="left: {tile.x * col}px; top: {tile.y * ROW}px; width: {tile.w * col}px; height: {tile.h * ROW}px; z-index: {z(tile.id)}"
     >
-      <header role="toolbar" tabindex="-1" onpointerdown={(e) => start(e, t, "move")}>
-        <Icon name={meta[t.id].icon} size={16} />
-        <span>{meta[t.id].label}</span>
-        {#if badge?.(t.id)}<b class="unread">{badge(t.id)}</b>{/if}
-        {#if editing}<button class="x" title="Ausblenden" onclick={() => hide(t)}><Icon name="close" size={16} /></button>{/if}
+      <header role="toolbar" tabindex="-1" onpointerdown={(e) => start(e, tile, "move")}>
+        <Icon name={meta[tile.id].icon} size={16} />
+        <span>{meta[tile.id].label}</span>
+        {#if badge?.(tile.id)}<b class="unread">{badge(tile.id)}</b>{/if}
+        {#if editing}<button class="x" title={t("Ausblenden")} onclick={() => hide(tile)}><Icon name="close" size={16} /></button>{/if}
       </header>
-      <div class="body">{@render body(t.id)}</div>
-      {#if editing}<span class="grip" role="separator" aria-label="Grösse ändern" onpointerdown={(e) => start(e, t, "size")}></span>{/if}
+      <div class="body">{@render body(tile.id)}</div>
+      {#if editing}<span class="grip" role="separator" aria-label={t("Grösse ändern")} onpointerdown={(e) => start(e, tile, "size")}></span>{/if}
     </section>
   {/each}
 </div>

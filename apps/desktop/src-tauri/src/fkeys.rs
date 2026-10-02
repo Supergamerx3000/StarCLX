@@ -35,7 +35,7 @@ async fn rest(state: &AppState) -> Result<(Rest, sf_onehub::OneHub, String), Str
                 s.info().user_id.clone(),
             )
         })
-        .ok_or("Nicht angemeldet")?;
+        .ok_or(crate::i18n::t("Nicht angemeldet"))?;
     let rest = Rest::new(&server, &hub).map_err(|e| e.to_string())?;
     Ok((rest, hub, user))
 }

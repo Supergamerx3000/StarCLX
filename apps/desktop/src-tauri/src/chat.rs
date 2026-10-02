@@ -7,6 +7,8 @@ use tauri::{AppHandle, Emitter, Manager, State};
 use tauri_plugin_notification::NotificationExt;
 use tokio::sync::{Mutex, mpsc};
 
+use crate::i18n::{t, tf};
+
 #[derive(Default)]
 pub struct ChatState {
     pub chat: Mutex<Option<Chat>>,
@@ -27,16 +29,21 @@ pub fn start(app: &AppHandle, hub: sf_onehub::OneHub, host: String, user_id: Str
     tauri::async_runtime::spawn(async move {
         set_status(&app, |s| {
             *s = ChatStatus {
-                detail: "Verbinde …".into(),
+                detail: t("Verbinde …").into(),
                 ..Default::default()
             }
         });
         let jid = match hub.chat_jid(&user_id).await {
             Ok(jid) if !jid.is_empty() => jid,
             Ok(_) => {
-                return set_status(&app, |s| s.detail = "Kein Chat-Konto auf der Anlage".into());
+                return set_status(&app, |s| {
+                    s.detail = t("Kein Chat-Konto auf der Anlage").into()
+                });
             }
-            Err(e) => return set_status(&app, |s| s.detail = format!("Chat nicht verfügbar: {e}")),
+            Err(e) => {
+                let detail = tf("Chat nicht verfügbar: {e}", &[("e", &e.to_string())]);
+                return set_status(&app, |s| s.detail = detail);
+            }
         };
         let file = app
             .path()
@@ -157,7 +164,7 @@ pub async fn chat_conversation(
     peer: String,
 ) -> Result<Vec<ChatMessage>, String> {
     let chat = state.chat.lock().await;
-    let chat = chat.as_ref().ok_or("Chat ist nicht verbunden")?;
+    let chat = chat.as_ref().ok_or(t("Chat ist nicht verbunden"))?;
     Ok(chat.conversation(&peer))
 }
 
@@ -171,7 +178,7 @@ pub async fn chat_send(
         return Ok(());
     }
     let chat = state.chat.lock().await;
-    let chat = chat.as_ref().ok_or("Chat ist nicht verbunden")?;
+    let chat = chat.as_ref().ok_or(t("Chat ist nicht verbunden"))?;
     chat.send(&peer, body.trim_end());
     Ok(())
 }
@@ -191,7 +198,7 @@ pub async fn pick_download_dir(app: AppHandle) -> Result<Option<String>, String>
     let (tx, rx) = tokio::sync::oneshot::channel();
     app.dialog()
         .file()
-        .set_title("Ordner für empfangene Dateien")
+        .set_title(t("Ordner für empfangene Dateien"))
         .pick_folder(move |f| {
             let _ = tx.send(f);
         });

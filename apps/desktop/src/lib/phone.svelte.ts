@@ -1,6 +1,7 @@
 // Gemeinsamer Stand des Telefons für alle Komponenten.
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
+import { t } from "./i18n.svelte";
 
 export type Phase = "setup" | "ringing" | "ringback" | "connected" | "held" | "other";
 export type Call = {
@@ -56,7 +57,7 @@ export const action = (action: string, callId: string, number?: string) =>
   run("phone_action", { action, callId, number });
 
 export function who(c: Call) {
-  return c.remote_name || c.remote_number || "Unbekannt";
+  return c.remote_name || c.remote_number || t("Unbekannt");
 }
 
 export function duration(c: Call, now: number) {

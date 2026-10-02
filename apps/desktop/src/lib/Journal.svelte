@@ -7,6 +7,7 @@
   import { contactEdit, newContact } from "./contactform.svelte";
   import ShareNote from "./ShareNote.svelte";
   import { searchable } from "./numbers";
+  import { locale, t } from "./i18n.svelte";
 
   type Entry = {
     id: string;
@@ -48,8 +49,8 @@
       if (filter === "missed" && !(e.missed && e.incoming)) return false;
       if (filter === "in" && !e.incoming) return false;
       if (filter === "out" && e.incoming) return false;
-      const t = term.trim().toLowerCase();
-      return !t || e.name.toLowerCase().includes(t) || e.number.includes(t);
+      const q = term.trim().toLowerCase();
+      return !q || e.name.toLowerCase().includes(q) || e.number.includes(q);
     }),
   );
 
@@ -68,11 +69,11 @@
     const d = new Date(ms);
     const today = new Date();
     const yesterday = new Date(Date.now() - 86400000);
-    if (d.toDateString() === today.toDateString()) return "Heute";
-    if (d.toDateString() === yesterday.toDateString()) return "Gestern";
-    return d.toLocaleDateString("de-CH", { weekday: "long", day: "numeric", month: "long", year: "numeric" });
+    if (d.toDateString() === today.toDateString()) return t("Heute");
+    if (d.toDateString() === yesterday.toDateString()) return t("Gestern");
+    return d.toLocaleDateString(locale(), { weekday: "long", day: "numeric", month: "long", year: "numeric" });
   }
-  const time = (ms: number) => new Date(ms).toLocaleTimeString("de-CH", { hour: "2-digit", minute: "2-digit" });
+  const time = (ms: number) => new Date(ms).toLocaleTimeString(locale(), { hour: "2-digit", minute: "2-digit" });
   function dur(s: number) {
     if (!s) return "";
     const m = Math.floor(s / 60);
@@ -83,10 +84,12 @@
   let sharing = $state<Entry | null>(null);
 
   function shareText(e: Entry) {
-    const who = [e.name, e.number].filter(Boolean).join(", ") || "Unbekannt";
-    const kind = e.missed && e.incoming ? "Verpasster Anruf" : e.incoming ? "Eingehender Anruf" : "Ausgehender Anruf";
-    const when = new Date(e.start).toLocaleString("de-CH", { dateStyle: "medium", timeStyle: "short" });
-    return ["Gesprächsnotiz", `${kind} ${e.incoming ? "von" : "an"} ${who}`, `Zeit: ${when}${e.duration_secs ? `, Dauer ${dur(e.duration_secs)}` : ""}`, e.comment && `Notiz: ${e.comment}`]
+    const who = [e.name, e.number].filter(Boolean).join(", ") || t("Unbekannt");
+    const head = e.missed && e.incoming ? t("Verpasster Anruf von {who}", { who })
+      : e.incoming ? t("Eingehender Anruf von {who}", { who }) : t("Ausgehender Anruf an {who}", { who });
+    const when = new Date(e.start).toLocaleString(locale(), { dateStyle: "medium", timeStyle: "short" });
+    const length = e.duration_secs ? t(", Dauer {dauer}", { dauer: dur(e.duration_secs) }) : "";
+    return [t("Gesprächsnotiz"), head, t("Zeit: {when}", { when }) + length, e.comment && t("Notiz: {text}", { text: e.comment })]
       .filter(Boolean)
       .join("\n");
   }
@@ -138,12 +141,12 @@
     editing = null;
   }
 
-  const filters = [
-    { id: "all", label: "Alle" },
-    { id: "missed", label: "Verpasst" },
-    { id: "in", label: "Eingehend" },
-    { id: "out", label: "Ausgehend" },
-  ] as const;
+  const filters = $derived([
+    { id: "all", label: t("Alle") },
+    { id: "missed", label: t("Verpasst") },
+    { id: "in", label: t("Eingehend") },
+    { id: "out", label: t("Ausgehend") },
+  ] as const);
 </script>
 
 <div class="journal">
@@ -153,30 +156,30 @@
     {/each}
     <label class="filter">
       <Icon name="search" size={18} />
-      <input bind:value={term} placeholder="Name oder Nummer" />
+      <input bind:value={term} placeholder={t("Name oder Nummer")} />
     </label>
   </div>
-  {#if error}<p class="error">Rufliste: {error}</p>{/if}
+  {#if error}<p class="error">{t("Rufliste: {e}", { e: error })}</p>{/if}
   <div class="list">
     {#each days as day (day.label)}
       <h3>{day.label}</h3>
       {#each day.items as e (e.id)}
         <div class="row" class:missed={e.missed && e.incoming}>
-          <span class="dir" title={e.missed ? "Verpasst" : e.incoming ? "Eingehend" : "Ausgehend"}>
+          <span class="dir" title={e.missed ? t("Verpasst") : e.incoming ? t("Eingehend") : t("Ausgehend")}>
             <Icon name={e.missed && e.incoming ? "missed" : e.incoming ? "incoming" : "outgoing"} size={20} />
           </span>
           <div class="who">
-            <strong>{e.name || e.number || "Unbekannt"}</strong>
+            <strong>{e.name || e.number || t("Unbekannt")}</strong>
             <small>
               {#if e.name && e.number}{e.number}{/if}
-              {#if e.group} · Gruppe {e.group}{#if e.answered_by}, angenommen von {e.answered_by}{/if}{/if}
+              {#if e.group} · {t("Gruppe {name}", { name: e.group })}{#if e.answered_by}, {t("angenommen von {name}", { name: e.answered_by })}{/if}{/if}
               {#if e.voicemail} · Voicemail{/if}
             </small>
             {#if editing === e.id}
               <form class="comment" onsubmit={(ev) => saveComment(ev, e.id)}>
-                <input bind:value={commentText} placeholder="Notiz" />
-                <button type="submit">Speichern</button>
-                <button type="button" onclick={() => (editing = null)}>Abbrechen</button>
+                <input bind:value={commentText} placeholder={t("Notiz")} />
+                <button type="submit">{t("Speichern")}</button>
+                <button type="button" onclick={() => (editing = null)}>{t("Abbrechen")}</button>
               </form>
             {:else if e.comment}
               <button class="note" onclick={() => startComment(e)}>📝 {e.comment}</button>
@@ -188,36 +191,36 @@
               <button
                 class="icon"
                 class:done={e.called_back}
-                title={e.called_back ? "Als nicht zurückgerufen markieren" : "Als zurückgerufen markieren"}
+                title={e.called_back ? t("Als nicht zurückgerufen markieren") : t("Als zurückgerufen markieren")}
                 onclick={() => act(e.called_back ? "not_called_back" : "called_back", e.id)}
               >✓</button>
             {/if}
             {#if external(e.number) && !e.name && !known[e.number]}
-              <button class="icon" title="Ins Adressbuch übernehmen" onclick={() => newContact({ number: e.number })}><Icon name="person" size={18} /></button>
+              <button class="icon" title={t("Ins Adressbuch übernehmen")} onclick={() => newContact({ number: e.number })}><Icon name="person" size={18} /></button>
             {/if}
-            <button class="icon" title="Notiz" onclick={() => startComment(e)}>✎</button>
-            <button class="icon" title="Weitergeben (Chat oder E-Mail)" onclick={() => (sharing = e)}><Icon name="send" size={18} /></button>
+            <button class="icon" title={t("Notiz")} onclick={() => startComment(e)}>✎</button>
+            <button class="icon" title={t("Weitergeben (Chat oder E-Mail)")} onclick={() => (sharing = e)}><Icon name="send" size={18} /></button>
             <button
               class="icon"
               class:warn={confirmDelete === e.id}
-              title={confirmDelete === e.id ? "Nochmals klicken zum Löschen" : "Löschen"}
+              title={confirmDelete === e.id ? t("Nochmals klicken zum Löschen") : t("Löschen")}
               onclick={() => (confirmDelete === e.id ? act("delete", e.id) : (confirmDelete = e.id))}
               onblur={() => confirmDelete === e.id && (confirmDelete = null)}
             ><Icon name="trash" size={18} /></button>
             {#if e.number}
-              <button class="call" title="Anrufen" disabled={!ready} onclick={() => run("phone_dial", { number: e.number })}><Icon name="call" size={18} /></button>
+              <button class="call" title={t("Anrufen")} disabled={!ready} onclick={() => run("phone_dial", { number: e.number })}><Icon name="call" size={18} /></button>
             {/if}
           </div>
         </div>
       {/each}
     {:else}
-      <p class="muted">{entries.length ? "Keine passenden Einträge." : "Die Rufliste ist leer."}</p>
+      <p class="muted">{entries.length ? t("Keine passenden Einträge.") : t("Die Rufliste ist leer.")}</p>
     {/each}
   </div>
 </div>
 
 {#if sharing}
-  <ShareNote text={shareText(sharing)} subject={`Anruf ${sharing.name || sharing.number}`} onclose={() => (sharing = null)} />
+  <ShareNote text={shareText(sharing)} subject={t("Anruf {who}", { who: sharing.name || sharing.number })} onclose={() => (sharing = null)} />
 {/if}
 
 <style>

@@ -2,6 +2,7 @@
   import CallCard from "./CallCard.svelte";
   import Icon from "./Icon.svelte";
   import { isRingingIn, phone } from "./phone.svelte";
+  import { t } from "./i18n.svelte";
 
   let open = $state(false);
   const calls = $derived(phone.status.calls);
@@ -28,7 +29,7 @@
       {#each calls as call (call.id)}
         <CallCard {call} />
       {:else}
-        <p class="empty">Keine Gespräche</p>
+        <p class="empty">{t("Keine Gespräche")}</p>
       {/each}
       {#if phone.notice}
         <p class="notice">{phone.notice}</p>

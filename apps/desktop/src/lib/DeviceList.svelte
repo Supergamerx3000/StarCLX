@@ -13,12 +13,13 @@
 
 <script lang="ts">
   import Icon from "./Icon.svelte";
+  import { t } from "./i18n.svelte";
 
   let { order = $bindable([]), devices }: { order: string[]; devices: Device[] } = $props();
   let selected = $state(0);
 
   const label = (name: string) =>
-    name === DEFAULT ? "Systemstandard" : (devices.find((d) => d.name === name)?.description || name);
+    name === DEFAULT ? t("Systemstandard") : (devices.find((d) => d.name === name)?.description || name);
   const present = (name: string) => name === DEFAULT || devices.some((d) => d.name === name);
   // Das Gerät, das tatsächlich benutzt wird
   const active = $derived(order.find(present));
@@ -42,16 +43,16 @@
   {#each order as name, i (name)}
     <button class="row" class:sel={i === selected} class:absent={!present(name)} onclick={() => (selected = i)} role="option" aria-selected={i === selected}>
       <span>{label(name)}</span>
-      {#if !present(name)}<small>nicht verbunden</small>{/if}
-      {#if name === active}<small class="act">wird verwendet</small>{/if}
+      {#if !present(name)}<small>{t("nicht verbunden")}</small>{/if}
+      {#if name === active}<small class="act">{t("wird verwendet")}</small>{/if}
     </button>
   {/each}
 </div>
 <div class="acts">
-  <button onclick={remove} disabled={order[selected] === DEFAULT}>Löschen</button>
+  <button onclick={remove} disabled={order[selected] === DEFAULT}>{t("Löschen")}</button>
   <span class="spacer"></span>
-  <button onclick={() => move(1)} disabled={selected >= order.length - 1}><Icon name="down" size={18} /> Nach unten</button>
-  <button onclick={() => move(-1)} disabled={selected <= 0}><Icon name="up" size={18} /> Nach oben</button>
+  <button onclick={() => move(1)} disabled={selected >= order.length - 1}><Icon name="down" size={18} /> {t("Nach unten")}</button>
+  <button onclick={() => move(-1)} disabled={selected <= 0}><Icon name="up" size={18} /> {t("Nach oben")}</button>
 </div>
 
 <style>

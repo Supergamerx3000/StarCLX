@@ -6,6 +6,7 @@
   import { phone, run } from "./phone.svelte";
   import { initials, type Contact, type Folder } from "./contacts";
   import { contactEdit, editContact, newContact } from "./contactform.svelte";
+  import { t } from "./i18n.svelte";
 
   let folders = $state<Folder[]>([]);
   let folder = $state("");
@@ -76,33 +77,33 @@
 <div class="book">
   <nav class="folders">
     {#each folders as f (f.id)}
-      <button class:active={f.id === folder} onclick={() => pick(f.id)}>{f.name}</button>
+      <button class:active={f.id === folder} onclick={() => pick(f.id)}>{t(f.name)}</button>
     {/each}
     {#if folders.some((f) => f.writable)}
       <span class="spacer"></span>
-      <button class="add" title="Kontakt anlegen" onclick={() => newContact({ folder: writable ? folder : "" })}><Icon name="person" size={18} /> Neuer Kontakt</button>
+      <button class="add" title={t("Kontakt anlegen")} onclick={() => newContact({ folder: writable ? folder : "" })}><Icon name="person" size={18} /> {t("Neuer Kontakt")}</button>
     {/if}
   </nav>
   <div class="cols">
     <div class="list">
       <label class="filter">
         <Icon name="search" size={18} />
-        <input bind:value={term} {oninput} placeholder="Im Adressbuch suchen" />
+        <input bind:value={term} {oninput} placeholder={t("Im Adressbuch suchen")} />
       </label>
       {#if error}<p class="muted">{error}</p>{/if}
       {#each contacts as c (c.id)}
         <button class="row" class:active={selected?.id === c.id} onclick={() => (selected = c)}>
           <span class="av">{initials(c.name)}</span>
           <span class="txt">
-            <strong>{c.name || "Ohne Namen"}</strong>
+            <strong>{c.name || t("Ohne Namen")}</strong>
             <small>{c.company && c.company !== c.name ? c.company : (c.numbers[0]?.number ?? "")}</small>
           </span>
         </button>
       {:else}
-        {#if !loading && !error}<p class="muted">Keine Kontakte gefunden.</p>{/if}
+        {#if !loading && !error}<p class="muted">{t("Keine Kontakte gefunden.")}</p>{/if}
       {/each}
       {#if contacts.length < total}
-        <button class="more" onclick={() => load(false)} disabled={loading}>{loading ? "Lade …" : `Weitere laden (${total - contacts.length})`}</button>
+        <button class="more" onclick={() => load(false)} disabled={loading}>{loading ? t("Lade …") : t("Weitere laden ({n})", { n: total - contacts.length })}</button>
       {/if}
     </div>
     <div class="divider" role="separator" aria-orientation="vertical" use:splitter={"contacts"}></div>
@@ -111,26 +112,26 @@
         <div class="head">
           <span class="av big">{initials(selected.name)}</span>
           <div>
-            <h3>{selected.name || "Ohne Namen"}</h3>
+            <h3>{selected.name || t("Ohne Namen")}</h3>
             {#if selected.company && selected.company !== selected.name}<p class="muted">{selected.company}</p>{/if}
           </div>
           {#if selected.editable}
             <span class="spacer"></span>
-            <button class="edit" title="Kontakt bearbeiten" onclick={() => selected && editContact(selected.id)}><Icon name="edit" size={18} /> Bearbeiten</button>
+            <button class="edit" title={t("Kontakt bearbeiten")} onclick={() => selected && editContact(selected.id)}><Icon name="edit" size={18} /> {t("Bearbeiten")}</button>
           {/if}
         </div>
         {#each selected.numbers as n}
           <div class="num">
-            <span class="lbl">{n.label}</span>
+            <span class="lbl">{t(n.label)}</span>
             <span class="val">{n.number}</span>
-            <button class="call" disabled={!ready} title="Anrufen" onclick={() => run("phone_dial", { number: n.number })}><Icon name="call" size={18} /></button>
+            <button class="call" disabled={!ready} title={t("Anrufen")} onclick={() => run("phone_dial", { number: n.number })}><Icon name="call" size={18} /></button>
           </div>
         {/each}
         {#if selected.email}
-          <div class="num"><span class="lbl">E-Mail</span><span class="val">{selected.email}</span></div>
+          <div class="num"><span class="lbl">{t("E-Mail")}</span><span class="val">{selected.email}</span></div>
         {/if}
       {:else}
-        <p class="muted">Kontakt auswählen.</p>
+        <p class="muted">{t("Kontakt auswählen.")}</p>
       {/if}
     </div>
   </div>

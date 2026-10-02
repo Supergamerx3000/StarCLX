@@ -6,6 +6,7 @@ use sf_core::redirect::{self, FmcPhone, Mailbox, Redirect, RedirectTarget, Watch
 use tauri::{AppHandle, Emitter, Manager, State};
 use tokio::sync::{Mutex, mpsc};
 
+use crate::i18n::t;
 use crate::{AppState, hub};
 
 #[derive(Default)]
@@ -69,7 +70,7 @@ pub async fn fmc_phones(state: State<'_, AppState>) -> Result<Vec<FmcPhone>, Str
 #[tauri::command]
 pub async fn fmc_save(state: State<'_, AppState>, phone: FmcPhone) -> Result<(), String> {
     if phone.number.trim().is_empty() {
-        return Err("Bitte eine Rufnummer eingeben.".into());
+        return Err(t("Bitte eine Rufnummer eingeben.").into());
     }
     redirect::save_fmc_phone(&hub(&state).await?, &phone)
         .await
@@ -110,7 +111,7 @@ pub async fn mailbox_record(state: State<'_, AppState>, mailbox: String) -> Resu
         .await
         .as_ref()
         .map(|p| p.phone_id().to_owned())
-        .ok_or("Das Softphone ist nicht aktiv.")?;
+        .ok_or(t("Das Softphone ist nicht aktiv."))?;
     redirect::call_mailbox(&hub(&state).await?, &mailbox, &phone_id)
         .await
         .map_err(|e| e.to_string())

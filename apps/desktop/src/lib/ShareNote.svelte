@@ -6,6 +6,7 @@
   import { openUrl } from "@tauri-apps/plugin-opener";
   import { untrack } from "svelte";
   import { chat } from "./chat.svelte";
+  import { t } from "./i18n.svelte";
 
   let { text: initial, subject, onclose }: { text: string; subject: string; onclose: () => void } = $props();
 
@@ -40,7 +41,7 @@
       await openUrl(`mailto:?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(text)}`);
       onclose();
     } catch (e) {
-      error = `Mailprogramm nicht geöffnet: ${e}`;
+      error = t("Mailprogramm nicht geöffnet: {e}", { e: String(e) });
     }
   }
 </script>
@@ -49,28 +50,28 @@
 
 <div class="layer" use:portal>
 <div class="scrim" role="presentation" onclick={onclose}></div>
-<div class="dialog" role="dialog" aria-label="Anruf weitergeben">
-  <h4>Anruf weitergeben</h4>
+<div class="dialog" role="dialog" aria-label={t("Anruf weitergeben")}>
+  <h4>{t("Anruf weitergeben")}</h4>
   <textarea bind:value={text} rows="6"></textarea>
-  <h5>Per Chat an</h5>
+  <h5>{t("Per Chat an")}</h5>
   {#if chat.status.online}
-    <input type="text" bind:value={filter} placeholder="Kollegen suchen" />
+    <input type="text" bind:value={filter} placeholder={t("Kollegen suchen")} />
     <div class="people">
       {#each people as c (c.jid)}
         <button class:active={peer === c.jid} aria-pressed={peer === c.jid} onclick={() => (peer = c.jid)}>{peer === c.jid ? "✓ " : ""}{c.name}</button>
       {:else}
-        <p class="muted">Keine Kollegen gefunden.</p>
+        <p class="muted">{t("Keine Kollegen gefunden.")}</p>
       {/each}
     </div>
   {:else}
-    <p class="muted">Chat ist nicht verbunden.</p>
+    <p class="muted">{t("Chat ist nicht verbunden.")}</p>
   {/if}
   {#if error}<p class="notice">{error}</p>{/if}
   <div class="actions">
-    <button onclick={sendMail}>Per E-Mail …</button>
+    <button onclick={sendMail}>{t("Per E-Mail …")}</button>
     <span class="spacer"></span>
-    <button onclick={onclose}>Abbrechen</button>
-    <button class="primary" disabled={busy || !peer || !text.trim()} onclick={sendChat}>Per Chat senden</button>
+    <button onclick={onclose}>{t("Abbrechen")}</button>
+    <button class="primary" disabled={busy || !peer || !text.trim()} onclick={sendChat}>{t("Per Chat senden")}</button>
   </div>
 </div>
 </div>

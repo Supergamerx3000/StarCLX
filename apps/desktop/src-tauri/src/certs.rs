@@ -58,7 +58,7 @@ fn host_of(server: &str) -> Option<String> {
 #[tauri::command]
 pub async fn check_certificate(server: String) -> Result<Option<UntrustedCert>, String> {
     let url = url::Url::parse(&normalize_server(&server)).map_err(|e| e.to_string())?;
-    let host = host_of(url.as_str()).ok_or("Server-Adresse ohne Hostname")?;
+    let host = host_of(url.as_str()).ok_or(crate::i18n::t("Server-Adresse ohne Hostname"))?;
     let mut ports = vec![sf_onehub::DEFAULT_PORT];
     if url.scheme() == "https" {
         ports.insert(0, url.port_or_known_default().unwrap_or(443));

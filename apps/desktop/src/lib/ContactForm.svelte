@@ -4,6 +4,7 @@
   import Icon from "./Icon.svelte";
   import type { Folder } from "./contacts";
   import { contactEdit, PHONE_KEYS, type ContactField } from "./contactform.svelte";
+  import { t } from "./i18n.svelte";
 
   let fields = $state<ContactField[]>([]);
   let folders = $state<Folder[]>([]);
@@ -85,36 +86,36 @@
 <svelte:window onkeydown={(e) => e.key === "Escape" && close()} />
 
 <div class="scrim" role="presentation" onclick={close}></div>
-<div class="dialog" role="dialog" aria-label={isNew ? "Neuer Kontakt" : "Kontakt bearbeiten"}>
-  <h4>{isNew ? "Neuer Kontakt" : "Kontakt bearbeiten"}</h4>
+<div class="dialog" role="dialog" aria-label={isNew ? t("Neuer Kontakt") : t("Kontakt bearbeiten")}>
+  <h4>{isNew ? t("Neuer Kontakt") : t("Kontakt bearbeiten")}</h4>
   {#if loading}
-    <p class="muted">Lade …</p>
+    <p class="muted">{t("Lade …")}</p>
   {:else}
     <div class="body">
       {#if isNew}
-        <label class="row"><span>Adressbuch</span>
+        <label class="row"><span>{t("Adressbuch")}</span>
           <select bind:value={folder}>
-            {#each folders as f}<option value={f.id}>{f.name}</option>{/each}
+            {#each folders as f}<option value={f.id}>{t(f.name)}</option>{/each}
           </select>
         </label>
-        {#if !folders.length}<p class="notice">Du darfst in keinem Adressbuch Kontakte anlegen.</p>{/if}
+        {#if !folders.length}<p class="notice">{t("Du darfst in keinem Adressbuch Kontakte anlegen.")}</p>{/if}
       {/if}
       {#each groups as g}
-        <h5>{g}</h5>
+        <h5>{t(g)}</h5>
         {#each fields.filter((f) => f.group === g) as f}
-          <label class="row"><span>{f.label}</span><input type="text" bind:value={f.value} use:focusIf={isNew && f.key === SURNAME} /></label>
+          <label class="row"><span>{t(f.label)}</span><input type="text" bind:value={f.value} use:focusIf={isNew && f.key === SURNAME} /></label>
         {/each}
       {/each}
     </div>
   {/if}
-  {#if error}<p class="notice">{error}</p>{:else if !loading && !named}<p class="muted hint">Nachname oder Firma ausfüllen.</p>{/if}
+  {#if error}<p class="notice">{error}</p>{:else if !loading && !named}<p class="muted hint">{t("Nachname oder Firma ausfüllen.")}</p>{/if}
   <div class="actions">
     {#if !isNew}
-      <button class="danger" disabled={busy || loading} onclick={remove}><Icon name="trash" size={18} /> {confirmDelete ? "Wirklich löschen?" : "Löschen"}</button>
+      <button class="danger" disabled={busy || loading} onclick={remove}><Icon name="trash" size={18} /> {confirmDelete ? t("Wirklich löschen?") : t("Löschen")}</button>
     {/if}
     <span class="spacer"></span>
-    <button onclick={close}>Abbrechen</button>
-    <button class="primary" disabled={busy || loading || !named || (isNew && !folder)} onclick={save}>{isNew ? "Anlegen" : "Speichern"}</button>
+    <button onclick={close}>{t("Abbrechen")}</button>
+    <button class="primary" disabled={busy || loading || !named || (isNew && !folder)} onclick={save}>{isNew ? t("Anlegen") : t("Speichern")}</button>
   </div>
 </div>
 

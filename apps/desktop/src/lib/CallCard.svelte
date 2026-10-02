@@ -2,6 +2,7 @@
   import Icon, { type IconName } from "./Icon.svelte";
   import { backToFirst, callDrag, startCallDrag, transfersOnHangup } from "./fkeys.svelte";
   import { action, duration, isRingingIn, phone, run, who, type Call } from "./phone.svelte";
+  import { t } from "./i18n.svelte";
 
   let { call }: { call: Call } = $props();
 
@@ -23,14 +24,14 @@
   const others = $derived(phone.status.calls.filter((c) => c.id !== call.id));
 
   const title = $derived(
-    ringingIn ? "Eingehender Anruf"
-    : held ? "Gehaltenes Gespräch"
-    : connected ? "Aktives Gespräch"
-    : "Ausgehender Anruf",
+    ringingIn ? t("Eingehender Anruf")
+    : held ? t("Gehaltenes Gespräch")
+    : connected ? t("Aktives Gespräch")
+    : t("Ausgehender Anruf"),
   );
   const sub = $derived(
-    call.phase === "setup" ? "Verbinde …"
-    : call.phase === "ringback" ? "Klingelt …"
+    call.phase === "setup" ? t("Verbinde …")
+    : call.phase === "ringback" ? t("Klingelt …")
     : "",
   );
 
@@ -50,7 +51,7 @@
   <header>
     <Icon name={call.incoming ? "incoming" : "outgoing"} size={18} />
     <span>{title}</span>
-    {#if call.recording}<span class="rec">● Aufnahme</span>{/if}
+    {#if call.recording}<span class="rec">● {t("Aufnahme")}</span>{/if}
     <span class="time">{duration(call, phone.now)}</span>
   </header>
 
@@ -61,7 +62,7 @@
       <strong>{who(call)}</strong>
       {#if call.remote_name && call.remote_number}<span>{call.remote_number}</span>{/if}
       {#if sub}<span class="sub">{sub}</span>{/if}
-      {#if transfers}<span class="sub">Auflegen vermittelt das gehaltene Gespräch</span>{/if}
+      {#if transfers}<span class="sub">{t("Auflegen vermittelt das gehaltene Gespräch")}</span>{/if}
       {#if call.local_number || call.local_name}
         <small>{call.local_number} {call.local_name}</small>
       {/if}
@@ -70,24 +71,24 @@
       <button
         class="mute"
         class:on={phone.status.muted}
-        title={phone.status.muted ? "Mikrofon einschalten" : "Stumm schalten"}
+        title={phone.status.muted ? t("Mikrofon einschalten") : t("Stumm schalten")}
         onclick={() => run("phone_mute", { muted: !phone.status.muted })}
       >
         <Icon name={phone.status.muted ? "micOff" : "mic"} size={18} />
       </button>
     {/if}
     {#if transfers}
-      <button class="back" title="Rückfrage beenden, zurück zum ersten Gespräch" onclick={() => backToFirst(call)}>Zurück</button>
-      <button class="round red" class:big={!ringingIn} title="Auflegen und vermitteln" onclick={() => action("transfer_consultation", call.id)}>
+      <button class="back" title={t("Rückfrage beenden, zurück zum ersten Gespräch")} onclick={() => backToFirst(call)}>{t("Zurück")}</button>
+      <button class="round red" class:big={!ringingIn} title={t("Auflegen und vermitteln")} onclick={() => action("transfer_consultation", call.id)}>
         <Icon name="hangup" size={30} />
       </button>
     {:else}
-      <button class="round red" class:big={!ringingIn} title={ringingIn ? "Ablehnen" : "Auflegen"} onclick={() => run("phone_hangup", { callId: call.id })}>
+      <button class="round red" class:big={!ringingIn} title={ringingIn ? t("Ablehnen") : t("Auflegen")} onclick={() => run("phone_hangup", { callId: call.id })}>
         <Icon name="hangup" size={ringingIn ? 24 : 30} />
       </button>
     {/if}
     {#if ringingIn}
-      <button class="round green big" title="Annehmen" onclick={() => run("phone_answer", { callId: call.id })}>
+      <button class="round green big" title={t("Annehmen")} onclick={() => run("phone_answer", { callId: call.id })}>
         <Icon name="call" size={32} />
       </button>
     {/if}
@@ -103,7 +104,7 @@
   {#if ringingIn}
     <nav class="tabs">
       <button class="tab" class:active={forwarding} onclick={() => (forwarding = !forwarding)}>
-        <Icon name="forward" /><span>Umleiten</span>
+        <Icon name="forward" /><span>{t("Umleiten")}</span>
       </button>
       <button class="tab" onclick={() => action("voicemail", call.id)}>
         <Icon name="voicemail" /><span>Voicemail</span>
@@ -111,28 +112,28 @@
     </nav>
     {#if forwarding}
       <form class="target" onsubmit={(e) => submitTarget(e, "forward")}>
-        <input bind:value={target} placeholder="Umleiten an Nummer" inputmode="tel" />
+        <input bind:value={target} placeholder={t("Umleiten an Nummer")} inputmode="tel" />
         <button class="go" type="submit" disabled={!target.trim()}><Icon name="forward" size={20} /></button>
       </form>
     {/if}
   {:else if connected}
     <nav class="tabs">
-      {@render tabButton("consult", null, "Rückfrage")}
-      {@render tabButton("conference", "group", "Konferenz")}
-      {@render tabButton("extras", "more", "Extras")}
+      {@render tabButton("consult", null, t("Rückfrage"))}
+      {@render tabButton("conference", "group", t("Konferenz"))}
+      {@render tabButton("extras", "more", t("Extras"))}
     </nav>
     {#if tab === "consult"}
       <div class="panel">
         <button class="row" onclick={() => run("phone_hold", { callId: call.id, hold: true })}>
-          <Icon name="pause" /><span>Anruf halten</span>
+          <Icon name="pause" /><span>{t("Anruf halten")}</span>
         </button>
         {#each partners as p (p.id)}
           <button class="row accent" onclick={() => action("transfer_consultation", p.consultation_of ? p.id : call.id)}>
-            <Icon name="forward" /><span>Verbinden mit {who(p)}</span>
+            <Icon name="forward" /><span>{t("Verbinden mit {name}", { name: who(p) })}</span>
           </button>
         {/each}
         <form class="target" onsubmit={(e) => submitTarget(e, "consult")}>
-          <input bind:value={target} placeholder="Rückfrage an Nummer" inputmode="tel" />
+          <input bind:value={target} placeholder={t("Rückfrage an Nummer")} inputmode="tel" />
           <button class="go" type="submit" disabled={!target.trim()}><Icon name="call" size={20} /></button>
         </form>
       </div>
@@ -140,20 +141,20 @@
       <div class="panel">
         {#if others.length}
           <button class="row accent" onclick={() => action("conference", call.id, others.map((c) => c.id).join(","))}>
-            <Icon name="group" /><span>Konferenz starten mit {others.map(who).join(", ")}</span>
+            <Icon name="group" /><span>{t("Konferenz starten mit {names}", { names: others.map(who).join(", ") })}</span>
           </button>
         {:else}
-          <p class="hint">Zuerst einen weiteren Teilnehmer per Rückfrage anrufen, dann hier die Konferenz starten.</p>
+          <p class="hint">{t("Zuerst einen weiteren Teilnehmer per Rückfrage anrufen, dann hier die Konferenz starten.")}</p>
         {/if}
         <form class="target" onsubmit={(e) => submitTarget(e, "consult")}>
-          <input bind:value={target} placeholder="Teilnehmer anrufen" inputmode="tel" />
+          <input bind:value={target} placeholder={t("Teilnehmer anrufen")} inputmode="tel" />
           <button class="go" type="submit" disabled={!target.trim()}><Icon name="call" size={20} /></button>
         </form>
       </div>
     {:else if tab === "extras"}
       <div class="panel">
         <button class="row" onclick={() => (keypad = !keypad)}>
-          <Icon name="dialpad" /><span>Ziffernblock</span><span class="chev" class:open={keypad}><Icon name="chevron" size={20} /></span>
+          <Icon name="dialpad" /><span>{t("Ziffernblock")}</span><span class="chev" class:open={keypad}><Icon name="chevron" size={20} /></span>
         </button>
         {#if keypad}
           <div class="keypad">
@@ -163,20 +164,20 @@
           </div>
         {/if}
         <button class="row" onclick={() => action("record", call.id)}>
-          <span class="dot"><Icon name="record" /></span><span>{call.recording ? "Aufnahme beenden" : "Aufnahme starten"}</span>
+          <span class="dot"><Icon name="record" /></span><span>{call.recording ? t("Aufnahme beenden") : t("Aufnahme starten")}</span>
         </button>
         <button class="row" onclick={() => action("switch_phone", call.id)}>
-          <Icon name="call2go" /><span>Rufweitergabe/Call2Go</span>
+          <Icon name="call2go" /><span>{t("Rufweitergabe/Call2Go")}</span>
         </button>
-        <button class="row" disabled title="Folgt mit dem Adressbuch">
-          <Icon name="contacts" /><span>Kontakt hinzufügen</span>
+        <button class="row" disabled title={t("Folgt mit dem Adressbuch")}>
+          <Icon name="contacts" /><span>{t("Kontakt hinzufügen")}</span>
         </button>
       </div>
     {/if}
   {:else if held}
     <nav class="tabs">
       <button class="tab" onclick={() => run("phone_hold", { callId: call.id, hold: false })}>
-        <Icon name="play" /><span>Fortsetzen</span>
+        <Icon name="play" /><span>{t("Fortsetzen")}</span>
       </button>
     </nav>
   {/if}
@@ -184,7 +185,7 @@
 
 {#if callDrag.call?.id === call.id}
   <div class="ghost" style="left: {callDrag.x}px; top: {callDrag.y}px">
-    <Icon name="forward" size={16} /> {who(call)}{callDrag.over ? "" : " … auf Besetztlampenfeld ziehen"}
+    <Icon name="forward" size={16} /> {who(call)}{callDrag.over ? "" : ` … ${t("auf Besetztlampenfeld ziehen")}`}
   </div>
 {/if}
 

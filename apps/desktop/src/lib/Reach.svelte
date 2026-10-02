@@ -7,6 +7,7 @@
   import { onMount } from "svelte";
   import Icon from "./Icon.svelte";
   import Toggle from "./Toggle.svelte";
+  import { t } from "./i18n.svelte";
 
   let { server }: { server: string } = $props();
 
@@ -21,8 +22,8 @@
   /** Bearbeitungsstand einer Umleitung: "mailbox:<id>" oder "number" */
   type Edit = { dest: string; number: string; timeout: number };
 
-  const kinds = { always: "Immer", busy: "Besetzt", timeout: "Zeitüberschreitung", other: "Sonstige" };
-  const days = ["Mo", "Di", "Mi", "Do", "Fr", "Sa", "So"];
+  const kinds = $derived({ always: t("Immer"), busy: t("Besetzt"), timeout: t("Zeitüberschreitung"), other: t("Sonstige") });
+  const days = $derived([t("Mo"), t("Di"), t("Mi"), t("Do"), t("Fr"), t("Sa"), t("So")]);
 
   let redirects = $state<Redirect[]>([]);
   let edits = $state<Record<string, Edit>>({});
@@ -85,7 +86,7 @@
   const groups = $derived.by(() => {
     const map = new Map<string, Redirect[]>();
     for (const r of redirects) {
-      const key = `${r.group ? "Gruppe " : ""}${r.called_number}`;
+      const key = r.group ? t("Gruppe {name}", { name: r.called_number }) : r.called_number;
       map.set(key, [...(map.get(key) ?? []), r]);
     }
     return [...map];
@@ -99,8 +100,8 @@
   function applyRedirect(r: Redirect) {
     const e = edits[r.id];
     const target = e.dest === "number" ? { number: e.number.trim(), mailbox: null } : { number: null, mailbox: e.dest.slice(8) };
-    if (e.dest === "number" && !e.number.trim()) return void (error = "Bitte eine Zielrufnummer eingeben.");
-    act("redirect_update", { id: r.id, target, timeoutSecs: r.kind === "timeout" ? e.timeout : null }, "Umleitung geändert.");
+    if (e.dest === "number" && !e.number.trim()) return void (error = t("Bitte eine Zielrufnummer eingeben."));
+    act("redirect_update", { id: r.id, target, timeoutSecs: r.kind === "timeout" ? e.timeout : null }, t("Umleitung geändert."));
   }
 
   function newFmc() {
@@ -108,7 +109,7 @@
   }
 
   async function saveFmc() {
-    if (editing && (await act("fmc_save", { phone: $state.snapshot(editing) }, "Gerät gespeichert."))) editing = null;
+    if (editing && (await act("fmc_save", { phone: $state.snapshot(editing) }, t("Gerät gespeichert.")))) editing = null;
   }
 
   function toggleDay(s: Schedule, d: number) {
@@ -122,26 +123,26 @@
   <h3>Voicemail</h3>
   <div class="card">
     {#if mailboxes.length > 1}
-      <label class="row"><span>Voicemail-Box</span>
+      <label class="row"><span>{t("Voicemail-Box")}</span>
         <select bind:value={mailbox}>{#each mailboxes as m}<option value={m.id}>{m.name}</option>{/each}</select>
       </label>
     {/if}
-    <button class="play" disabled={busy || !mailbox} onclick={() => act("mailbox_record", { mailbox }, "Die Anlage ruft das Softphone an.")}>
-      <Icon name="record" size={18} /> Voicemail-Ansage aufnehmen
+    <button class="play" disabled={busy || !mailbox} onclick={() => act("mailbox_record", { mailbox }, t("Die Anlage ruft das Softphone an."))}>
+      <Icon name="record" size={18} /> {t("Voicemail-Ansage aufnehmen")}
     </button>
     <p class="small muted">
-      Die Anlage ruft dich an. Im Menü der Box: 0 = Abwesenheitsansage, 1 = Begrüssung, 3 = Namensansage aufnehmen.
-      {#if !mailboxes.length}Für diesen Benutzer ist keine Voicemail-Box eingerichtet.{/if}
+      {t("Die Anlage ruft dich an. Im Menü der Box: 0 = Abwesenheitsansage, 1 = Begrüssung, 3 = Namensansage aufnehmen.")}
+      {#if !mailboxes.length}{t("Für diesen Benutzer ist keine Voicemail-Box eingerichtet.")}{/if}
     </p>
-    <button class="link" onclick={webApp}>Weitere Einstellungen: zur Web-App wechseln</button>
+    <button class="link" onclick={webApp}>{t("Weitere Einstellungen: zur Web-App wechseln")}</button>
   </div>
 </section>
 
 <section id="redirects">
-  <h3>Umleitungen</h3>
+  <h3>{t("Umleitungen")}</h3>
   <div class="card">
     {#if !redirects.length}
-      <p class="muted">{error ? "" : "Keine Umleitungen verfügbar."}</p>
+      <p class="muted">{error ? "" : t("Keine Umleitungen verfügbar.")}</p>
     {/if}
     {#each groups as [title, list]}
       <h4>{title}</h4>
@@ -152,19 +153,19 @@
           {#if e}
             <div class="dest">
               <select bind:value={e.dest} disabled={r.read_only}>
-                <option value="number">Rufnummer</option>
+                <option value="number">{t("Rufnummer")}</option>
                 {#each r.mailboxes as m}<option value="mailbox:{m.id}">Voicemail: {m.name}</option>{/each}
               </select>
               {#if e.dest === "number"}
-                <input type="text" bind:value={e.number} placeholder="Zielrufnummer" disabled={r.read_only} />
+                <input type="text" bind:value={e.number} placeholder={t("Zielrufnummer")} disabled={r.read_only} />
               {/if}
               {#if r.kind === "timeout"}
-                <label class="secs">nach <input type="number" min="1" max="300" bind:value={e.timeout} disabled={r.read_only} /> s</label>
+                <label class="secs">{t("nach")} <input type="number" min="1" max="300" bind:value={e.timeout} disabled={r.read_only} /> s</label>
               {/if}
-              {#if dirty(r)}<button class="primary" disabled={busy} onclick={() => applyRedirect(r)}>Übernehmen</button>{/if}
+              {#if dirty(r)}<button class="primary" disabled={busy} onclick={() => applyRedirect(r)}>{t("Übernehmen")}</button>{/if}
             </div>
           {/if}
-          {#if r.read_only}<p class="small muted">Vom Administrator gesperrt.</p>{/if}
+          {#if r.read_only}<p class="small muted">{t("Vom Administrator gesperrt.")}</p>{/if}
         </div>
       {/each}
     {/each}
@@ -172,42 +173,42 @@
 </section>
 
 <section id="fmc">
-  <h3>Parallelruf (iFMC)</h3>
+  <h3>{t("Parallelruf (iFMC)")}</h3>
   <div class="card">
-    <p class="small muted">Weitere Geräte, z. B. das Handy, klingeln bei Anrufen mit. Call2Go braucht ein aktives Gerät.</p>
+    <p class="small muted">{t("Weitere Geräte, z. B. das Handy, klingeln bei Anrufen mit. Call2Go braucht ein aktives Gerät.")}</p>
     {#each fmc as p (p.id)}
       <div class="fmc">
         <Toggle checked={p.enabled} disabled={busy} label={p.number} onchange={(v: boolean) => act("fmc_enable", { id: p.id, enabled: v })} />
-        <span class="muted small">{p.delay ? `nach ${p.delay} s` : "sofort"}{p.confirm ? " · mit Tastendruck" : ""}{p.schedules.length ? " · zeitgesteuert" : ""}</span>
-        <button class="x" title="Bearbeiten" onclick={() => (editing = structuredClone($state.snapshot(p)))}><Icon name="settings" size={18} /></button>
-        <button class="x" title="Löschen" disabled={busy} onclick={() => confirm(`${p.number} entfernen?`) && act("fmc_delete", { id: p.id })}><Icon name="trash" size={18} /></button>
+        <span class="muted small">{[p.delay ? t("nach {n} s", { n: p.delay }) : t("sofort"), p.confirm && t("mit Tastendruck"), p.schedules.length && t("zeitgesteuert")].filter(Boolean).join(" · ")}</span>
+        <button class="x" title={t("Bearbeiten")} onclick={() => (editing = structuredClone($state.snapshot(p)))}><Icon name="settings" size={18} /></button>
+        <button class="x" title={t("Löschen")} disabled={busy} onclick={() => confirm(t("{number} entfernen?", { number: p.number })) && act("fmc_delete", { id: p.id })}><Icon name="trash" size={18} /></button>
       </div>
     {/each}
     {#if editing}
       <div class="editor">
-        <label class="row"><span>Rufnummer</span><input type="text" bind:value={editing.number} placeholder="+41 79 …" /></label>
-        <label class="row"><span>Verzögerung</span><span><input type="number" min="0" max="60" bind:value={editing.delay} /> s</span></label>
-        <Toggle bind:checked={editing.confirm} label="Annahme per Tastendruck bestätigen" />
-        <h4>Zeitsteuerung</h4>
+        <label class="row"><span>{t("Rufnummer")}</span><input type="text" bind:value={editing.number} placeholder="+41 79 …" /></label>
+        <label class="row"><span>{t("Verzögerung")}</span><span><input type="number" min="0" max="60" bind:value={editing.delay} /> s</span></label>
+        <Toggle bind:checked={editing.confirm} label={t("Annahme per Tastendruck bestätigen")} />
+        <h4>{t("Zeitsteuerung")}</h4>
         {#each editing.schedules as s, i}
           <div class="sched">
             {#each days as d, j}
               <button class="day" class:on={s.days.includes(j + 1)} onclick={() => toggleDay(s, j + 1)}>{d}</button>
             {/each}
             <input type="time" bind:value={s.from} /> – <input type="time" bind:value={s.to} />
-            <button class="x" title="Entfernen" onclick={() => editing?.schedules.splice(i, 1)}><Icon name="close" size={18} /></button>
+            <button class="x" title={t("Entfernen")} onclick={() => editing?.schedules.splice(i, 1)}><Icon name="close" size={18} /></button>
           </div>
         {:else}
-          <p class="small muted">Ohne Zeitfenster klingelt das Gerät immer mit.</p>
+          <p class="small muted">{t("Ohne Zeitfenster klingelt das Gerät immer mit.")}</p>
         {/each}
-        <button class="add" onclick={() => editing?.schedules.push({ days: [1, 2, 3, 4, 5], from: "08:00", to: "17:00" })}>Zeitfenster hinzufügen</button>
+        <button class="add" onclick={() => editing?.schedules.push({ days: [1, 2, 3, 4, 5], from: "08:00", to: "17:00" })}>{t("Zeitfenster hinzufügen")}</button>
         <div class="actions">
-          <button class="primary" disabled={busy} onclick={saveFmc}>{editing.id ? "Speichern" : "Hinzufügen"}</button>
-          <button onclick={() => (editing = null)}>Abbrechen</button>
+          <button class="primary" disabled={busy} onclick={saveFmc}>{editing.id ? t("Speichern") : t("Hinzufügen")}</button>
+          <button onclick={() => (editing = null)}>{t("Abbrechen")}</button>
         </div>
       </div>
     {:else}
-      <button class="add" onclick={newFmc}>Gerät hinzufügen</button>
+      <button class="add" onclick={newFmc}>{t("Gerät hinzufügen")}</button>
     {/if}
   </div>
 </section>
