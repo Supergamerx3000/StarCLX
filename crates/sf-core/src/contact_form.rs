@@ -239,9 +239,33 @@ fn attr_label(a: &ContactAttribute) -> String {
     };
     readable(&a.i18n_display_name)
         .or((!fixed.is_empty()).then_some(fixed))
+        .or_else(|| key_label(&a.i18n_display_name))
         .or_else(|| readable(&a.name))
         .unwrap_or(a.name.as_str())
         .to_owned()
+}
+
+/// Deutsche Texte zu den Übersetzungsschlüsseln, die die Anlage schickt
+/// (`de.vertico.starface.addressbook.line.label_*`), für Felder ohne
+/// bekannten Feldtyp
+fn key_label(key: &str) -> Option<&'static str> {
+    Some(match key.rsplit('.').next()?.strip_prefix("label_")? {
+        "lastname" => "Nachname",
+        "firstname" => "Vorname",
+        "company" => "Firma",
+        "telephonenumber" => "Telefon",
+        "privatetelephonenumber" => "Privat",
+        "mobiletelephonenumber" => "Mobil",
+        "faxtelephonenumber" => "Fax",
+        "email" => "E-Mail",
+        "www" => "Webseite",
+        "street" => "Strasse",
+        "zipcode" => "PLZ",
+        "city" => "Ort",
+        "state" => "Kanton/Bundesland",
+        "country" => "Land",
+        _ => return None,
+    })
 }
 
 #[cfg(test)]
@@ -342,6 +366,9 @@ mod tests {
         assert_eq!(attr_label(&a), "E-Mail");
         a.i18n_display_name = "E-Mail geschäftlich".into();
         assert_eq!(attr_label(&a), "E-Mail geschäftlich");
+        let mut k = attr("www", Key::UserDefined, "");
+        k.i18n_display_name = "de.vertico.starface.addressbook.line.label_www".into();
+        assert_eq!(attr_label(&k), "Webseite");
         let u = attr("Kundennummer", Key::UserDefined, "");
         assert_eq!(attr_label(&u), "Kundennummer");
     }
