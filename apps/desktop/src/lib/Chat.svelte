@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { splitter } from "./splitter";
   import { invoke } from "@tauri-apps/api/core";
   import { onMount, tick } from "svelte";
   import Icon from "./Icon.svelte";
@@ -88,6 +89,7 @@
       {/each}
     </div>
   </aside>
+  <div class="divider" role="separator" aria-orientation="vertical" use:splitter={"chat"}></div>
 
   <section class="conv">
     {#if chat.open}
@@ -120,7 +122,10 @@
 </div>
 
 <style>
-  .chat { display: grid; grid-template-columns: minmax(15rem, 20rem) 1fr; gap: 0.5rem; height: 100%; min-height: 0; }
+  .chat { display: grid; grid-template-columns: min(var(--split, 18rem), calc(100% - 12rem)) 0.5rem minmax(0, 1fr); height: 100%; min-height: 0; }
+  .divider { cursor: col-resize; touch-action: none; position: relative; }
+  .divider::after { content: ""; position: absolute; inset: 0 3px; border-radius: 2px; }
+  .divider:hover::after, .divider:global(.dragging)::after { background: var(--accent); }
   aside { display: flex; flex-direction: column; min-height: 0; background: var(--panel); border-radius: 4px; padding: 0.5rem; gap: 0.4rem; }
   .state { display: flex; align-items: center; gap: 0.45rem; font-size: 0.85rem; color: var(--muted); padding: 0 0.3rem; }
   .state .dot { width: 0.6rem; height: 0.6rem; border-radius: 50%; background: #777; }
