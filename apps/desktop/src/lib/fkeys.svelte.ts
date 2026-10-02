@@ -2,6 +2,7 @@
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { action, phone, run, type Call } from "./phone.svelte";
+import { t } from "./i18n.svelte";
 
 export type FunctionKey = {
   functionKeyType: string;
@@ -37,25 +38,26 @@ export type SignalingNumber = { id: string; number: string; suppressed: boolean;
 
 /** Gruppe in der Typenliste; "desk" = nur auf Tischtelefonen */
 type Group = "fav" | "fn" | "desk";
-export const TYPES: { type: string; label: string; group: Group; usable: boolean }[] = [
-  { type: "BUSYLAMPFIELD", label: "Besetztlampenfeld", group: "fav", usable: true },
-  { type: "QUICKDIAL", label: "Direktwahl", group: "fav", usable: true },
-  { type: "GROUPLOGIN", label: "Gruppe An-/Abmelden", group: "fn", usable: false },
-  { type: "DONOTDISTURB", label: "Ruhe", group: "fn", usable: true },
-  { type: "COMPLETIONOFCALLSTOBUSYSUBSCRIBER", label: "Rückruf bei Besetzt", group: "fn", usable: false },
-  { type: "SIGNALNUMBER", label: "Rufnummer anzeigen", group: "fn", usable: true },
-  { type: "FORWARD", label: "Umleitung (Art)", group: "fn", usable: true },
-  { type: "FORWARDNUMBER", label: "Umleitung (Rufnummer)", group: "fn", usable: true },
-  { type: "FORWARDTOTARGET", label: "Umleitung auf Ziel", group: "fn", usable: true },
-  { type: "PARKANDORBIT", label: "Parken", group: "fn", usable: true },
-  { type: "MODULEACTIVATION", label: "Modul aktivieren", group: "fn", usable: false },
-  { type: "ADDRESSBOOK", label: "Telefonmenü Adressbuch", group: "desk", usable: false },
-  { type: "PHONECALLLIST", label: "Telefonmenü Rufliste", group: "desk", usable: false },
-  { type: "PHONEGENERICURL", label: "Telefonbasierte URL", group: "desk", usable: false },
+/** Tastentypen; als Funktion, damit die Bezeichnungen der Sprache folgen */
+export const types = (): { type: string; label: string; group: Group; usable: boolean }[] => [
+  { type: "BUSYLAMPFIELD", label: t("Besetztlampenfeld"), group: "fav", usable: true },
+  { type: "QUICKDIAL", label: t("Direktwahl"), group: "fav", usable: true },
+  { type: "GROUPLOGIN", label: t("Gruppe An-/Abmelden"), group: "fn", usable: false },
+  { type: "DONOTDISTURB", label: t("Ruhe"), group: "fn", usable: true },
+  { type: "COMPLETIONOFCALLSTOBUSYSUBSCRIBER", label: t("Rückruf bei Besetzt"), group: "fn", usable: false },
+  { type: "SIGNALNUMBER", label: t("Rufnummer anzeigen"), group: "fn", usable: true },
+  { type: "FORWARD", label: t("Umleitung (Art)"), group: "fn", usable: true },
+  { type: "FORWARDNUMBER", label: t("Umleitung (Rufnummer)"), group: "fn", usable: true },
+  { type: "FORWARDTOTARGET", label: t("Umleitung auf Ziel"), group: "fn", usable: true },
+  { type: "PARKANDORBIT", label: t("Parken"), group: "fn", usable: true },
+  { type: "MODULEACTIVATION", label: t("Modul aktivieren"), group: "fn", usable: false },
+  { type: "ADDRESSBOOK", label: t("Telefonmenü Adressbuch"), group: "desk", usable: false },
+  { type: "PHONECALLLIST", label: t("Telefonmenü Rufliste"), group: "desk", usable: false },
+  { type: "PHONEGENERICURL", label: t("Telefonbasierte URL"), group: "desk", usable: false },
   { type: "PHONEDTMF", label: "DTMF", group: "desk", usable: true },
-  { type: "SEPARATOR", label: "Leere Taste", group: "desk", usable: false },
+  { type: "SEPARATOR", label: t("Leere Taste"), group: "desk", usable: false },
 ];
-export const typeInfo = (t: string) => TYPES.find((x) => x.type === t) ?? { type: t, label: t, group: "fn" as Group, usable: false };
+export const typeInfo = (type: string) => types().find((x) => x.type === type) ?? { type, label: type, group: "fn" as Group, usable: false };
 
 export const fkeys = $state({
   setId: "",
@@ -210,14 +212,14 @@ export async function press(k: FunctionKey) {
     case "BUSYLAMPFIELD": {
       // Klingelt es beim Kollegen, Anruf heranholen, sonst ihn anrufen
       const a = account(k);
-      if (!a) return void (fkeys.notice = "Für diese Taste ist kein Benutzer hinterlegt.");
+      if (!a) return void (fkeys.notice = t("Für diese Taste ist kein Benutzer hinterlegt."));
       const s = stateOf(a);
       if (s?.telephony === "ringing" && a.user_ids.length) {
         await call("fkey_grab", { userId: a.user_ids[0] });
         return;
       }
       if (a.number) run("phone_dial", { number: a.number });
-      else fkeys.notice = `${a.name} hat keine Rufnummer.`;
+      else fkeys.notice = t("{name} hat keine Rufnummer.", { name: a.name });
       return;
     }
     case "QUICKDIAL":
@@ -228,14 +230,14 @@ export async function press(k: FunctionKey) {
     case "SIGNALNUMBER": {
       const list = await invoke<SignalingNumber[]>("signaling_numbers").catch(() => []);
       const n = k.displayNumberId === 0 ? list.find((x) => x.suppressed) : list.find((x) => x.id === String(k.displayNumberId));
-      if (!n) return void (fkeys.notice = "Diese Rufnummer ist nicht mehr wählbar.");
+      if (!n) return void (fkeys.notice = t("Diese Rufnummer ist nicht mehr wählbar."));
       return call("set_signaling_number", { id: n.id });
     }
     case "FORWARD":
     case "FORWARDNUMBER":
     case "FORWARDTOTARGET": {
       const list = redirectsOf(k);
-      if (!list.length) return void (fkeys.notice = "Keine passende Umleitung gefunden.");
+      if (!list.length) return void (fkeys.notice = t("Keine passende Umleitung gefunden."));
       const enable = !list.some((r) => r.enabled);
       for (const r of list) {
         if (enable && k.functionKeyType === "FORWARDTOTARGET") {
@@ -257,17 +259,17 @@ export async function press(k: FunctionKey) {
       } else if (await call("fkey_park", { callId: null, number })) {
         fkeys.parked[number] = false;
       } else if (!fkeys.parked[number]) {
-        fkeys.notice = `Auf Platz ${number} ist kein Gespräch geparkt.`;
+        fkeys.notice = t("Auf Platz {n} ist kein Gespräch geparkt.", { n: number });
       }
       return;
     }
     case "PHONEDTMF": {
       const c = activeCall();
-      if (!c) return void (fkeys.notice = "Tastentöne gehen nur während eines Gesprächs.");
+      if (!c) return void (fkeys.notice = t("Tastentöne gehen nur während eines Gesprächs."));
       return call("phone_dtmf", { callId: c.id, digits: k.dtmf ?? "" });
     }
     default:
-      fkeys.notice = `„${typeInfo(k.functionKeyType).label}“ lässt sich im Linux-Client noch nicht auslösen.`;
+      fkeys.notice = t("„{label}“ lässt sich im Linux-Client noch nicht auslösen.", { label: typeInfo(k.functionKeyType).label });
   }
 }
 
@@ -342,7 +344,7 @@ export function startCallDrag(e: PointerEvent, call: Call) {
 /** Rückfrage zum Kollegen der Taste; Auflegen vermittelt danach */
 export async function transferTo(call: Call, k: FunctionKey) {
   const a = account(k);
-  if (!a?.number) return void (phone.notice = "Für diese Taste ist keine Rufnummer bekannt.");
+  if (!a?.number) return void (phone.notice = t("Für diese Taste ist keine Rufnummer bekannt."));
   if (await action("consult", call.id, a.number)) blfTransfers[call.id] = true;
 }
 

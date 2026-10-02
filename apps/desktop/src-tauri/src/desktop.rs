@@ -10,6 +10,7 @@ use std::process::Command;
 use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, Emitter, Manager, Theme};
 
+use crate::i18n::{t, tf};
 use crate::settings::Prefs;
 
 /// Aktionen, die per Tastenkürzel oder Kommandozeile ausgelöst werden
@@ -180,7 +181,7 @@ fn gsettings(args: &[&str]) -> Result<String, String> {
     let out = Command::new("gsettings")
         .args(args)
         .output()
-        .map_err(|e| format!("gsettings nicht ausführbar: {e}"))?;
+        .map_err(|e| tf("gsettings nicht ausführbar: {e}", &[("e", &e.to_string())]))?;
     if !out.status.success() {
         return Err(String::from_utf8_lossy(&out.stderr).trim().to_owned());
     }
@@ -228,7 +229,7 @@ fn merged_list(current: &[String], hotkeys: &Hotkeys) -> Vec<String> {
 pub fn apply_hotkeys(hotkeys: &Hotkeys) -> Result<(), String> {
     if !is_gnome() {
         return if hotkeys.enabled {
-            Err("Tastenkürzel lassen sich nur unter GNOME automatisch eintragen.".into())
+            Err(t("Tastenkürzel lassen sich nur unter GNOME automatisch eintragen.").into())
         } else {
             Ok(())
         };
@@ -238,7 +239,12 @@ pub fn apply_hotkeys(hotkeys: &Hotkeys) -> Result<(), String> {
         let schema = format!("{MEDIA_KEYS}.custom-keybinding:{}", own_path(action));
         let binding = hotkeys.binding(action);
         if hotkeys.enabled && !binding.is_empty() {
-            gsettings(&["set", &schema, "name", &quote(&format!("StarCLX: {label}"))])?;
+            gsettings(&[
+                "set",
+                &schema,
+                "name",
+                &quote(&format!("StarCLX: {}", t(label))),
+            ])?;
             gsettings(&["set", &schema, "command", &quote(&command_for(action))])?;
             gsettings(&["set", &schema, "binding", &quote(binding)])?;
         } else if current.contains(&own_path(action)) {

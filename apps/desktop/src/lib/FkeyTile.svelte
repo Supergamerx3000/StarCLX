@@ -1,6 +1,7 @@
 <script lang="ts">
   // Eine Funktionstaste mit Zustandsfarbe; im Arbeitsbereich und im Editor.
   import { account, callDrag, keyState, keyTitle, typeInfo, type FunctionKey } from "./fkeys.svelte";
+  import { t } from "./i18n.svelte";
 
   let { key, onclick, disabled = false, editor = false }: { key: FunctionKey; onclick?: () => void; disabled?: boolean; editor?: boolean } = $props();
 
@@ -13,11 +14,11 @@
     switch (key.functionKeyType) {
       case "BUSYLAMPFIELD": return account(key)?.number ?? "";
       case "QUICKDIAL": return key.directCallTargetnumber ?? "";
-      case "PARKANDORBIT": return key.poNumber ? `Platz ${key.poNumber}` : "";
+      case "PARKANDORBIT": return key.poNumber ? t("Platz {n}", { n: key.poNumber }) : "";
       default: return key.name ? info.label : "";
     }
   });
-  const stateText: Record<string, string> = { on: "aktiv", busy: "im Gespräch", ringing: "klingelt", free: "frei", off: "nicht erreichbar", parked: "Gespräch geparkt" };
+  const stateText: Record<string, string> = $derived({ on: t("aktiv"), busy: t("im Gespräch"), ringing: t("klingelt"), free: t("frei"), off: t("nicht erreichbar"), parked: t("Gespräch geparkt") });
 </script>
 
 <button

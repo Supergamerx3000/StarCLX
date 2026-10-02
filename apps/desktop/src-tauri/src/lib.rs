@@ -8,12 +8,14 @@ mod certs;
 mod chat;
 mod desktop;
 mod fkeys;
+mod i18n;
 mod login;
 mod presence;
 mod reach;
 mod settings;
 mod voicemail;
 
+use i18n::{t, tf};
 use serde::Serialize;
 use settings::Prefs;
 use sf_core::journal::{Journal, JournalEvent};
@@ -90,7 +92,7 @@ pub(crate) fn show_quick_window(app: &AppHandle) {
     }
     let built =
         tauri::WebviewWindowBuilder::new(app, "quick", tauri::WebviewUrl::App("quick".into()))
-            .title("StarCLX Schnellwahl")
+            .title(t("StarCLX Schnellwahl"))
             .inner_size(340.0, 480.0)
             .min_inner_size(260.0, 240.0)
             .build();
@@ -107,15 +109,18 @@ fn quick_hide(app: AppHandle) {
     }
 }
 
-async fn set_session(app: &AppHandle, session: Option<Session>) {
-    let tooltip = session
-        .as_ref()
-        .map_or("StarCLX: abgemeldet".to_owned(), |s| {
-            format!("StarCLX: {}", SessionInfo::from(s.info()).display_name)
-        });
+/// Tooltip des Tray-Symbols: angemeldeter Benutzer oder „abgemeldet“
+fn set_tray_tooltip(app: &AppHandle, session: Option<&Session>) {
+    let tooltip = session.map_or(t("StarCLX: abgemeldet").to_owned(), |s| {
+        format!("StarCLX: {}", SessionInfo::from(s.info()).display_name)
+    });
     if let Some(tray) = app.tray_by_id("main") {
         let _ = tray.set_tooltip(Some(tooltip));
     }
+}
+
+async fn set_session(app: &AppHandle, session: Option<Session>) {
+    set_tray_tooltip(app, session.as_ref());
     let state = app.state::<AppState>();
     // Erst das alte Softphone beenden, dann ggf. ein neues starten.
     state.phone.lock().await.take();
@@ -180,19 +185,22 @@ fn notify_missed(app: &AppHandle, entry: &sf_core::journal::Entry) {
         return;
     }
     let who = match (entry.name.trim(), entry.number.trim()) {
-        ("", "") => "Unbekannt".to_owned(),
+        ("", "") => t("Unbekannt").to_owned(),
         ("", n) | (n, "") => n.to_owned(),
         (name, n) => format!("{name} ({n})"),
     };
     let body = if group {
-        format!("{who} über Gruppe {}", entry.group)
+        tf(
+            "{who} über Gruppe {group}",
+            &[("who", &who), ("group", &entry.group)],
+        )
     } else {
         who
     };
     if let Err(e) = app
         .notification()
         .builder()
-        .title("Verpasster Anruf")
+        .title(t("Verpasster Anruf"))
         .body(body)
         .show()
     {
@@ -225,7 +233,7 @@ async fn start_phone(app: AppHandle, hub: sf_onehub::OneHub, host: String) {
         update_phone_status(&app, |s| {
             *s = PhoneStatus {
                 state: "off".into(),
-                detail: "Softphone in den Einstellungen ausgeschaltet".into(),
+                detail: t("Softphone in den Einstellungen ausgeschaltet").into(),
                 ..Default::default()
             }
         });
@@ -382,7 +390,7 @@ fn phone_status(state: State<'_, AppState>) -> PhoneStatus {
 async fn phone_dial(state: State<'_, AppState>, number: String) -> Result<(), String> {
     let number = clean_number(&number);
     if number.is_empty() {
-        return Err("Keine Nummer".into());
+        return Err(t("Keine Nummer").into());
     }
     with_phone(&state, async |p| p.dial(&number).await).await
 }
@@ -474,7 +482,7 @@ async fn with_phone(
     f: impl AsyncFnOnce(&Phone) -> sf_core::phone::PhoneResult<()>,
 ) -> Result<(), String> {
     let phone = state.phone.lock().await;
-    let phone = phone.as_ref().ok_or("Softphone ist nicht bereit")?;
+    let phone = phone.as_ref().ok_or(t("Softphone ist nicht bereit"))?;
     f(phone).await.map_err(|e| e.to_string())
 }
 
@@ -493,17 +501,25 @@ async fn save_prefs(
 ) -> Result<(), String> {
     let old = settings::load(&app).prefs;
     settings::update(&app, |s| s.prefs = prefs.clone());
+    if old.language != prefs.language {
+        i18n::set_language(&prefs.language);
+        relabel(&app, state.session.lock().await.as_ref());
+    }
     busylight::refresh(&app);
     desktop::apply_window(&app, &prefs);
     if old.hotkeys != prefs.hotkeys || prefs.hotkeys.enabled {
-        desktop::apply_hotkeys(&prefs.hotkeys)
-            .map_err(|e| format!("Gespeichert, aber Tastenkürzel nicht eingetragen: {e}"))?;
+        desktop::apply_hotkeys(&prefs.hotkeys).map_err(|e| {
+            tf(
+                "Gespeichert, aber Tastenkürzel nicht eingetragen: {e}",
+                &[("e", &e)],
+            )
+        })?;
     }
     if !old.softphone_changed(&prefs) {
         return Ok(());
     }
     if !state.phone_status.lock().unwrap().calls.is_empty() {
-        return Err("Gespeichert. Das Softphone übernimmt die Änderung nach dem Gespräch beim nächsten Start.".into());
+        return Err(t("Gespeichert. Das Softphone übernimmt die Änderung nach dem Gespräch beim nächsten Start.").into());
     }
     restart_phone(&app).await;
     Ok(())
@@ -533,7 +549,7 @@ pub(crate) async fn hub(state: &AppState) -> Result<sf_onehub::OneHub, String> {
         .await
         .as_ref()
         .map(|s| s.hub().clone())
-        .ok_or_else(|| "Nicht angemeldet".to_owned())
+        .ok_or_else(|| t("Nicht angemeldet").to_owned())
 }
 
 #[tauri::command]
@@ -617,7 +633,7 @@ async fn contact_save(
     fields: Vec<sf_core::contact_form::Field>,
 ) -> Result<(), String> {
     if sf_core::contact_form::missing_name(&fields) {
-        return Err("Bitte Nachname oder Firma ausfüllen.".into());
+        return Err(t("Bitte Nachname oder Firma ausfüllen.").into());
     }
     let hub = hub(&state).await?;
     if id.is_empty() {
@@ -658,13 +674,13 @@ async fn journal_action(
     text: Option<String>,
 ) -> Result<(), String> {
     let journal = state.journal.lock().await;
-    let journal = journal.as_ref().ok_or("Nicht angemeldet")?;
+    let journal = journal.as_ref().ok_or(t("Nicht angemeldet"))?;
     match action.as_str() {
         "delete" => journal.delete(&id).await,
         "called_back" => journal.set_called_back(&id, true).await,
         "not_called_back" => journal.set_called_back(&id, false).await,
         "comment" => journal.set_comment(&id, &text.unwrap_or_default()).await,
-        _ => return Err(format!("Unbekannte Aktion {action}")),
+        _ => return Err(tf("Unbekannte Aktion {action}", &[("action", &action)])),
     }
     .map_err(|e| e.to_string())
 }
@@ -686,9 +702,9 @@ async fn finish_login(app: &AppHandle, redirect: &str) -> Result<SessionInfo, St
         .lock()
         .await
         .take()
-        .ok_or("Kein Login ausstehend")?;
+        .ok_or(t("Kein Login ausstehend"))?;
     let code = sf_auth::code_from_redirect(redirect, &pending.state)
-        .ok_or("Antwort der Anlage enthält keinen gültigen Code")?;
+        .ok_or(t("Antwort der Anlage enthält keinen gültigen Code"))?;
     let tokens = pending
         .auth
         .exchange_code(&code, &pending.pkce)
@@ -719,14 +735,35 @@ pub(crate) fn handle_urls(app: &AppHandle, urls: Vec<String>) {
     }
 }
 
+/// Menü des Tray-Symbols in der eingestellten Sprache
+fn tray_menu(app: &AppHandle) -> tauri::Result<Menu<tauri::Wry>> {
+    let open = MenuItem::with_id(app, "open", t("Öffnen"), true, None::<&str>)?;
+    let quick = MenuItem::with_id(app, "quick", t("Schnellwahl"), true, None::<&str>)?;
+    let logout_item = MenuItem::with_id(app, "logout", t("Abmelden"), true, None::<&str>)?;
+    let quit = MenuItem::with_id(app, "quit", t("Beenden"), true, None::<&str>)?;
+    Menu::with_items(app, &[&open, &quick, &logout_item, &quit])
+}
+
+/// Nach einem Sprachwechsel: Tray und offene Fenster neu beschriften
+fn relabel(app: &AppHandle, session: Option<&Session>) {
+    if let Some(tray) = app.tray_by_id("main") {
+        match tray_menu(app) {
+            Ok(menu) => {
+                let _ = tray.set_menu(Some(menu));
+            }
+            Err(e) => tracing::warn!(error = %e, "Tray-Menü nicht neu aufgebaut"),
+        }
+    }
+    set_tray_tooltip(app, session);
+    if let Some(w) = app.get_webview_window("quick") {
+        let _ = w.set_title(t("StarCLX Schnellwahl"));
+    }
+}
+
 fn build_tray(app: &AppHandle) -> tauri::Result<()> {
-    let open = MenuItem::with_id(app, "open", "Öffnen", true, None::<&str>)?;
-    let quick = MenuItem::with_id(app, "quick", "Schnellwahl", true, None::<&str>)?;
-    let logout_item = MenuItem::with_id(app, "logout", "Abmelden", true, None::<&str>)?;
-    let quit = MenuItem::with_id(app, "quit", "Beenden", true, None::<&str>)?;
-    let menu = Menu::with_items(app, &[&open, &quick, &logout_item, &quit])?;
+    let menu = tray_menu(app)?;
     let mut tray = TrayIconBuilder::with_id("main")
-        .tooltip("StarCLX: abgemeldet")
+        .tooltip(t("StarCLX: abgemeldet"))
         .menu(&menu)
         .on_menu_event(|app, event| match event.id.as_ref() {
             "open" => show_main_window(app),
@@ -738,7 +775,7 @@ fn build_tray(app: &AppHandle) -> tauri::Result<()> {
                     if let Err(e) = logout(app.clone(), state).await {
                         tracing::warn!(error = %e, "Abmelden fehlgeschlagen");
                     }
-                    let _ = app.emit("logged-out", "Abgemeldet");
+                    let _ = app.emit("logged-out", t("Abgemeldet"));
                     show_main_window(&app);
                 });
             }
@@ -795,6 +832,7 @@ pub fn run() {
             certs::init(app.handle());
             presence::start(app.handle());
             let prefs = settings::load(app.handle()).prefs;
+            i18n::set_language(&prefs.language);
             desktop::apply_window(app.handle(), &prefs);
             desktop::show_on_start(app.handle(), &prefs);
             // Tastenkürzel neu eintragen, damit sie nach einem Update oder
@@ -826,7 +864,10 @@ pub fn run() {
                     match event {
                         SessionEvent::LoggedOut { reason } => {
                             set_session(&handle, None).await;
-                            let _ = handle.emit("logged-out", format!("Sitzung beendet: {reason}"));
+                            let _ = handle.emit(
+                                "logged-out",
+                                tf("Sitzung beendet: {reason}", &[("reason", &reason)]),
+                            );
                             show_main_window(&handle);
                         }
                     }

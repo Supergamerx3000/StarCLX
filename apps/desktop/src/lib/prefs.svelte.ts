@@ -1,5 +1,6 @@
 // Benutzereinstellungen (lokal gespeichert, siehe settings.rs).
 import { invoke } from "@tauri-apps/api/core";
+import { setLanguage } from "./i18n.svelte";
 
 export type Prefs = {
   softphone: boolean;
@@ -63,6 +64,7 @@ export const prefs = $state({ value: null as Prefs | null });
 export async function loadPrefs() {
   prefs.value = await invoke<Prefs>("get_prefs");
   applyTheme(prefs.value.theme);
+  setLanguage(prefs.value.language);
   return prefs.value;
 }
 
@@ -72,5 +74,6 @@ export async function savePrefs(p: Prefs) {
   } finally {
     prefs.value = $state.snapshot(p) as Prefs;
     applyTheme(p.theme);
+    setLanguage(p.language);
   }
 }

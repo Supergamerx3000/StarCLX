@@ -141,7 +141,7 @@ pub async fn pick_ringtone(app: AppHandle) -> Result<Option<String>, String> {
     let (tx, rx) = tokio::sync::oneshot::channel();
     app.dialog()
         .file()
-        .set_title("Klingelton auswählen")
+        .set_title(crate::i18n::t("Klingelton auswählen"))
         .add_filter("WAV-Datei", &["wav"])
         .pick_file(move |f| {
             let _ = tx.send(f);

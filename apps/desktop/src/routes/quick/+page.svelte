@@ -8,6 +8,7 @@
   import { fkeys, loadFkeys, press } from "$lib/fkeys.svelte";
   import { initPhone, phone } from "$lib/phone.svelte";
   import { loadPrefs } from "$lib/prefs.svelte";
+  import { t } from "$lib/i18n.svelte";
 
   const blfs = $derived(fkeys.keys.filter((k) => k.functionKeyType === "BUSYLAMPFIELD"));
 
@@ -15,7 +16,12 @@
     initPhone();
     loadPrefs().catch(() => {});
     loadFkeys();
-    const reload = () => document.visibilityState === "visible" && loadFkeys();
+    // Beim Einblenden neu laden; so gilt auch eine inzwischen geänderte Sprache.
+    const reload = () => {
+      if (document.visibilityState !== "visible") return;
+      loadFkeys();
+      loadPrefs().catch(() => {});
+    };
     document.addEventListener("visibilitychange", reload);
     return () => document.removeEventListener("visibilitychange", reload);
   });
@@ -35,7 +41,7 @@
     {#each blfs as k (k.id)}
       <FkeyTile key={k} onclick={() => press(k)} />
     {:else}
-      <p class="muted">{fkeys.error || (fkeys.loaded ? "Keine Besetztlampenfelder eingerichtet." : "Lade …")}</p>
+      <p class="muted">{fkeys.error || (fkeys.loaded ? t("Keine Besetztlampenfelder eingerichtet.") : t("Lade …"))}</p>
     {/each}
   </div>
 </main>

@@ -19,6 +19,7 @@
   import { initPhone, phone, run, isRingingIn } from "$lib/phone.svelte";
   import { loadPrefs, prefs, savePrefs, type Tile } from "$lib/prefs.svelte";
   import Workspace, { tilesOf } from "$lib/Workspace.svelte";
+  import { t } from "$lib/i18n.svelte";
 
   type SessionInfo = { server: string; server_version: string; display_name: string };
   type UntrustedCert = { host: string; port: number; fingerprint: string; reason: string };
@@ -53,7 +54,7 @@
       case "dial-clipboard": {
         const number = (text ?? "").replace(/[^\d+*#]/g, "");
         if (number) run("phone_dial", { number });
-        else phone.notice = action === "dial-selection" ? "Keine Rufnummer markiert" : "Keine Rufnummer in der Zwischenablage";
+        else phone.notice = action === "dial-selection" ? t("Keine Rufnummer markiert") : t("Keine Rufnummer in der Zwischenablage");
         break;
       }
       case "answer": {
@@ -68,7 +69,7 @@
         break;
       }
       case "toggle-view":
-        tab = tabs[(tabs.findIndex((t) => t.id === tab) + 1) % tabs.length].id;
+        tab = tabs[(tabs.findIndex((x) => x.id === tab) + 1) % tabs.length].id;
         break;
     }
   }
@@ -79,7 +80,7 @@
       const info = await invoke<SessionInfo | null>("restore_session");
       if (info) { session = info; phase = "session"; loadVoicemails(); return; }
     } catch (e) {
-      notice = `Automatische Anmeldung fehlgeschlagen: ${e}`;
+      notice = t("Automatische Anmeldung fehlgeschlagen: {e}", { e: String(e) });
     }
     phase = "login";
   }
@@ -117,15 +118,15 @@
   let settingsOpen = $state(false);
   type Tab = "journal" | "voicemail" | "contacts" | "chat" | "fkeys";
   let tab = $state<Tab>("journal");
-  const tabs: { id: Tab; icon: IconName; label: string }[] = [
-    { id: "journal", icon: "history", label: "Rufliste" },
+  const tabs: { id: Tab; icon: IconName; label: string }[] = $derived([
+    { id: "journal", icon: "history", label: t("Rufliste") },
     { id: "voicemail", icon: "voicemail", label: "Voicemail" },
-    { id: "contacts", icon: "contacts", label: "Adressbuch" },
+    { id: "contacts", icon: "contacts", label: t("Adressbuch") },
     { id: "chat", icon: "chat", label: "Chat" },
-    { id: "fkeys", icon: "dialpad", label: "Funktionstasten" },
-  ];
+    { id: "fkeys", icon: "dialpad", label: t("Funktionstasten") },
+  ]);
 
-  const meta = Object.fromEntries(tabs.map((t) => [t.id, t]));
+  const meta = $derived(Object.fromEntries(tabs.map((x) => [x.id, x])));
   const free = $derived(prefs.value?.workspace === "free");
   let tiles = $state<Tile[]>([]);
   /** Zähler, die sonst am Reiter stehen, für die Kachel-Titelleiste */
@@ -159,8 +160,8 @@
 
   function tabClick(id: Tab) {
     if (!free) return void (tab = id);
-    const t = tiles.find((t) => t.id === id);
-    if (t) t.visible = !t.visible;
+    const tile = tiles.find((x) => x.id === id);
+    if (tile) tile.visible = !tile.visible;
   }
 
   async function logout() {
@@ -168,9 +169,9 @@
     settingsOpen = false;
     try {
       await invoke("logout");
-      notice = "Abgemeldet";
+      notice = t("Abgemeldet");
     } catch (e) {
-      notice = `Abmelden unvollständig: ${e}`;
+      notice = t("Abmelden unvollständig: {e}", { e: String(e) });
     }
     session = null;
     phase = "login";
@@ -180,12 +181,12 @@
     return name.split(/\s+/).filter(Boolean).slice(0, 2).map((w) => w[0]).join("").toUpperCase() || "?";
   }
 
-  const stateText = {
-    off: "Softphone aus",
-    starting: "Softphone startet …",
-    ready: "Softphone bereit",
-    error: "Softphone nicht angemeldet",
-  } as const;
+  const stateText = $derived({
+    off: t("Softphone aus"),
+    starting: t("Softphone startet …"),
+    ready: t("Softphone bereit"),
+    error: t("Softphone nicht angemeldet"),
+  });
 </script>
 
 {#if phase === "session" && session}
@@ -197,24 +198,24 @@
           <span class="reg {phone.status.state}"></span>
         </button>
         {#if menuOpen}
-          <button class="scrim" aria-label="Menü schliessen" onclick={() => (menuOpen = false)}></button>
+          <button class="scrim" aria-label={t("Menü schliessen")} onclick={() => (menuOpen = false)}></button>
           <div class="menu">
             <div class="who">
               <strong>{session.display_name}</strong>
               <span class="muted">STARFACE {session.server_version}</span>
               <span class="muted">{session.server}</span>
               <span class="state"><span class="reg {phone.status.state}"></span>{stateText[phone.status.state]}</span>
-              {#if phone.status.state === "error" && phone.status.detail}<span class="notice">{phone.status.detail}</span>{/if}
+              {#if phone.status.state === "error" && phone.status.detail}<span class="notice">{t(phone.status.detail)}</span>{/if}
             </div>
-            <button class="item" onclick={() => { menuOpen = false; settingsOpen = true; }}><Icon name="settings" size={20} /> Einstellungen</button>
-            <button class="item" onclick={logout}><Icon name="logout" size={20} /> Abmelden</button>
+            <button class="item" onclick={() => { menuOpen = false; settingsOpen = true; }}><Icon name="settings" size={20} /> {t("Einstellungen")}</button>
+            <button class="item" onclick={logout}><Icon name="logout" size={20} /> {t("Abmelden")}</button>
           </div>
         {/if}
       </div>
       <DialSearch />
       <div class="spacer"></div>
       {#if free && !editing}
-        <button class="arrange" title="Anordnung bearbeiten" onclick={editStart}><Icon name="edit" size={20} /></button>
+        <button class="arrange" title={t("Anordnung bearbeiten")} onclick={editStart}><Icon name="edit" size={20} /></button>
       {/if}
       <CallManager />
       <div class="brand"><img src={logo} alt="" /> StarCLX</div>
@@ -222,24 +223,24 @@
 
     {#if !free || editing}
     <nav class="tabs">
-      {#each tabs as t}
+      {#each tabs as tb}
         <button
           class="tab"
-          class:active={free ? tiles.find((x) => x.id === t.id)?.visible : tab === t.id}
-          title={free && editing ? "Kachel ein- oder ausblenden" : undefined}
-          onclick={() => tabClick(t.id)}
+          class:active={free ? tiles.find((x) => x.id === tb.id)?.visible : tab === tb.id}
+          title={free && editing ? t("Kachel ein- oder ausblenden") : undefined}
+          onclick={() => tabClick(tb.id)}
         >
-          <Icon name={t.icon} size={20} /><span>{t.label}</span>
-          {#if t.id === "chat" && unreadTotal()}<span class="unread">{unreadTotal()}</span>{/if}
-          {#if t.id === "voicemail" && unheard()}<span class="unread">{unheard()}</span>{/if}
+          <Icon name={tb.icon} size={20} /><span>{tb.label}</span>
+          {#if tb.id === "chat" && unreadTotal()}<span class="unread">{unreadTotal()}</span>{/if}
+          {#if tb.id === "voicemail" && unheard()}<span class="unread">{unheard()}</span>{/if}
         </button>
       {/each}
       {#if free}
         <span class="spacer"></span>
         {#if editing}
-          <button class="tab" title="Standardanordnung" onclick={() => (tiles = tilesOf(null))}><span>Standard</span></button>
-          <button class="tab" title="Änderungen verwerfen" onclick={editCancel}><Icon name="close" size={20} /><span>Abbrechen</span></button>
-          <button class="tab lock on" title="Anordnung speichern und fixieren" onclick={editDone}><Icon name="check" size={20} /><span>Fertig</span></button>
+          <button class="tab" title={t("Standardanordnung")} onclick={() => (tiles = tilesOf(null))}><span>{t("Standard")}</span></button>
+          <button class="tab" title={t("Änderungen verwerfen")} onclick={editCancel}><Icon name="close" size={20} /><span>{t("Abbrechen")}</span></button>
+          <button class="tab lock on" title={t("Anordnung speichern und fixieren")} onclick={editDone}><Icon name="check" size={20} /><span>{t("Fertig")}</span></button>
         {/if}
       {/if}
     </nav>
@@ -247,7 +248,7 @@
 
     <main class="work">
       {#if phone.status.state === "error" || (phone.status.state === "off" && phone.status.detail)}
-        <p class="banner"><span class="reg {phone.status.state}"></span>{stateText[phone.status.state]}{#if phone.status.detail}: {phone.status.detail}{/if}</p>
+        <p class="banner"><span class="reg {phone.status.state}"></span>{stateText[phone.status.state]}{#if phone.status.detail}: {t(phone.status.detail)}{/if}</p>
       {/if}
       {#if notice}<p class="banner">{notice}</p>{/if}
       {#snippet view(id: string)}
@@ -280,32 +281,30 @@
 <main class="login">
   <div class="brand big"><img src={logo} alt="" /> StarCLX</div>
   {#if phase === "restoring"}
-    <p>Verbinde …</p>
+    <p>{t("Verbinde …")}</p>
   {:else}
-    <h1>Anmelden</h1>
+    <h1>{t("Anmelden")}</h1>
     <form onsubmit={login}>
-      <input placeholder="https://anlage.example.com" bind:value={server} required />
+      <input placeholder={t("https://anlage.example.com")} bind:value={server} required />
       <!-- Bleibt klickbar: schliesst der Benutzer das Anmeldefenster, kann er neu beginnen. -->
       <button class="primary" type="submit" onclick={() => (viaBrowser = false)}>
-        {phase === "waiting" ? "Warte auf Anmeldung …" : "Anmelden"}
+        {phase === "waiting" ? t("Warte auf Anmeldung …") : t("Anmelden")}
       </button>
       <button type="submit" class="link" onclick={() => (viaBrowser = true)}>
-        Stattdessen im Browser anmelden
+        {t("Stattdessen im Browser anmelden")}
       </button>
     </form>
     {#if untrusted}
       <div class="cert" role="alertdialog" aria-labelledby="cert-title">
-        <h2 id="cert-title">Zertifikat nicht vertrauenswürdig</h2>
+        <h2 id="cert-title">{t("Zertifikat nicht vertrauenswürdig")}</h2>
         <p>
-          Das Zertifikat von <b>{untrusted.host}:{untrusted.port}</b> ist nicht von einer bekannten
-          Stelle ausgestellt oder passt nicht zur Adresse ({untrusted.reason}). Das ist bei lokalen
-          Anlagen mit selbstsigniertem Zertifikat üblich.
+          {t("Das Zertifikat von")} <b>{untrusted.host}:{untrusted.port}</b> {t("ist nicht von einer bekannten Stelle ausgestellt oder passt nicht zur Adresse ({reason}). Das ist bei lokalen Anlagen mit selbstsigniertem Zertifikat üblich.", { reason: untrusted.reason })}
         </p>
-        <p class="muted">Fingerabdruck (SHA-256), mit dem Zertifikat der Anlage vergleichen:</p>
+        <p class="muted">{t("Fingerabdruck (SHA-256), mit dem Zertifikat der Anlage vergleichen:")}</p>
         <code>{untrusted.fingerprint}</code>
         <div class="actions">
-          <button onclick={() => (untrusted = null)}>Abbrechen</button>
-          <button class="primary" onclick={trustCertificate}>Vertrauen und anmelden</button>
+          <button onclick={() => (untrusted = null)}>{t("Abbrechen")}</button>
+          <button class="primary" onclick={trustCertificate}>{t("Vertrauen und anmelden")}</button>
         </div>
       </div>
     {/if}

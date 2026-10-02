@@ -6,7 +6,8 @@
   import { onMount } from "svelte";
   import FkeyTile from "./FkeyTile.svelte";
   import Icon from "./Icon.svelte";
-  import { TYPES, blank, fkeys, keyAt, loadFkeys, placeAt, saveOrder, typeInfo, type FunctionKey, type SignalingNumber } from "./fkeys.svelte";
+  import { types, blank, fkeys, keyAt, loadFkeys, placeAt, saveOrder, typeInfo, type FunctionKey, type SignalingNumber } from "./fkeys.svelte";
+  import { t } from "./i18n.svelte";
 
   let { columns = $bindable(3) }: { columns: number } = $props();
 
@@ -32,11 +33,11 @@
   });
 
   const slots = $derived(Math.max(24, Math.ceil((fkeys.order.length + 1) / columns) * columns));
-  const groups = [
-    { id: "fav", label: "Favoriten" },
-    { id: "fn", label: "Funktionstasten" },
-    { id: "desk", label: "Nur auf Tischtelefonen verfügbar" },
-  ] as const;
+  const groups = $derived([
+    { id: "fav", label: t("Favoriten") },
+    { id: "fn", label: t("Funktionstasten") },
+    { id: "desk", label: t("Nur auf Tischtelefonen verfügbar") },
+  ] as const);
   const numbers = $derived(
     [...new Map(fkeys.redirects.filter((r) => r.called_number_id).map((r) => [r.called_number_id, r.called_number])).entries()],
   );
@@ -62,9 +63,9 @@
     switch (k.functionKeyType) {
       case "BUSYLAMPFIELD": return fkeys.accounts.find((a) => a.account_id === k.blfAccountId)?.name ?? label;
       case "QUICKDIAL": return k.directCallTargetnumber ?? label;
-      case "FORWARD": return `Umleitung [${{ ALWAYS: "Immer", BUSY: "Besetzt", TIMEOUT: "Zeitüberschreitung" }[k.forwardType ?? "ALWAYS"]}]`;
+      case "FORWARD": return t("Umleitung [{art}]", { art: { ALWAYS: t("Immer"), BUSY: t("Besetzt"), TIMEOUT: t("Zeitüberschreitung") }[k.forwardType ?? "ALWAYS"] ?? "" });
       case "PARKANDORBIT": return `P+O[${k.poNumber ?? ""}]`;
-      case "PHONEDTMF": return `Tastentöne[${k.dtmf ?? ""}]`;
+      case "PHONEDTMF": return t("Tastentöne[{dtmf}]", { dtmf: k.dtmf ?? "" });
       case "SEPARATOR": return "";
       default: return label;
     }
@@ -72,15 +73,15 @@
 
   function validate(k: FunctionKey) {
     switch (k.functionKeyType) {
-      case "BUSYLAMPFIELD": return k.blfAccountId ? "" : "Bitte einen Benutzer wählen.";
-      case "QUICKDIAL": return k.directCallTargetnumber?.trim() ? "" : "Bitte eine Rufnummer eingeben.";
+      case "BUSYLAMPFIELD": return k.blfAccountId ? "" : t("Bitte einen Benutzer wählen.");
+      case "QUICKDIAL": return k.directCallTargetnumber?.trim() ? "" : t("Bitte eine Rufnummer eingeben.");
       case "FORWARDNUMBER":
       case "FORWARDTOTARGET":
-        if (!k.redirectNumberIds.length) return "Bitte mindestens eine Rufnummer wählen.";
-        return k.functionKeyType === "FORWARDTOTARGET" && k.forwardTargetType === "PHONENUMBER" && !k.forwardTarget?.trim() ? "Bitte ein Ziel eingeben." : "";
-      case "SIGNALNUMBER": return k.displayNumberId === null ? "Bitte eine Rufnummer wählen." : "";
-      case "PHONEDTMF": return k.dtmf?.trim() ? "" : "Bitte Tastentöne eingeben.";
-      case "PHONEGENERICURL": return k.genericURL?.trim() ? "" : "Bitte eine URL eingeben.";
+        if (!k.redirectNumberIds.length) return t("Bitte mindestens eine Rufnummer wählen.");
+        return k.functionKeyType === "FORWARDTOTARGET" && k.forwardTargetType === "PHONENUMBER" && !k.forwardTarget?.trim() ? t("Bitte ein Ziel eingeben.") : "";
+      case "SIGNALNUMBER": return k.displayNumberId === null ? t("Bitte eine Rufnummer wählen.") : "";
+      case "PHONEDTMF": return k.dtmf?.trim() ? "" : t("Bitte Tastentöne eingeben.");
+      case "PHONEGENERICURL": return k.genericURL?.trim() ? "" : t("Bitte eine URL eingeben.");
       default: return "";
     }
   }
@@ -187,7 +188,7 @@
 
 <div class="editor" class:dragging={!!dragging}>
   <div class="left">
-    <label class="cols">Anzahl der Spalten
+    <label class="cols">{t("Anzahl der Spalten")}
       <select bind:value={columns}>{#each [1, 2, 3, 4, 5, 6] as n}<option value={n}>{n}</option>{/each}</select>
     </label>
     <div class="grid" style="grid-template-columns: repeat({columns}, minmax(0, 1fr))">
@@ -216,20 +217,20 @@
         </div>
       {/each}
     </div>
-    <p class="small muted">Typ von rechts auf einen Platz ziehen oder anklicken. Tasten lassen sich im Raster verschieben: auf einen leeren Platz legen oder auf eine Taste ziehen, um sie davor einzuschieben. Ein Klick öffnet sie zum Bearbeiten.</p>
+    <p class="small muted">{t("Typ von rechts auf einen Platz ziehen oder anklicken. Tasten lassen sich im Raster verschieben: auf einen leeren Platz legen oder auf eine Taste ziehen, um sie davor einzuschieben. Ein Klick öffnet sie zum Bearbeiten.")}</p>
   </div>
 
   <div class="types">
-    <h4>Funktionstastentypen</h4>
+    <h4>{t("Funktionstastentypen")}</h4>
     {#each groups as g}
       <h5>{g.label}</h5>
-      {#each TYPES.filter((t) => t.group === g.id) as t}
+      {#each types().filter((x) => x.group === g.id) as ty}
         <button
           class="type"
-          class:unusable={!t.usable}
-          onpointerdown={(e) => startDrag(e, { kind: "type", type: t.type, label: t.label })}
-          onclick={click(() => { target = null; editing = blank(t.type); })}
-        >{t.label}</button>
+          class:unusable={!ty.usable}
+          onpointerdown={(e) => startDrag(e, { kind: "type", type: ty.type, label: ty.label })}
+          onclick={click(() => { target = null; editing = blank(ty.type); })}
+        >{ty.label}</button>
       {/each}
     {/each}
   </div>
@@ -241,78 +242,78 @@
   {@const k = editing}
   <div class="layer" use:portal>
   <div class="scrim" role="presentation" onclick={() => (editing = null)}></div>
-  <div class="dialog" role="dialog" aria-label="Funktionstaste bearbeiten">
-    <h4>{typeInfo(k.functionKeyType).label}{k.id ? "" : " hinzufügen"}</h4>
+  <div class="dialog" role="dialog" aria-label={t("Funktionstaste bearbeiten")}>
+    <h4>{k.id ? typeInfo(k.functionKeyType).label : t("{typ} hinzufügen", { typ: typeInfo(k.functionKeyType).label })}</h4>
     {#if !typeInfo(k.functionKeyType).usable}
-      <p class="small muted">Diese Taste wirkt auf Tischtelefonen; im Linux-Client wird sie nur angezeigt.</p>
+      <p class="small muted">{t("Diese Taste wirkt auf Tischtelefonen; im Linux-Client wird sie nur angezeigt.")}</p>
     {/if}
     {#if k.functionKeyType !== "SEPARATOR"}
-      <label class="row"><span>Bezeichnung</span><input type="text" bind:value={k.name} placeholder={defaultName(k)} /></label>
+      <label class="row"><span>{t("Bezeichnung")}</span><input type="text" bind:value={k.name} placeholder={defaultName(k)} /></label>
     {/if}
     {#if k.functionKeyType === "BUSYLAMPFIELD"}
-      <label class="row"><span>Benutzer</span>
+      <label class="row"><span>{t("Benutzer")}</span>
         <select bind:value={k.blfAccountId}>
-          <option value={null}>Bitte wählen …</option>
+          <option value={null}>{t("Bitte wählen …")}</option>
           {#each fkeys.accounts as a}<option value={a.account_id}>{a.name} ({a.number})</option>{/each}
         </select>
       </label>
     {:else if k.functionKeyType === "QUICKDIAL"}
-      <label class="row"><span>Rufnummer</span><input type="text" bind:value={k.directCallTargetnumber} /></label>
+      <label class="row"><span>{t("Rufnummer")}</span><input type="text" bind:value={k.directCallTargetnumber} /></label>
     {:else if k.functionKeyType === "FORWARD"}
-      <label class="row"><span>Art</span>
+      <label class="row"><span>{t("Art")}</span>
         <select bind:value={k.forwardType}>
-          <option value="ALWAYS">Immer</option><option value="BUSY">Besetzt</option><option value="TIMEOUT">Zeitüberschreitung</option>
+          <option value="ALWAYS">{t("Immer")}</option><option value="BUSY">{t("Besetzt")}</option><option value="TIMEOUT">{t("Zeitüberschreitung")}</option>
         </select>
       </label>
     {:else if k.functionKeyType === "FORWARDNUMBER" || k.functionKeyType === "FORWARDTOTARGET"}
-      <div class="row"><span>Rufnummern</span>
+      <div class="row"><span>{t("Rufnummern")}</span>
         <span class="checks">
           {#each numbers as [id, n]}
             <label><input type="checkbox" checked={k.redirectNumberIds.includes(Number(id))} onchange={() => toggleNumber(Number(id))} /> {n}</label>
-          {:else}<span class="muted small">Keine Rufnummern gefunden.</span>{/each}
+          {:else}<span class="muted small">{t("Keine Rufnummern gefunden.")}</span>{/each}
         </span>
       </div>
       {#if k.functionKeyType === "FORWARDTOTARGET"}
-        <label class="row"><span>Ziel</span>
+        <label class="row"><span>{t("Ziel")}</span>
           <select bind:value={k.forwardTargetType}>
-            <option value="VOICEMAIL">Voicemail</option><option value="PHONENUMBER">Rufnummer</option>
+            <option value="VOICEMAIL">Voicemail</option><option value="PHONENUMBER">{t("Rufnummer")}</option>
           </select>
         </label>
         {#if k.forwardTargetType === "PHONENUMBER"}
-          <label class="row"><span>Zielrufnummer</span><input type="text" bind:value={k.forwardTarget} /></label>
+          <label class="row"><span>{t("Zielrufnummer")}</span><input type="text" bind:value={k.forwardTarget} /></label>
         {/if}
       {/if}
     {:else if k.functionKeyType === "SIGNALNUMBER"}
-      <label class="row"><span>Rufnummer</span>
+      <label class="row"><span>{t("Rufnummer")}</span>
         <select bind:value={k.displayNumberId}>
-          <option value={null}>Bitte wählen …</option>
-          {#each signaling as s}<option value={s.suppressed ? 0 : Number(s.id)}>{s.suppressed ? "Nummer unterdrücken" : s.number}</option>{/each}
+          <option value={null}>{t("Bitte wählen …")}</option>
+          {#each signaling as s}<option value={s.suppressed ? 0 : Number(s.id)}>{s.suppressed ? t("Nummer unterdrücken") : s.number}</option>{/each}
         </select>
       </label>
     {:else if k.functionKeyType === "PARKANDORBIT"}
-      <label class="row"><span>Parkplatz</span><input type="text" bind:value={k.poNumber} /></label>
+      <label class="row"><span>{t("Parkplatz")}</span><input type="text" bind:value={k.poNumber} /></label>
     {:else if k.functionKeyType === "PHONEDTMF"}
-      <label class="row"><span>Tastentöne</span><input type="text" bind:value={k.dtmf} placeholder="z. B. 12345" /></label>
+      <label class="row"><span>{t("Tastentöne")}</span><input type="text" bind:value={k.dtmf} placeholder={t("z. B. {beispiel}", { beispiel: "12345" })} /></label>
     {:else if k.functionKeyType === "PHONEGENERICURL"}
       <label class="row"><span>URL</span><input type="text" bind:value={k.genericURL} placeholder="https://…" /></label>
     {:else if k.functionKeyType === "ADDRESSBOOK"}
-      <label class="row"><span>Anzeige</span>
-        <select bind:value={k.addressbookRequest}><option value="CONTACTLIST">Kontaktliste</option><option value="CONTACTSEARCH">Kontaktsuche</option></select>
+      <label class="row"><span>{t("Anzeige")}</span>
+        <select bind:value={k.addressbookRequest}><option value="CONTACTLIST">{t("Kontaktliste")}</option><option value="CONTACTSEARCH">{t("Kontaktsuche")}</option></select>
       </label>
-      <label class="row"><span>Adressbuch</span><input type="text" bind:value={k.addressBookFolderName} /></label>
+      <label class="row"><span>{t("Adressbuch")}</span><input type="text" bind:value={k.addressBookFolderName} /></label>
     {:else if k.functionKeyType === "PHONECALLLIST"}
-      <label class="row"><span>Liste</span>
-        <select bind:value={k.callListRequest}><option value="INCOMING">Eingehend</option><option value="OUTGOING">Ausgehend</option><option value="MISSED">Verpasst</option></select>
+      <label class="row"><span>{t("Liste")}</span>
+        <select bind:value={k.callListRequest}><option value="INCOMING">{t("Eingehend")}</option><option value="OUTGOING">{t("Ausgehend")}</option><option value="MISSED">{t("Verpasst")}</option></select>
       </label>
     {:else if k.functionKeyType === "GROUPLOGIN" || k.functionKeyType === "MODULEACTIVATION"}
-      <p class="small muted">Die Auswahl der {k.functionKeyType === "GROUPLOGIN" ? "Gruppen" : "Module"} folgt später; bis dahin bitte in der Web-App einstellen.</p>
+      <p class="small muted">{k.functionKeyType === "GROUPLOGIN" ? t("Die Auswahl der Gruppen folgt später; bis dahin bitte in der Web-App einstellen.") : t("Die Auswahl der Module folgt später; bis dahin bitte in der Web-App einstellen.")}</p>
     {/if}
     {#if error}<p class="notice">{error}</p>{/if}
     <div class="actions">
-      {#if k.id}<button class="danger" disabled={busy} onclick={() => editing && remove(editing)}><Icon name="trash" size={18} /> Entfernen</button>{/if}
+      {#if k.id}<button class="danger" disabled={busy} onclick={() => editing && remove(editing)}><Icon name="trash" size={18} /> {t("Entfernen")}</button>{/if}
       <span class="spacer"></span>
-      <button onclick={() => (editing = null)}>Abbrechen</button>
-      <button class="primary" disabled={busy} onclick={save}>{k.id ? "Speichern" : "Hinzufügen"}</button>
+      <button onclick={() => (editing = null)}>{t("Abbrechen")}</button>
+      <button class="primary" disabled={busy} onclick={save}>{k.id ? t("Speichern") : t("Hinzufügen")}</button>
     </div>
   </div>
   </div>
