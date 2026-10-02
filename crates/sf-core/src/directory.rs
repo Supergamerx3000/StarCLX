@@ -23,12 +23,16 @@ pub struct ContactView {
     pub email: String,
     /// Gesetzt, wenn der Kontakt ein Benutzer der Anlage ist
     pub user_id: Option<String>,
+    pub editable: bool,
+    pub deletable: bool,
 }
 
 #[derive(Debug, Clone, Serialize)]
 pub struct Folder {
     pub id: String,
     pub name: String,
+    /// Darf der Benutzer hier Kontakte anlegen?
+    pub writable: bool,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -76,6 +80,7 @@ pub async fn folders(hub: &OneHub, server: &str) -> sf_onehub::Result<Vec<Folder
             Some(Folder {
                 name: display_name(&f.folder_name, f.folder_type(), alias),
                 id,
+                writable: f.is_writable,
             })
         })
         .collect())
@@ -201,6 +206,8 @@ fn simple_view(c: v1::contact::phonenumber::SimpleContact) -> ContactView {
         numbers,
         email: String::new(),
         user_id: None,
+        editable: false,
+        deletable: false,
     }
 }
 
@@ -250,6 +257,8 @@ fn contact_view(c: &v1::contact::Contact) -> ContactView {
             .as_ref()
             .map(|u| u.id.clone())
             .filter(|u| !u.is_empty()),
+        editable: c.is_editable,
+        deletable: c.is_deletable,
     }
 }
 

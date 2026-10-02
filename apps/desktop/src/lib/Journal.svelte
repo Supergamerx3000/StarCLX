@@ -4,6 +4,7 @@
   import { onMount } from "svelte";
   import Icon from "./Icon.svelte";
   import { phone, run } from "./phone.svelte";
+  import { newContact } from "./contactform.svelte";
 
   type Entry = {
     id: string;
@@ -147,6 +148,9 @@
                 title={e.called_back ? "Als nicht zurückgerufen markieren" : "Als zurückgerufen markieren"}
                 onclick={() => act(e.called_back ? "not_called_back" : "called_back", e.id)}
               >✓</button>
+            {/if}
+            {#if e.number && !e.name}
+              <button class="icon" title="Ins Adressbuch übernehmen" onclick={() => newContact({ number: e.number })}><Icon name="person" size={18} /></button>
             {/if}
             <button class="icon" title="Notiz" onclick={() => startComment(e)}>✎</button>
             <button

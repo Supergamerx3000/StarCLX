@@ -593,6 +593,45 @@ async fn contacts_list(
         .map_err(|e| e.to_string())
 }
 
+/// Formular für einen neuen (`id` leer) oder bestehenden Kontakt
+#[tauri::command]
+async fn contact_form(
+    state: State<'_, AppState>,
+    id: String,
+) -> Result<Vec<sf_core::contact_form::Field>, String> {
+    let hub = hub(&state).await?;
+    if id.is_empty() {
+        sf_core::contact_form::empty(&hub).await
+    } else {
+        sf_core::contact_form::load(&hub, &id).await
+    }
+    .map_err(|e| e.to_string())
+}
+
+/// Speichert einen Kontakt: neu in `folder`, sonst Änderung an `id`
+#[tauri::command]
+async fn contact_save(
+    state: State<'_, AppState>,
+    id: String,
+    folder: String,
+    fields: Vec<sf_core::contact_form::Field>,
+) -> Result<(), String> {
+    let hub = hub(&state).await?;
+    if id.is_empty() {
+        sf_core::contact_form::create(&hub, &folder, &fields).await
+    } else {
+        sf_core::contact_form::update(&hub, &id, &fields).await
+    }
+    .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+async fn contact_delete(state: State<'_, AppState>, id: String) -> Result<(), String> {
+    sf_core::contact_form::delete(&hub(&state).await?, &id)
+        .await
+        .map_err(|e| e.to_string())
+}
+
 #[tauri::command]
 async fn journal_entries(
     state: State<'_, AppState>,
@@ -832,6 +871,9 @@ pub fn run() {
             contacts_search,
             contacts_folders,
             contacts_list,
+            contact_form,
+            contact_save,
+            contact_delete,
             journal_entries,
             journal_action,
             chat::chat_status,

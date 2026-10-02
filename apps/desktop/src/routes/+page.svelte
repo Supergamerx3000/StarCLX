@@ -1,5 +1,7 @@
 <script lang="ts">
   import logo from "$lib/assets/logo.png";
+  import ContactForm from "$lib/ContactForm.svelte";
+  import { contactEdit } from "$lib/contactform.svelte";
   import { invoke } from "@tauri-apps/api/core";
   import { listen } from "@tauri-apps/api/event";
   import { onMount } from "svelte";
@@ -268,6 +270,9 @@
       {/if}
     </main>
   </div>
+  {#if contactEdit.open}
+    {#key contactEdit.id + contactEdit.number}<ContactForm />{/key}
+  {/if}
   {#if settingsOpen}
     <Settings onclose={() => (settingsOpen = false)} onlogout={logout} server={session.server} />
   {/if}
