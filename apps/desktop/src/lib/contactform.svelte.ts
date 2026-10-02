@@ -22,5 +22,5 @@ export function editContact(id: string) {
   Object.assign(contactEdit, { open: true, id, folder: "", number: "" });
 }
 
-/** ContactDisplayKey der Rufnummernfelder, bevorzugte zuerst */
+/** ContactDisplayKey der Rufnummernfelder */
 export const PHONE_KEYS = [17, 19, 20, 18];

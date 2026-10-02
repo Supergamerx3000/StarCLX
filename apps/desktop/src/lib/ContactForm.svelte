@@ -23,7 +23,7 @@
         folders = (await invoke<Folder[]>("contacts_folders")).filter((f) => f.writable);
         folder = (folders.find((f) => f.id === contactEdit.folder) ?? folders.find((f) => f.private) ?? folders[0])?.id ?? "";
         if (contactEdit.number) {
-          const slot = PHONE_KEYS.map((k) => fields.find((f) => f.key === k)).find(Boolean);
+          const slot = fields.find((f) => PHONE_KEYS.includes(f.key));
           if (slot) slot.value = contactEdit.number;
         }
       }
@@ -40,7 +40,13 @@
     if (on) setTimeout(() => node.focus());
   }
 
-  const filled = $derived(fields.some((f) => f.value.trim()));
+  const SURNAME_OR_COMPANY = [2, 12];
+  /** Ohne Nachname oder Firma lehnt die Anlage den Kontakt ab */
+  const named = $derived(
+    fields.some((f) => SURNAME_OR_COMPANY.includes(f.key))
+      ? fields.some((f) => SURNAME_OR_COMPANY.includes(f.key) && f.value.trim())
+      : fields.some((f) => f.value.trim()),
+  );
 
   function close() {
     contactEdit.open = false;
@@ -93,31 +99,22 @@
         </label>
         {#if !folders.length}<p class="notice">Du darfst in keinem Adressbuch Kontakte anlegen.</p>{/if}
       {/if}
-      {#each groups as g, i}
-        {#if i < 2}
-          <h5>{g}</h5>
-          {#each fields.filter((f) => f.group === g) as f}
-            <label class="row"><span>{f.label}</span><input type="text" bind:value={f.value} use:focusIf={isNew && f.key === SURNAME} /></label>
-          {/each}
-        {:else}
-          <details open={fields.some((f) => f.group === g && f.value)}>
-            <summary>{g}</summary>
-            {#each fields.filter((f) => f.group === g) as f}
-              <label class="row"><span>{f.label}</span><input type="text" bind:value={f.value} /></label>
-            {/each}
-          </details>
-        {/if}
+      {#each groups as g}
+        <h5>{g}</h5>
+        {#each fields.filter((f) => f.group === g) as f}
+          <label class="row"><span>{f.label}</span><input type="text" bind:value={f.value} use:focusIf={isNew && f.key === SURNAME} /></label>
+        {/each}
       {/each}
     </div>
   {/if}
-  {#if error}<p class="notice">{error}</p>{/if}
+  {#if error}<p class="notice">{error}</p>{:else if !loading && !named}<p class="muted hint">Nachname oder Firma ausfüllen.</p>{/if}
   <div class="actions">
     {#if !isNew}
       <button class="danger" disabled={busy || loading} onclick={remove}><Icon name="trash" size={18} /> {confirmDelete ? "Wirklich löschen?" : "Löschen"}</button>
     {/if}
     <span class="spacer"></span>
     <button onclick={close}>Abbrechen</button>
-    <button class="primary" disabled={busy || loading || !filled || (isNew && !folder)} onclick={save}>{isNew ? "Anlegen" : "Speichern"}</button>
+    <button class="primary" disabled={busy || loading || !named || (isNew && !folder)} onclick={save}>{isNew ? "Anlegen" : "Speichern"}</button>
   </div>
 </div>
 
@@ -130,9 +127,7 @@
   .dialog h4 { margin: 0; }
   .body { overflow: auto; display: flex; flex-direction: column; gap: 0.45rem; padding-right: 0.3rem; }
   h5 { margin: 0.5rem 0 0; font-size: 0.8rem; color: var(--muted); font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; }
-  details { display: flex; flex-direction: column; gap: 0.45rem; }
-  details > .row { margin-top: 0.45rem; }
-  summary { cursor: pointer; margin-top: 0.5rem; font-size: 0.8rem; color: var(--muted); font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; }
+  .hint { margin: 0; font-size: 0.85rem; }
   .row { display: grid; grid-template-columns: 8rem minmax(0, 1fr); align-items: center; gap: 0.6rem; }
   .row span { color: var(--muted); font-size: 0.9rem; }
   .actions { display: flex; gap: 0.6rem; margin-top: 0.2rem; }

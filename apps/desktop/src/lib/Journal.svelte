@@ -90,11 +90,14 @@
       .join("\n");
   }
 
+  /** Kurze interne Nummern (Parkplatz "00", Kurzwahlen) gehören nicht ins Adressbuch */
+  const external = (n: string) => n.replace(/\D/g, "").length >= 5;
+
   /** Nummern ohne Namen, die schon im Adressbuch stehen (Anlage löst alte Einträge nicht nach) */
   let known = $state<Record<string, boolean>>({});
   $effect(() => {
     for (const e of entries) {
-      if (e.name || !e.number || e.number in known) continue;
+      if (e.name || !external(e.number) || e.number in known) continue;
       known[e.number] = false;
       invoke<{ numbers: { number: string }[] }[]>("contacts_search", { term: e.number })
         .then((hits) => {
@@ -185,7 +188,7 @@
                 onclick={() => act(e.called_back ? "not_called_back" : "called_back", e.id)}
               >✓</button>
             {/if}
-            {#if e.number && !e.name && !known[e.number]}
+            {#if external(e.number) && !e.name && !known[e.number]}
               <button class="icon" title="Ins Adressbuch übernehmen" onclick={() => newContact({ number: e.number })}><Icon name="person" size={18} /></button>
             {/if}
             <button class="icon" title="Notiz" onclick={() => startComment(e)}>✎</button>

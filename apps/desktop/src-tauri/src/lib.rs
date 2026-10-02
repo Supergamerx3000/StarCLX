@@ -616,6 +616,9 @@ async fn contact_save(
     folder: String,
     fields: Vec<sf_core::contact_form::Field>,
 ) -> Result<(), String> {
+    if sf_core::contact_form::missing_name(&fields) {
+        return Err("Bitte Nachname oder Firma ausfüllen.".into());
+    }
     let hub = hub(&state).await?;
     if id.is_empty() {
         sf_core::contact_form::create(&hub, &folder, &fields).await
