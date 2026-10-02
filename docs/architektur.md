@@ -1,6 +1,6 @@
 # Architektur und Tech-Stack: STARFACE-Client für Linux
 
-Stand: 30.09.2026. Grundlage: [windows-client-analyse.md](windows-client-analyse.md), [feature-inventar.md](feature-inventar.md) und der erfolgreiche Durchstich auf Moes Rechner (gRPC, SIP/TLS mit SRTP über baresip, XMPP, Browser-Login).
+Stand: 30.09.2026, Geräte-Identität korrigiert am 02.10.2026. Grundlage: [windows-client-analyse.md](windows-client-analyse.md), [feature-inventar.md](feature-inventar.md) und der erfolgreiche Durchstich auf Moes Rechner (gRPC, SIP/TLS mit SRTP über baresip, XMPP, Browser-Login).
 
 Vorgabe von Moe: Cross-Platform wäre schön, **Linux hat Vorrang vor allem anderen.**
 
@@ -19,7 +19,8 @@ Die Anlage erledigt die schwere Arbeit: Anrufsteuerung, Halten, Übergabe und Ko
 | Softphone | **libbaresip 4.x** per FFI (bindgen) | Im Durchstich mit genau dieser Anlage erprobt (TLS 5061, SRTP/SDES Pflicht, G.722/PCMA/PCMU). **BSD-Lizenz.** Module für PipeWire, Pulse, ALSA, aber auch WASAPI (Windows) und CoreAudio (macOS), dazu Opus, G.722, SRTP |
 | Chat | **tokio-xmpp 6 + xmpp-parsers** | STARTTLS, SASL mit Token als Passwort, Roster, Carbons, MUC vorhanden. XEP-0136-Archiv (Openfire) als eigene kleine IQ-Schicht |
 | Oberfläche | **Tauri 2** + **Svelte 5 / TypeScript** | Offizielle Plugins decken die Desktop-Integration fast 1:1 ab: `deep-link` (`starface-app://login`, `tel:`, `callto:`, `sip:`), `single-instance`, Tray, Benachrichtigungen, Autostart, `global-shortcut`, Updater. Gleiche UI auf allen Plattformen |
-| Login | OAuth2 Code + PKCE im Systembrowser, `client_id=windows-app`, Redirect `starface-app://login`, Scope `pbx-login` | Live verifiziert. Refresh-Token (90 Tage) im **Secret Service** (gnome-keyring/KWallet) über die `keyring`-Crate, nie im Klartext |
+| Login | OAuth2 Code + PKCE im Systembrowser, `client_id=windows-app`, Redirect `starface-app://login`, Scope `pbx-login` | Live verifiziert. Die Client-ID ist nur der Name der OAuth-Freigabe für Desktop-Apps (eine eigene Linux-Client-ID bietet die Anlage nicht an) und bestimmt nicht den Gerätetyp. Refresh-Token (90 Tage) im **Secret Service** (gnome-keyring/KWallet) über die `keyring`-Crate, nie im Klartext |
+| Softphone-Gerät | `RegisterSipDevice` mit der Geräte-ID des **Linux-Clients** `D4CC1516-EC90-42C7-8F70-B0853B173232` (Anlagen-Typ LinuxClient, 152) | Seit PR #5. Die Anlage legt dafür ein eigenes App-Telefon an und unterscheidet StarCLX so vom Windows-Client (`163C00A2-…`) desselben Benutzers. Gilt für die Desktop-App und `sfctl` (gemeinsame Konstante `sf_onehub::SIP_DEVICE_ID`); bei `sfctl` lässt sie sich zu Testzwecken mit `--sip-device-id` bzw. `SF_SIP_DEVICE_ID` überschreiben |
 | Lokale Daten | SQLite über `rusqlite` mit SQLCipher-Feature | Chatverlauf und Caches (Kontakte, Journal) verschlüsselt, wie im Windows-Client |
 | Linux-Spezifika | `ashpd` (xdg-desktop-portal) | Globale Hotkeys unter Wayland (GlobalShortcuts-Portal), Dateiauswahl, Hintergrund/Autostart in Flatpak |
 
@@ -41,7 +42,7 @@ Die Anlage erledigt die schwere Arbeit: Anrufsteuerung, Halten, Übergabe und Ko
 │        │                                     ▼                          │
 │  sf-core  ─ Sitzung, Zustand (Anrufe, Präsenz, Journal …), Event-Bus    │
 │    ├─ sf-auth    OIDC/PKCE, Token-Refresh, Keyring                       │
-│    ├─ sf-onehub  gRPC-Clients + Event-Streams mit Reconnect/Backoff      │
+│    ├─ sf-onehub  gRPC-Clients + Event-Streams, RegisterSipDevice (Linux)│
 │    ├─ sf-sip     libbaresip: TLS-Registrierung, SRTP, Auto-Answer, Audio│
 │    ├─ sf-chat    XMPP: Roster, Präsenz, 1:1, MUC, Carbons, Archiv       │
 │    └─ sf-store   SQLCipher: Chatverlauf, Caches, Einstellungen          │
@@ -99,7 +100,7 @@ starface-linux/
 | Risiko | Gegenmaßnahme |
 |---|---|
 | gRPC-API intern und nicht öffentlich | Protos je Version extrahieren, Versionsprüfung, Integrationstests gegen die Testanlage |
-| Wir treten als `windows-app` auf (Client-ID, Geräte-ID) | Technisch der einzige Weg, der funktioniert (eigene Loopback-Redirects werden abgelehnt). Später bei STARFACE nach einer eigenen Client-ID fragen |
+| Anmeldung nutzt die OAuth-Client-ID `windows-app` | Technisch der einzige Weg, der funktioniert (eigene Loopback-Redirects werden abgelehnt). Das Softphone meldet sich trotzdem als Linux-Client an. Später bei STARFACE nach einer eigenen Client-ID fragen |
 | WebKitGTK unter manchen GPU/Wayland-Kombis träge | UI schlank halten; Electron oder Qt als Ausweg, Kern bleibt gleich |
 | Tray unter GNOME nur mit AppIndicator-Erweiterung | Zorin bringt sie mit; sonst Fenster statt Tray |
 | Globale Hotkeys unter Wayland | GlobalShortcuts-Portal; unter X11 direkt |
