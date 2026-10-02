@@ -21,7 +21,7 @@ pub fn open(app: &AppHandle, url: &url::Url) -> tauri::Result<()> {
         LABEL,
         WebviewUrl::External("about:blank".parse().unwrap()),
     )
-    .title("STARFACE – Anmelden")
+    .title("StarCLX – Anmelden")
     .inner_size(480.0, 680.0)
     .on_navigation(move |url| {
         if !url.as_str().starts_with(sf_auth::REDIRECT_URI) {
