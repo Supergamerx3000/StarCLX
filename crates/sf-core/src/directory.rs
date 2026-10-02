@@ -232,10 +232,13 @@ fn contact_view(c: &v1::contact::Contact) -> ContactView {
             Key::PrivatePhoneNumber => "Privat",
             _ => continue,
         };
-        let label = if a.i18n_display_name.trim().is_empty() {
+        // Übersetzungsschlüssel (de.vertico.…label_telephonenumber) sind
+        // keine Anzeigetexte
+        let custom = a.i18n_display_name.trim();
+        let label = if custom.is_empty() || (custom.contains('.') && !custom.contains(' ')) {
             label
         } else {
-            a.i18n_display_name.trim()
+            custom
         };
         push_number(&mut numbers, label, &a.value);
     }
@@ -289,6 +292,12 @@ mod tests {
                     attr(Key::Company, "Muster AG"),
                     attr(Key::MobilePhoneNumber, "+41 79 000 00 00"),
                     attr(Key::OfficePhoneNumber, "12"),
+                    v1::contact::ContactAttribute {
+                        i18n_display_name:
+                            "de.vertico.starface.addressbook.phone.label_privatetelephonenumber"
+                                .into(),
+                        ..attr(Key::PrivatePhoneNumber, "+41 81 000 00 00")
+                    },
                     attr(Key::Email, "c@example.com"),
                 ],
                 ..Default::default()
@@ -310,6 +319,10 @@ mod tests {
                 Number {
                     label: "Mobil".into(),
                     number: "+41 79 000 00 00".into()
+                },
+                Number {
+                    label: "Privat".into(),
+                    number: "+41 81 000 00 00".into()
                 },
             ]
         );
