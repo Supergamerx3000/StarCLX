@@ -1,8 +1,8 @@
 # Architektur und Tech-Stack: STARFACE-Client für Linux
 
-Stand: 30.09.2026, Geräte-Identität korrigiert am 02.10.2026. Grundlage: [windows-client-analyse.md](windows-client-analyse.md) und der erfolgreiche Durchstich auf Moes Rechner (gRPC, SIP/TLS mit SRTP über baresip, XMPP, Browser-Login).
+Stand: 30.09.2026, Geräte-Identität korrigiert am 02.10.2026. Grundlage: [windows-client-analyse.md](windows-client-analyse.md) und der erfolgreiche Durchstich auf dem Rechner (gRPC, SIP/TLS mit SRTP über baresip, XMPP, Browser-Login).
 
-Vorgabe von Moe: Cross-Platform wäre schön, **Linux hat Vorrang vor allem anderen.**
+Vorgabe: Cross-Platform wäre schön, **Linux hat Vorrang vor allem anderen.**
 
 ## 1. Entscheidung in einem Satz
 
