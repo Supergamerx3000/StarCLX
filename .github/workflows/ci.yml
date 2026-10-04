@@ -25,6 +25,7 @@ jobs:
     outputs:
       version: ${{ steps.v.outputs.version }}
       release: ${{ steps.v.outputs.release }}
+      base: ${{ steps.v.outputs.base }}
     steps:
       - uses: actions/checkout@v7
       - id: v
@@ -48,6 +49,7 @@ jobs:
             VERSION="$BASE+${{ github.run_number }}"
           fi
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "base=$BASE" >> "$GITHUB_OUTPUT"
           echo "release=$RELEASE" >> "$GITHUB_OUTPUT"
           echo "Version $VERSION, Release $RELEASE"
 
@@ -167,6 +169,8 @@ jobs:
   windows:
     needs: version
     runs-on: windows-latest
+    permissions:
+      contents: write
     defaults:
       run:
         shell: pwsh
@@ -217,9 +221,26 @@ jobs:
           name: starclx-${{ needs.version.outputs.version }}-windows-x64
           path: target/release/bundle/nsis/*.exe
 
+      # Kam das Release dieser Version ohne Windows heraus (Build damals
+      # fehlgeschlagen), den Installer nachreichen.
+      - name: Installer ans bestehende Release hängen
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main' && needs.version.outputs.release != '1'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          BASE: ${{ needs.version.outputs.base }}
+        run: |
+          $assets = gh release view "v$env:BASE" --json assets --jq '.assets[].name' 2>$null
+          if ($LASTEXITCODE -ne 0) { Write-Host "Kein Release v$env:BASE"; exit 0 }
+          if ($assets -match '\.exe$') { Write-Host "Installer schon vorhanden"; exit 0 }
+          gh release upload "v$env:BASE" (Get-ChildItem target/release/bundle/nsis/*.exe).FullName
+
+  # Linux und macOS sind Pflicht; Windows kommt mit, wenn es gebaut hat,
+  # sonst reicht der Windows-Job den Installer später nach.
   release:
     needs: [version, linux, macos, windows]
-    if: needs.version.outputs.release == '1'
+    if: >-
+      always() && needs.version.outputs.release == '1'
+      && needs.linux.result == 'success' && needs.macos.result == 'success'
     runs-on: ubuntu-24.04
     permissions:
       contents: write
