@@ -7,6 +7,7 @@
 //! die Aktion an die laufende App weiter. Unter macOS und Windows meldet die
 //! App die Kürzel selbst beim System an.
 
+#[cfg(not(windows))]
 use std::path::PathBuf;
 #[cfg(not(target_os = "macos"))]
 use std::process::Command;
