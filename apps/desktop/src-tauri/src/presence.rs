@@ -1,10 +1,13 @@
 //! Chat-Status automatisch auf „Abwesend“: bei Inaktivität, aktivem
-//! Bildschirmschoner oder gesperrtem Bildschirm. Abgefragt wird über D-Bus
-//! (GNOME/Mutter, freedesktop-ScreenSaver als Rückfall, logind).
+//! Bildschirmschoner oder gesperrtem Bildschirm. Abgefragt wird unter Linux
+//! über D-Bus (GNOME/Mutter, freedesktop-ScreenSaver als Rückfall, logind),
+//! unter macOS über CoreGraphics (Leerlaufzeit, Bildschirmsperre), unter
+//! Windows über user32 (letzte Eingabe, Eingabe-Desktop gesperrt).
 
 use std::time::Duration;
 
 use tauri::{AppHandle, Manager};
+#[cfg(target_os = "linux")]
 use zbus::blocking::Connection;
 
 use crate::chat::ChatState;
@@ -35,12 +38,14 @@ fn is_away(prefs: &Prefs, d: Desktop) -> bool {
         || (prefs.away_on_lock && d.locked)
 }
 
+#[cfg(target_os = "linux")]
 struct Probe {
     session: Option<Connection>,
     system: Option<Connection>,
     login_session: String,
 }
 
+#[cfg(target_os = "linux")]
 impl Probe {
     fn new() -> Self {
         let login_session = std::env::var("XDG_SESSION_ID").map_or_else(
@@ -128,6 +133,7 @@ impl Probe {
 }
 
 /// logind kodiert Sitzungs-IDs im Objektpfad (Ziffern/Buchstaben bleiben)
+#[cfg(target_os = "linux")]
 fn escape(id: &str) -> String {
     id.bytes()
         .map(|b| {
@@ -138,6 +144,175 @@ fn escape(id: &str) -> String {
             }
         })
         .collect()
+}
+
+#[cfg(target_os = "macos")]
+struct Probe;
+
+#[cfg(target_os = "macos")]
+impl Probe {
+    fn new() -> Self {
+        Self
+    }
+
+    fn read(&self) -> Desktop {
+        Desktop {
+            idle: Some(mac::idle()),
+            // Der Bildschirmschoner sperrt unter macOS in der Regel; die
+            // Sperre deckt ihn mit ab.
+            screensaver: false,
+            locked: mac::locked(),
+        }
+    }
+}
+
+#[cfg(target_os = "macos")]
+mod mac {
+    use std::ffi::c_void;
+    use std::time::Duration;
+
+    type CFTypeRef = *const c_void;
+
+    const HID_SYSTEM_STATE: i32 = 1;
+    const ANY_INPUT_EVENT: u32 = u32::MAX;
+    const UTF8: u32 = 0x0800_0100;
+
+    #[link(name = "CoreGraphics", kind = "framework")]
+    unsafe extern "C" {
+        fn CGEventSourceSecondsSinceLastEventType(state: i32, event: u32) -> f64;
+        fn CGSessionCopyCurrentDictionary() -> CFTypeRef;
+    }
+
+    #[link(name = "CoreFoundation", kind = "framework")]
+    unsafe extern "C" {
+        static kCFBooleanTrue: CFTypeRef;
+        fn CFStringCreateWithCString(
+            alloc: CFTypeRef,
+            s: *const std::ffi::c_char,
+            encoding: u32,
+        ) -> CFTypeRef;
+        fn CFDictionaryGetValue(dict: CFTypeRef, key: CFTypeRef) -> CFTypeRef;
+        fn CFRelease(obj: CFTypeRef);
+    }
+
+    /// Zeit seit der letzten Eingabe (Tastatur, Maus, Trackpad)
+    pub fn idle() -> Duration {
+        // SAFETY: reine Abfrage ohne Zeiger
+        let secs =
+            unsafe { CGEventSourceSecondsSinceLastEventType(HID_SYSTEM_STATE, ANY_INPUT_EVENT) };
+        Duration::from_secs_f64(secs.max(0.0))
+    }
+
+    /// Ist der Bildschirm gesperrt? (`CGSSessionScreenIsLocked` der Sitzung)
+    pub fn locked() -> bool {
+        // SAFETY: Copy/Create-Ergebnisse werden freigegeben, der Wert aus
+        // dem Dictionary nur verglichen (Get-Regel, nicht freigeben).
+        unsafe {
+            let dict = CGSessionCopyCurrentDictionary();
+            if dict.is_null() {
+                return false;
+            }
+            let key = CFStringCreateWithCString(
+                std::ptr::null(),
+                c"CGSSessionScreenIsLocked".as_ptr(),
+                UTF8,
+            );
+            let locked = !key.is_null() && CFDictionaryGetValue(dict, key) == kCFBooleanTrue;
+            if !key.is_null() {
+                CFRelease(key);
+            }
+            CFRelease(dict);
+            locked
+        }
+    }
+}
+
+#[cfg(windows)]
+struct Probe;
+
+#[cfg(windows)]
+impl Probe {
+    fn new() -> Self {
+        Self
+    }
+
+    fn read(&self) -> Desktop {
+        Desktop {
+            idle: win::idle(),
+            screensaver: win::screensaver(),
+            locked: win::locked(),
+        }
+    }
+}
+
+#[cfg(windows)]
+mod win {
+    use std::ffi::c_void;
+    use std::time::Duration;
+
+    #[repr(C)]
+    struct LastInputInfo {
+        size: u32,
+        time: u32,
+    }
+
+    const DESKTOP_SWITCHDESKTOP: u32 = 0x0100;
+    const SPI_GETSCREENSAVERRUNNING: u32 = 0x0072;
+
+    #[link(name = "user32")]
+    unsafe extern "system" {
+        fn GetLastInputInfo(info: *mut LastInputInfo) -> i32;
+        fn OpenInputDesktop(flags: u32, inherit: i32, access: u32) -> *mut c_void;
+        fn SwitchDesktop(desktop: *mut c_void) -> i32;
+        fn CloseDesktop(desktop: *mut c_void) -> i32;
+        fn SystemParametersInfoW(action: u32, param: u32, value: *mut c_void, ini: u32) -> i32;
+    }
+
+    #[link(name = "kernel32")]
+    unsafe extern "system" {
+        fn GetTickCount() -> u32;
+    }
+
+    /// Zeit seit der letzten Eingabe in dieser Sitzung
+    pub fn idle() -> Option<Duration> {
+        let mut info = LastInputInfo {
+            size: size_of::<LastInputInfo>() as u32,
+            time: 0,
+        };
+        // SAFETY: info ist gültig und size gesetzt
+        if unsafe { GetLastInputInfo(&mut info) } == 0 {
+            return None;
+        }
+        // SAFETY: reine Abfrage
+        let now = unsafe { GetTickCount() };
+        Some(Duration::from_millis(u64::from(
+            now.wrapping_sub(info.time),
+        )))
+    }
+
+    pub fn screensaver() -> bool {
+        let mut running: i32 = 0;
+        // SAFETY: running ist ein gültiger BOOL-Ausgabewert
+        let ok = unsafe {
+            SystemParametersInfoW(SPI_GETSCREENSAVERRUNNING, 0, (&raw mut running).cast(), 0)
+        };
+        ok != 0 && running != 0
+    }
+
+    /// Gesperrt, wenn sich der Eingabe-Desktop nicht übernehmen lässt
+    /// (Sperrbildschirm bzw. Winlogon-Desktop).
+    pub fn locked() -> bool {
+        // SAFETY: Handle wird geprüft und wieder geschlossen
+        unsafe {
+            let desk = OpenInputDesktop(0, 0, DESKTOP_SWITCHDESKTOP);
+            if desk.is_null() {
+                return true;
+            }
+            let ok = SwitchDesktop(desk) != 0;
+            CloseDesktop(desk);
+            !ok
+        }
+    }
 }
 
 /// Startet die Überwachung im Hintergrund; sie läuft bis zum Programmende.
@@ -210,6 +385,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(target_os = "linux")]
     fn session_path_escaping() {
         assert_eq!(escape("2"), "2");
         assert_eq!(escape("c1-x"), "c1_2dx");

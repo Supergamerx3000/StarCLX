@@ -3,10 +3,10 @@
   import { invoke } from "@tauri-apps/api/core";
   import { onMount } from "svelte";
   import Icon from "./Icon.svelte";
-  import { phone, run } from "./phone.svelte";
+  import { phone, run } from "./phone.svelte.js";
   import { initials, type Contact, type Folder } from "./contacts";
-  import { contactEdit, editContact, newContact } from "./contactform.svelte";
-  import { t } from "./i18n.svelte";
+  import { contactEdit, editContact, newContact } from "./contactform.svelte.js";
+  import { t } from "./i18n.svelte.js";
 
   let folders = $state<Folder[]>([]);
   let folder = $state("");

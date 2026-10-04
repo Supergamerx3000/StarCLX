@@ -3,11 +3,11 @@
   import { invoke } from "@tauri-apps/api/core";
   import { onMount, tick } from "svelte";
   import Icon from "./Icon.svelte";
-  import { chat, nameOf, openConversation, type ChatContact } from "./chat.svelte";
+  import { chat, nameOf, openConversation, type ChatContact } from "./chat.svelte.js";
   import { initials } from "./contacts";
   import { numberParts } from "./numbers";
-  import { phone, run } from "./phone.svelte";
-  import { locale, t } from "./i18n.svelte";
+  import { phone, run } from "./phone.svelte.js";
+  import { locale, t } from "./i18n.svelte.js";
 
   let term = $state("");
   let draft = $state("");

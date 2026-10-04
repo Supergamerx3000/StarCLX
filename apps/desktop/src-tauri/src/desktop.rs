@@ -4,15 +4,19 @@
 //! Unter Wayland darf eine App keine globalen Tastenkürzel abfangen. Die
 //! Kürzel werden deshalb als eigene Tastenkombinationen in GNOME eingetragen;
 //! diese starten `starclx --action …`, und single-instance reicht
-//! die Aktion an die laufende App weiter.
+//! die Aktion an die laufende App weiter. Unter macOS und Windows meldet die
+//! App die Kürzel selbst beim System an.
 
 use std::path::PathBuf;
+#[cfg(not(target_os = "macos"))]
 use std::process::Command;
 
 use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, Emitter, Manager, Theme};
 
-use crate::i18n::{t, tf};
+#[cfg(not(any(target_os = "macos", windows)))]
+use crate::i18n::t;
+use crate::i18n::tf;
 use crate::settings::Prefs;
 
 /// Aktionen, die per Tastenkürzel oder Kommandozeile ausgelöst werden
@@ -67,6 +71,10 @@ impl Hotkeys {
 pub struct DesktopInfo {
     wayland: bool,
     gnome: bool,
+    /// Die App kann systemweite Kürzel selbst anmelden (macOS, Windows)
+    native_hotkeys: bool,
+    /// "macos", "windows" oder "linux" (Beschriftung der Zusatztasten)
+    os: &'static str,
     /// Befehl, den man in anderen Desktops selbst auf eine Taste legen kann
     command: String,
 }
@@ -102,6 +110,8 @@ pub fn desktop_info() -> DesktopInfo {
     DesktopInfo {
         wayland: is_wayland(),
         gnome: is_gnome(),
+        native_hotkeys: cfg!(any(target_os = "macos", windows)),
+        os: std::env::consts::OS,
         command: command_for("<aktion>"),
     }
 }
@@ -167,10 +177,18 @@ pub fn run_action(app: &AppHandle, action: &str) {
 
 fn read_text(primary: bool) -> Option<String> {
     let mut cb = arboard::Clipboard::new().ok()?;
+    // Die Markierung (Primary Selection) gibt es nur unter X11/Wayland; sonst
+    // gilt die Zwischenablage.
+    #[cfg(target_os = "linux")]
     let text = if primary {
         use arboard::{GetExtLinux, LinuxClipboardKind};
         cb.get().clipboard(LinuxClipboardKind::Primary).text()
     } else {
+        cb.get_text()
+    };
+    #[cfg(not(target_os = "linux"))]
+    let text = {
+        let _ = primary;
         cb.get_text()
     };
     text.ok().filter(|t| !t.trim().is_empty())
@@ -179,17 +197,20 @@ fn read_text(primary: bool) -> Option<String> {
 /// Rufnummern-Links, die StarCLX auf Wunsch öffnet
 pub const TEL_SCHEMES: [&str; 3] = ["tel", "callto", "sip"];
 
-/// Registriert starface-app:// immer, tel:/callto:/sip: nur mit `tel`. Läuft
+/// Registriert unter Linux starface-app:// immer, tel:/callto:/sip: nur mit
+/// `tel`. Unter Windows gehört starface-app:// der offiziellen STARFACE-App
+/// (der Login läuft ohnehin im eigenen Fenster), dort nur tel: & Co. Läuft
 /// im Hintergrund (xdg-mime ist langsam); Fehler landen nur im Log.
 pub fn register_schemes(app: &AppHandle, tel: bool) {
     // Wichtig für AppImage und `tauri dev`; das .deb bringt eine eigene
     // .desktop-Datei mit. Fehlt z. B. xdg-mime, startet die App trotzdem.
-    #[cfg(any(target_os = "linux", all(debug_assertions, windows)))]
+    #[cfg(any(target_os = "linux", windows))]
     {
         let app = app.clone();
         std::thread::spawn(move || {
             use tauri_plugin_deep_link::DeepLinkExt;
             let dl = app.deep_link();
+            #[cfg(target_os = "linux")]
             if let Err(e) = dl.register("starface-app") {
                 tracing::warn!(error = %e, "starface-app:// nicht registriert");
             }
@@ -207,7 +228,7 @@ pub fn register_schemes(app: &AppHandle, tel: bool) {
             }
         });
     }
-    #[cfg(not(any(target_os = "linux", all(debug_assertions, windows))))]
+    #[cfg(not(any(target_os = "linux", windows)))]
     let _ = (app, tel);
 }
 
@@ -256,6 +277,7 @@ fn percent_decode(s: &str) -> String {
 }
 
 /// `$XDG_CONFIG_HOME/autostart/starclx.desktop` (sonst ~/.config/autostart)
+#[cfg(not(any(target_os = "macos", windows)))]
 fn autostart_file() -> Option<PathBuf> {
     let base = std::env::var_os("XDG_CONFIG_HOME")
         .filter(|v| !v.is_empty())
@@ -266,6 +288,7 @@ fn autostart_file() -> Option<PathBuf> {
 
 /// Pfad als Argument der Exec-Zeile: in Anführungszeichen, Sonderzeichen
 /// maskiert, danach `\` für den Zeichenketten-Wert verdoppelt, `%` als `%%`.
+#[cfg(not(any(target_os = "macos", windows)))]
 fn exec_quote(path: &str) -> String {
     let mut q = String::from("\"");
     for c in path.chars().filter(|c| !c.is_control()) {
@@ -283,6 +306,7 @@ fn exec_quote(path: &str) -> String {
     q
 }
 
+#[cfg(not(any(target_os = "macos", windows)))]
 fn autostart_entry(program: &str) -> String {
     format!(
         "[Desktop Entry]\nType=Application\nName=StarCLX\nExec={}\nIcon=starclx\nTerminal=false\nX-GNOME-Autostart-enabled=true\n",
@@ -290,8 +314,82 @@ fn autostart_entry(program: &str) -> String {
     )
 }
 
+/// `~/Library/LaunchAgents/<Bundle-ID>.plist`
+#[cfg(target_os = "macos")]
+fn autostart_file() -> Option<PathBuf> {
+    let home = std::env::var_os("HOME")?;
+    Some(
+        PathBuf::from(home)
+            .join("Library/LaunchAgents")
+            .join(format!("{MAC_AGENT_LABEL}.plist")),
+    )
+}
+
+#[cfg(target_os = "macos")]
+const MAC_AGENT_LABEL: &str = "ch.crazmoe.starclx.autostart";
+
+/// XML-Text maskieren
+#[cfg(target_os = "macos")]
+fn xml_escape(s: &str) -> String {
+    s.replace('&', "&amp;")
+        .replace('<', "&lt;")
+        .replace('>', "&gt;")
+        .replace('"', "&quot;")
+}
+
+/// LaunchAgent, der das Programm bei der Anmeldung startet
+#[cfg(target_os = "macos")]
+fn autostart_entry(program: &str) -> String {
+    format!(
+        concat!(
+            "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n",
+            "<!DOCTYPE plist PUBLIC \"-//Apple//DTD PLIST 1.0//EN\" ",
+            "\"http://www.apple.com/DTDs/PropertyList-1.0.dtd\">\n",
+            "<plist version=\"1.0\">\n<dict>\n",
+            "  <key>Label</key>\n  <string>{label}</string>\n",
+            "  <key>ProgramArguments</key>\n  <array>\n    <string>{program}</string>\n  </array>\n",
+            "  <key>RunAtLoad</key>\n  <true/>\n",
+            "  <key>ProcessType</key>\n  <string>Interactive</string>\n",
+            "</dict>\n</plist>\n"
+        ),
+        label = MAC_AGENT_LABEL,
+        program = xml_escape(program)
+    )
+}
+
+/// Windows: Wert `StarCLX` unter HKCU\…\Run
+#[cfg(windows)]
+const RUN_KEY: &str = r"HKCU\Software\Microsoft\Windows\CurrentVersion\Run";
+
 /// Legt den Autostart-Eintrag an bzw. entfernt ihn. Beim Start erneut
 /// aufgerufen, damit der Pfad nach einem Update stimmt.
+#[cfg(windows)]
+pub fn apply_autostart(on: bool) -> Result<(), String> {
+    use std::os::windows::process::CommandExt;
+    const CREATE_NO_WINDOW: u32 = 0x0800_0000;
+    let mut cmd = Command::new("reg");
+    if on {
+        let value = format!("\"{}\"", program());
+        cmd.args([
+            "add", RUN_KEY, "/v", "StarCLX", "/t", "REG_SZ", "/d", &value, "/f",
+        ]);
+    } else {
+        cmd.args(["delete", RUN_KEY, "/v", "StarCLX", "/f"]);
+    }
+    let out = cmd
+        .creation_flags(CREATE_NO_WINDOW)
+        .output()
+        .map_err(|e| e.to_string())?;
+    // Löschen eines fehlenden Werts ist kein Fehler
+    if on && !out.status.success() {
+        return Err(String::from_utf8_lossy(&out.stderr).trim().to_owned());
+    }
+    Ok(())
+}
+
+/// Legt den Autostart-Eintrag an bzw. entfernt ihn. Beim Start erneut
+/// aufgerufen, damit der Pfad nach einem Update stimmt.
+#[cfg(not(windows))]
 pub fn apply_autostart(on: bool) -> Result<(), String> {
     let Some(path) = autostart_file() else {
         return Ok(());
@@ -313,9 +411,12 @@ pub fn apply_autostart(on: bool) -> Result<(), String> {
     }
 }
 
+#[cfg(not(any(target_os = "macos", windows)))]
 const MEDIA_KEYS: &str = "org.gnome.settings-daemon.plugins.media-keys";
+#[cfg(not(any(target_os = "macos", windows)))]
 const KEYBINDING_DIR: &str = "/org/gnome/settings-daemon/plugins/media-keys/custom-keybindings";
 
+#[cfg(not(any(target_os = "macos", windows)))]
 fn gsettings(args: &[&str]) -> Result<String, String> {
     let out = Command::new("gsettings")
         .args(args)
@@ -327,11 +428,13 @@ fn gsettings(args: &[&str]) -> Result<String, String> {
     Ok(String::from_utf8_lossy(&out.stdout).trim().to_owned())
 }
 
+#[cfg(not(any(target_os = "macos", windows)))]
 /// GVariant-Zeichenkette
 fn quote(s: &str) -> String {
     format!("'{}'", s.replace('\\', "\\\\").replace('\'', "\\'"))
 }
 
+#[cfg(not(any(target_os = "macos", windows)))]
 /// Pfade aus einer GVariant-Liste wie `['/a/', '/b/']` oder `@as []`
 fn parse_list(s: &str) -> Vec<String> {
     s.split('\'')
@@ -341,10 +444,12 @@ fn parse_list(s: &str) -> Vec<String> {
         .collect()
 }
 
+#[cfg(not(any(target_os = "macos", windows)))]
 fn own_path(action: &str) -> String {
     format!("{KEYBINDING_DIR}/starface-{action}/")
 }
 
+#[cfg(not(any(target_os = "macos", windows)))]
 /// Neue Liste: fremde Einträge bleiben, eigene werden ersetzt.
 fn merged_list(current: &[String], hotkeys: &Hotkeys) -> Vec<String> {
     let mut list: Vec<String> = current
@@ -363,9 +468,69 @@ fn merged_list(current: &[String], hotkeys: &Hotkeys) -> Vec<String> {
     list
 }
 
+/// `<Control><Shift>w` → `Control+Shift+W` (Format von global-hotkey)
+#[cfg_attr(not(any(target_os = "macos", windows)), allow(dead_code))]
+fn accelerator(binding: &str) -> Option<String> {
+    let key = binding.rsplit('>').next()?.trim();
+    if key.is_empty() {
+        return None;
+    }
+    let mut parts: Vec<String> = binding
+        .split('>')
+        .filter_map(|m| m.strip_prefix('<'))
+        .map(|m| match m {
+            "Primary" => "CommandOrControl".to_owned(),
+            other => other.to_owned(),
+        })
+        .collect();
+    parts.push(if key.chars().count() == 1 {
+        key.to_uppercase()
+    } else {
+        key.to_owned()
+    });
+    Some(parts.join("+"))
+}
+
+/// macOS und Windows: Kürzel direkt beim System anmelden; ein Druck löst
+/// dieselbe Aktion aus wie `--action …`.
+#[cfg(any(target_os = "macos", windows))]
+pub fn apply_hotkeys(app: &AppHandle, hotkeys: &Hotkeys) -> Result<(), String> {
+    use tauri_plugin_global_shortcut::{GlobalShortcutExt, ShortcutState};
+
+    let gs = app.global_shortcut();
+    gs.unregister_all().map_err(|e| e.to_string())?;
+    if !hotkeys.enabled {
+        return Ok(());
+    }
+    let mut failed = Vec::new();
+    for (action, _) in ACTIONS {
+        let Some(accel) = accelerator(hotkeys.binding(action)) else {
+            continue;
+        };
+        let result = gs.on_shortcut(accel.as_str(), move |app, _, event| {
+            if event.state == ShortcutState::Pressed {
+                run_action(app, action);
+            }
+        });
+        if let Err(e) = result {
+            tracing::warn!(error = %e, accel, "Tastenkürzel nicht angemeldet");
+            failed.push(accel);
+        }
+    }
+    if failed.is_empty() {
+        Ok(())
+    } else {
+        Err(tf(
+            "Belegt oder ungültig: {keys}",
+            &[("keys", &failed.join(", "))],
+        ))
+    }
+}
+
 /// Trägt die Tastenkürzel in GNOME ein bzw. entfernt sie wieder. Andere
 /// Tastenkombinationen des Benutzers bleiben unangetastet.
-pub fn apply_hotkeys(hotkeys: &Hotkeys) -> Result<(), String> {
+#[cfg(not(any(target_os = "macos", windows)))]
+pub fn apply_hotkeys(_app: &AppHandle, hotkeys: &Hotkeys) -> Result<(), String> {
     if !is_gnome() {
         return if hotkeys.enabled {
             Err(t("Tastenkürzel lassen sich nur unter GNOME automatisch eintragen.").into())
@@ -417,6 +582,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(not(any(target_os = "macos", windows)))]
     fn keybinding_list() {
         assert!(parse_list("@as []").is_empty());
         let current = parse_list(&format!("['/x/custom0/', '{}']", own_path("toggle-view")));
@@ -441,6 +607,18 @@ mod tests {
     }
 
     #[test]
+    fn accelerators() {
+        assert_eq!(
+            accelerator("<Control><Shift>w").as_deref(),
+            Some("Control+Shift+W")
+        );
+        assert_eq!(accelerator("<Super>F5").as_deref(), Some("Super+F5"));
+        assert_eq!(accelerator("<Alt>1").as_deref(), Some("Alt+1"));
+        assert_eq!(accelerator(""), None);
+    }
+
+    #[test]
+    #[cfg(not(any(target_os = "macos", windows)))]
     fn gvariant_quoting() {
         assert_eq!(quote("a'b"), r"'a\'b'");
         assert_eq!(
@@ -472,11 +650,22 @@ mod tests {
     }
 
     #[test]
+    #[cfg(not(any(target_os = "macos", windows)))]
     fn autostart_exec() {
         let e = autostart_entry("/opt/Star CLX/starclx");
         assert!(e.contains("Exec=\"/opt/Star CLX/starclx\"\n"));
         assert!(e.contains("X-GNOME-Autostart-enabled=true"));
         assert_eq!(exec_quote("/a$b%c"), r#""/a\\$b%%c""#);
         assert_eq!(exec_quote("/a\\b"), r#""/a\\\\b""#);
+    }
+
+    #[test]
+    #[cfg(target_os = "macos")]
+    fn autostart_launch_agent() {
+        let e = autostart_entry("/Applications/Star & CLX.app/Contents/MacOS/starclx");
+        assert!(
+            e.contains("<string>/Applications/Star &amp; CLX.app/Contents/MacOS/starclx</string>")
+        );
+        assert!(e.contains("<key>RunAtLoad</key>\n  <true/>"));
     }
 }

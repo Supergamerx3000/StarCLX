@@ -8,8 +8,8 @@
   import FkeyEditor from "./FkeyEditor.svelte";
   import Reach from "./Reach.svelte";
   import Toggle from "./Toggle.svelte";
-  import { type CallAction, type Hotkeys, loadPrefs, prefs, savePrefs, type Prefs } from "./prefs.svelte";
-  import { setLanguage, t } from "./i18n.svelte";
+  import { type CallAction, type Hotkeys, loadPrefs, prefs, savePrefs, type Prefs } from "./prefs.svelte.js";
+  import { setLanguage, t } from "./i18n.svelte.js";
 
   type SignalingNumber = { id: string; number: string; suppressed: boolean; read_only: boolean; selected: boolean };
 
@@ -84,13 +84,15 @@
     { key: "hangup", label: t("Aktuellen Anruf beenden") },
     { key: "toggle_view", label: t("Ansicht umschalten") },
   ]);
-  let desktop = $state({ wayland: false, gnome: false, command: "" });
+  let desktop = $state({ wayland: false, gnome: false, native_hotkeys: false, os: "linux", command: "" });
   let recording = $state<string | null>(null);
 
   /** `<Control><Shift>w` → `Strg+Umschalt+W` */
   function showAccel(a: string) {
     if (!a) return t("Keine");
-    const names: Record<string, string> = { Control: t("Strg"), Shift: t("Umschalt"), Alt: "Alt", Super: "Super" };
+    const names: Record<string, string> =
+      desktop.os === "macos" ? { Control: "⌃", Shift: "⇧", Alt: "⌥", Super: "⌘" }
+      : { Control: t("Strg"), Shift: t("Umschalt"), Alt: "Alt", Super: desktop.os === "windows" ? "Win" : "Super" };
     const mods = [...a.matchAll(/<(\w+)>/g)].map((m) => names[m[1]] ?? m[1]);
     const key = a.replace(/<\w+>/g, "");
     return [...mods, key.length === 1 ? key.toUpperCase() : key].join("+");
@@ -507,7 +509,10 @@
       <section id="hotkeys">
         <h3>{t("Hotkeys")}</h3>
         <div class="card">
-          {#if desktop.gnome}
+          {#if desktop.native_hotkeys}
+            <Toggle bind:checked={draft.hotkeys.enabled} label={t("Tastenkürzel systemweit aktivieren")} />
+            <p class="small muted">{t("Die Kürzel gelten dann in allen Programmen. Ist eine Kombination schon von einem anderen Programm belegt, meldet StarCLX das beim Speichern.")}</p>
+          {:else if desktop.gnome}
             <Toggle bind:checked={draft.hotkeys.enabled} label={t("Tastenkürzel systemweit in GNOME eintragen")} />
             <p class="small muted">{t("Die Kürzel gelten dann in allen Programmen und überschreiben dort gleiche Kombinationen. Andere eigene Tastenkürzel bleiben unverändert.")}</p>
           {:else}
@@ -515,7 +520,7 @@
             <code>{desktop.command}</code>
             <p class="small muted">{t("Aktionen:")} dial-selection, dial-clipboard, answer, hangup, toggle-view</p>
           {/if}
-          <div class="keys" class:off={desktop.gnome && !draft.hotkeys.enabled}>
+          <div class="keys" class:off={(desktop.gnome || desktop.native_hotkeys) && !draft.hotkeys.enabled}>
             {#each hotkeyRows as r}
               <div class="keyrow">
                 <span>{r.label}</span>

@@ -1,5 +1,6 @@
 //! Refresh-Token im Schlüsselbund des Systems (unter Linux Secret Service,
-//! also gnome-keyring oder KWallet).
+//! also gnome-keyring oder KWallet; unter macOS der Anmelde-Schlüsselbund,
+//! unter Windows die Anmeldeinformationsverwaltung).
 //!
 //! Die Aufrufe blockieren; aus async-Code heraus über
 //! `tokio::task::spawn_blocking` verwenden.
@@ -17,8 +18,19 @@ pub fn init_system_store() -> Result<()> {
     Ok(())
 }
 
-/// Windows und macOS folgen, wenn der Linux-Client vollständig ist.
-#[cfg(not(target_os = "linux"))]
+#[cfg(target_os = "macos")]
+pub fn init_system_store() -> Result<()> {
+    keyring_core::set_default_store(apple_native_keyring_store::keychain::Store::new()?);
+    Ok(())
+}
+
+#[cfg(windows)]
+pub fn init_system_store() -> Result<()> {
+    keyring_core::set_default_store(windows_native_keyring_store::Store::new()?);
+    Ok(())
+}
+
+#[cfg(not(any(target_os = "linux", target_os = "macos", windows)))]
 pub fn init_system_store() -> Result<()> {
     Err(keyring_core::Error::NoDefaultStore.into())
 }

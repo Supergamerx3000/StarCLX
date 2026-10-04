@@ -5,10 +5,10 @@
   import { onMount } from "svelte";
   import DialSearch from "$lib/DialSearch.svelte";
   import FkeyTile from "$lib/FkeyTile.svelte";
-  import { fkeys, loadFkeys, press } from "$lib/fkeys.svelte";
-  import { initPhone, phone } from "$lib/phone.svelte";
-  import { loadPrefs } from "$lib/prefs.svelte";
-  import { t } from "$lib/i18n.svelte";
+  import { fkeys, loadFkeys, press } from "$lib/fkeys.svelte.js";
+  import { initPhone, phone } from "$lib/phone.svelte.js";
+  import { loadPrefs } from "$lib/prefs.svelte.js";
+  import { t } from "$lib/i18n.svelte.js";
 
   const blfs = $derived(fkeys.keys.filter((k) => k.functionKeyType === "BUSYLAMPFIELD"));
 

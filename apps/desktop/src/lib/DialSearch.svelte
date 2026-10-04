@@ -1,9 +1,9 @@
 <script lang="ts">
   import { invoke } from "@tauri-apps/api/core";
   import Icon from "./Icon.svelte";
-  import { phone, run } from "./phone.svelte";
+  import { phone, run } from "./phone.svelte.js";
   import type { Contact } from "./contacts";
-  import { t } from "./i18n.svelte";
+  import { t } from "./i18n.svelte.js";
 
   let text = $state("");
   let results = $state<Contact[]>([]);

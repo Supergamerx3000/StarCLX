@@ -31,6 +31,10 @@ fn devices() -> Devices {
 /// in den Einstellungen.
 pub async fn softphone_config(prefs: &Prefs) -> sf_sip::Config {
     let mut config = sf_sip::Config::default();
+    #[cfg(windows)]
+    {
+        config.ca_file = windows_ca_file();
+    }
     if prefs.speakers.is_empty() && prefs.microphones.is_empty() {
         return config;
     }
@@ -38,12 +42,26 @@ pub async fn softphone_config(prefs: &Prefs) -> sf_sip::Config {
         .await
         .unwrap_or_default();
     if let Some(dev) = sf_audio::pick(&prefs.speakers, &present.speakers) {
-        config.audio_player = format!("pipewire,{dev}");
+        config.audio_player = format!("{},{dev}", sf_sip::AUDIO_MODULE);
     }
     if let Some(dev) = sf_audio::pick(&prefs.microphones, &present.microphones) {
-        config.audio_source = format!("pipewire,{dev}");
+        config.audio_source = format!("{},{dev}", sf_sip::AUDIO_MODULE);
     }
     config
+}
+
+/// Windows hat keine CA-Datei für OpenSSL: die Wurzelzertifikate des Systems
+/// werden bei jedem Softphone-Start in eine temporäre Datei geschrieben.
+#[cfg(windows)]
+fn windows_ca_file() -> Option<String> {
+    let path = std::env::temp_dir().join("starclx-ca.pem");
+    match std::fs::write(&path, sf_tls::native_roots_pem()) {
+        Ok(()) => Some(path.to_string_lossy().into_owned()),
+        Err(e) => {
+            tracing::warn!(error = %e, "CA-Datei fürs Softphone nicht geschrieben");
+            None
+        }
+    }
 }
 
 /// PCM eines Klingeltons: eingebauter Name oder Pfad einer WAV-Datei.

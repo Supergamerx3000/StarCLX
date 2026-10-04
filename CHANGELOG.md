@@ -1,5 +1,25 @@
 # Änderungen
 
+## 1.1.0 – 2026-10-05
+
+StarCLX läuft jetzt auch unter macOS und Windows, neben der offiziellen STARFACE-App.
+
+### macOS und Windows
+- Softphone über CoreAudio bzw. WASAPI, G.722 über die mitgelieferte libg722
+- Audiogeräte, Klingeltöne und Mikrofontest über cpal
+- Anmeldung im Schlüsselbund bzw. in der Windows-Anmeldeinformationsverwaltung
+- Eigenes Telefon auf der Anlage (Geräte-ID des Linux-Clients); `starface-app://` bleibt der
+  offiziellen App, die Anmeldung läuft immer im eigenen Fenster
+- Bestätigte selbstsignierte Zertifikate auch im Anmeldefenster (WKWebView, WebView2)
+- Systemweite Tastenkürzel, Autostart, automatische Abwesenheit, Busylight über hidapi
+- Pakete: `.dmg` (Apple Silicon, ad-hoc signiert) und Installer (`.exe`) für Windows x64
+
+### Für alle
+- Call Manager: Anrufkarte wie in der STARFACE-App, Karte und Aktionen (Rückfrage, Konferenz,
+  Extras) in einer gemeinsamen Schale statt verrutschter Leiste
+- Imports der Svelte-Module eindeutig (`….svelte.js`), damit der Build auch auf Dateisystemen
+  ohne Groß-/Kleinschreibung klappt
+
 ## 1.0.0 – 2026-10-02
 
 Erste vollständige Version von StarCLX, dem Linux-Client für STARFACE-Telefonanlagen.

@@ -3,7 +3,7 @@ resolver = "3"
 members = ["crates/*", "apps/sfctl", "apps/desktop/src-tauri"]
 
 [workspace.package]
-version = "1.0.0"
+version = "1.1.0"
 edition = "2024"
 rust-version = "1.88"
 repository = "https://github.com/crazmoe/starface-linuxclient"
@@ -27,3 +27,9 @@ serde_json = "1"
 url = "2"
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+
+# Proc-Macros und Build-Skripte nicht strippen: unter macOS 27 lädt dyld
+# gestrippte Proc-Macro-Dylibs nicht („mis-aligned LINKEDIT string pool“).
+# Betrifft nur Werkzeuge des Builds, nicht die ausgelieferten Programme.
+[profile.release.build-override]
+strip = false

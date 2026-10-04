@@ -127,10 +127,53 @@ pub enum SipEvent {
     },
 }
 
+/// Audio-Modul von baresip für das Standardgerät
+#[cfg(target_os = "macos")]
+pub const AUDIO_MODULE: &str = "coreaudio";
+#[cfg(windows)]
+pub const AUDIO_MODULE: &str = "wasapi";
+#[cfg(not(any(target_os = "macos", windows)))]
+pub const AUDIO_MODULE: &str = "pipewire";
+
+/// Geladene Module (müssen in build.rs einkompiliert sein)
+#[cfg(target_os = "macos")]
+const MODULES: &[&str] = &[
+    "g711",
+    "libg722",
+    "srtp",
+    "auconv",
+    "auresamp",
+    "stun",
+    "netroam",
+    "coreaudio",
+    "ausine",
+    "aubridge",
+];
+#[cfg(windows)]
+const MODULES: &[&str] = &[
+    "g711", "libg722", "srtp", "auconv", "auresamp", "stun", "netroam", "wasapi", "ausine",
+    "aubridge",
+];
+#[cfg(not(any(target_os = "macos", windows)))]
+const MODULES: &[&str] = &[
+    "g711", "g722", "srtp", "auconv", "auresamp", "stun", "netroam", "pipewire", "pulse", "alsa",
+    "ausine", "aubridge",
+];
+
+/// CA-Datei fürs SIP-TLS. Windows hat keine; dort schreibt die App die
+/// Zertifikate des Systems in eine Datei und setzt [`Config::ca_file`].
+#[cfg(target_os = "macos")]
+const CA_FILE: Option<&str> = Some("/etc/ssl/cert.pem");
+#[cfg(windows)]
+const CA_FILE: Option<&str> = None;
+#[cfg(not(any(target_os = "macos", windows)))]
+const CA_FILE: Option<&str> = Some("/etc/ssl/certs/ca-certificates.crt");
+
 /// Allgemeine Einstellungen des Softphones.
 #[derive(Debug, Clone)]
 pub struct Config {
-    /// z. B. `pipewire` oder `pulse`, optional mit Gerät: `alsa,default`.
+    /// z. B. `pipewire` oder `pulse`, optional mit Gerät: `alsa,default`;
+    /// unter macOS `coreaudio,<Gerätename>`.
     pub audio_player: String,
     pub audio_source: String,
     /// Feste lokale SIP-Adresse, sonst wählt baresip freie Ports.
@@ -145,11 +188,11 @@ pub struct Config {
 impl Default for Config {
     fn default() -> Self {
         Self {
-            audio_player: "pipewire".into(),
-            audio_source: "pipewire".into(),
+            audio_player: AUDIO_MODULE.into(),
+            audio_source: AUDIO_MODULE.into(),
             sip_listen: None,
             verify_server: true,
-            ca_file: Some("/etc/ssl/certs/ca-certificates.crt".into()),
+            ca_file: CA_FILE.map(Into::into),
             extra: String::new(),
         }
     }
@@ -172,10 +215,7 @@ impl Config {
         c += &format!("audio_source {}\n", self.audio_source);
         c += &format!("audio_alert {}\n", self.audio_player);
         c += "call_max_calls 4\n";
-        for m in [
-            "g711", "g722", "srtp", "auconv", "auresamp", "stun", "netroam", "pipewire", "pulse",
-            "alsa", "ausine", "aubridge",
-        ] {
+        for m in MODULES {
             c += &format!("module {m}.so\n");
         }
         c += &self.extra;

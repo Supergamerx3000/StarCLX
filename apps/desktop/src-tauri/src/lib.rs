@@ -521,7 +521,7 @@ async fn save_prefs(
         )
     })?;
     if old.hotkeys != prefs.hotkeys || prefs.hotkeys.enabled {
-        desktop::apply_hotkeys(&prefs.hotkeys).map_err(|e| {
+        desktop::apply_hotkeys(&app, &prefs.hotkeys).map_err(|e| {
             tf(
                 "Gespeichert, aber Tastenkürzel nicht eingetragen: {e}",
                 &[("e", &e)],
@@ -830,7 +830,12 @@ pub fn run() {
 
     let (events_tx, mut events_rx) = mpsc::unbounded_channel();
 
-    tauri::Builder::default()
+    let builder = tauri::Builder::default();
+    // Systemweite Tastenkürzel direkt (unter Linux über GNOME-Einstellungen)
+    #[cfg(any(target_os = "macos", windows))]
+    let builder = builder.plugin(tauri_plugin_global_shortcut::Builder::new().build());
+
+    builder
         // Unter Linux startet der Browser für starface-app:// einen zweiten
         // Prozess; single-instance reicht die URL an die laufende App weiter.
         // Tastenkürzel kommen als `--action …` über denselben Weg.
@@ -869,7 +874,7 @@ pub fn run() {
             // Tastenkürzel neu eintragen, damit sie nach einem Update oder
             // der Umbenennung auf das aktuelle Programm zeigen.
             if prefs.hotkeys.enabled
-                && let Err(e) = desktop::apply_hotkeys(&prefs.hotkeys)
+                && let Err(e) = desktop::apply_hotkeys(app.handle(), &prefs.hotkeys)
             {
                 tracing::warn!(error = %e, "Tastenkürzel nicht eingetragen");
             }

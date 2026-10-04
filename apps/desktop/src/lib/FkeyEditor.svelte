@@ -6,8 +6,8 @@
   import { onMount } from "svelte";
   import FkeyTile from "./FkeyTile.svelte";
   import Icon from "./Icon.svelte";
-  import { types, blank, fkeys, keyAt, loadFkeys, placeAt, saveOrder, typeInfo, type FunctionKey, type SignalingNumber } from "./fkeys.svelte";
-  import { t } from "./i18n.svelte";
+  import { types, blank, fkeys, keyAt, loadFkeys, placeAt, saveOrder, typeInfo, type FunctionKey, type SignalingNumber } from "./fkeys.svelte.js";
+  import { t } from "./i18n.svelte.js";
 
   let { columns = $bindable(3) }: { columns: number } = $props();
 

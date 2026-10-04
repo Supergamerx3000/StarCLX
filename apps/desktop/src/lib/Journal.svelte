@@ -3,11 +3,11 @@
   import { listen } from "@tauri-apps/api/event";
   import { onMount } from "svelte";
   import Icon from "./Icon.svelte";
-  import { phone, run } from "./phone.svelte";
-  import { contactEdit, newContact } from "./contactform.svelte";
+  import { phone, run } from "./phone.svelte.js";
+  import { contactEdit, newContact } from "./contactform.svelte.js";
   import ShareNote from "./ShareNote.svelte";
   import { searchable } from "./numbers";
-  import { locale, t } from "./i18n.svelte";
+  import { locale, t } from "./i18n.svelte.js";
 
   type Entry = {
     id: string;

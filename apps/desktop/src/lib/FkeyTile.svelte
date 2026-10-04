@@ -1,7 +1,7 @@
 <script lang="ts">
   // Eine Funktionstaste mit Zustandsfarbe; im Arbeitsbereich und im Editor.
-  import { account, callDrag, keyState, keyTitle, typeInfo, type FunctionKey } from "./fkeys.svelte";
-  import { t } from "./i18n.svelte";
+  import { account, callDrag, keyState, keyTitle, typeInfo, type FunctionKey } from "./fkeys.svelte.js";
+  import { t } from "./i18n.svelte.js";
 
   let { key, onclick, disabled = false, editor = false }: { key: FunctionKey; onclick?: () => void; disabled?: boolean; editor?: boolean } = $props();
 

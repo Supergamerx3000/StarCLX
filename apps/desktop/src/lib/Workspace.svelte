@@ -1,5 +1,5 @@
 <script lang="ts" module>
-  import type { Tile } from "./prefs.svelte";
+  import type { Tile } from "./prefs.svelte.js";
 
   /** Rasterspalten der Fläche; Zeilen sind ROW Pixel hoch */
   export const COLS = 12;
@@ -28,7 +28,7 @@
   // Zeigerereignisse (HTML5-Drag&Drop funktioniert im Linux-Fenster nicht).
   import type { Snippet } from "svelte";
   import Icon, { type IconName } from "./Icon.svelte";
-  import { t } from "./i18n.svelte";
+  import { t } from "./i18n.svelte.js";
 
   let {
     tiles = $bindable(),

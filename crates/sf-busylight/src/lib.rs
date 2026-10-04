@@ -5,11 +5,16 @@
 //! schaltet es sich nach etwa 30 Sekunden ab; [`Busylight`] schickt deshalb
 //! regelmässig ein Keep-Alive und sucht neu angesteckte Geräte.
 //!
-//! Zugriff auf hidraw braucht eine udev-Regel (liegt dem .deb bei).
+//! Zugriff auf hidraw braucht eine udev-Regel (liegt dem .deb bei). Unter
+//! macOS und Windows läuft der Zugriff über hidapi.
 
+#[cfg(target_os = "linux")]
 use std::fs::OpenOptions;
+#[cfg(target_os = "linux")]
 use std::io::Write;
-use std::path::{Path, PathBuf};
+#[cfg(target_os = "linux")]
+use std::path::Path;
+use std::path::PathBuf;
 use std::sync::mpsc::{self, RecvTimeoutError};
 use std::thread::JoinHandle;
 use std::time::{Duration, Instant};
@@ -62,10 +67,12 @@ pub struct Status {
 }
 
 /// Sucht angesteckte Busylights unter `/sys/class/hidraw`.
+#[cfg(target_os = "linux")]
 pub fn find() -> Vec<PathBuf> {
     find_in(Path::new("/sys/class/hidraw"))
 }
 
+#[cfg(target_os = "linux")]
 fn find_in(sys: &Path) -> Vec<PathBuf> {
     let Ok(dir) = std::fs::read_dir(sys) else {
         return Vec::new();
@@ -82,6 +89,7 @@ fn find_in(sys: &Path) -> Vec<PathBuf> {
 }
 
 /// Prüft `HID_ID=0003:000027BB:00003BCD` aus einer uevent-Datei.
+#[cfg(target_os = "linux")]
 fn is_busylight(uevent: &str) -> bool {
     uevent
         .lines()
@@ -100,7 +108,7 @@ pub fn probe() -> Status {
     let devices = find();
     let error = devices
         .iter()
-        .find_map(|d| OpenOptions::new().write(true).open(d).err())
+        .find_map(|d| check(d).err())
         .map(|e| describe(&e));
     Status {
         devices: devices.iter().map(|d| d.display().to_string()).collect(),
@@ -148,12 +156,80 @@ fn finish(mut p: [u8; 64]) -> [u8; 64] {
     p
 }
 
+/// Öffnet das Gerät zum Schreiben, ohne etwas zu senden.
+#[cfg(target_os = "linux")]
+fn check(dev: &Path) -> std::io::Result<()> {
+    OpenOptions::new().write(true).open(dev).map(drop)
+}
+
 /// hidraw: erstes Byte ist die Report-Nummer (0 = ohne Nummern)
+#[cfg(target_os = "linux")]
 fn write(dev: &Path, p: &[u8; 64]) -> std::io::Result<()> {
+    OpenOptions::new()
+        .write(true)
+        .open(dev)?
+        .write_all(&report(p))
+}
+
+/// HID-Report: erstes Byte ist die Report-Nummer (0 = ohne Nummern)
+fn report(p: &[u8; 64]) -> [u8; 65] {
     let mut buf = [0u8; 65];
     buf[1..].copy_from_slice(p);
-    OpenOptions::new().write(true).open(dev)?.write_all(&buf)
+    buf
 }
+
+/// macOS und Windows: über hidapi. Die Gerätepfade von hidapi stehen hier
+/// als `PathBuf`, damit der Rest gleich bleibt.
+#[cfg(not(target_os = "linux"))]
+mod hid {
+    use std::ffi::CString;
+    use std::path::{Path, PathBuf};
+
+    use hidapi::HidApi;
+
+    fn io_err(e: impl std::fmt::Display) -> std::io::Error {
+        std::io::Error::other(e.to_string())
+    }
+
+    pub fn find() -> Vec<PathBuf> {
+        let Ok(api) = HidApi::new() else {
+            return Vec::new();
+        };
+        let mut out: Vec<PathBuf> = api
+            .device_list()
+            .filter(|d| {
+                let (vendor, product) = (u32::from(d.vendor_id()), u32::from(d.product_id()));
+                vendor == super::VENDOR_PLENOM || (vendor, product) == super::LEGACY
+            })
+            .filter_map(|d| d.path().to_str().ok().map(PathBuf::from))
+            .collect();
+        out.sort();
+        out.dedup();
+        out
+    }
+
+    fn open(dev: &Path) -> std::io::Result<hidapi::HidDevice> {
+        let api = HidApi::new().map_err(io_err)?;
+        let path = CString::new(dev.to_string_lossy().as_bytes()).map_err(io_err)?;
+        api.open_path(&path).map_err(io_err)
+    }
+
+    pub fn check(dev: &Path) -> std::io::Result<()> {
+        open(dev).map(drop)
+    }
+
+    pub fn write(dev: &Path, p: &[u8; 64]) -> std::io::Result<()> {
+        open(dev)?
+            .write(&super::report(p))
+            .map(drop)
+            .map_err(io_err)
+    }
+}
+
+#[cfg(not(target_os = "linux"))]
+pub use hid::find;
+#[cfg(not(target_os = "linux"))]
+use hid::{check, write};
 
 /// Hält den gewünschten Zustand auf allen angesteckten Busylights.
 pub struct Busylight {
@@ -297,6 +373,7 @@ mod tests {
     use super::*;
 
     #[test]
+    #[cfg(target_os = "linux")]
     fn recognises_kuando_ids() {
         assert!(is_busylight(
             "DRIVER=hid-generic\nHID_ID=0003:000027BB:00003BCD\nHID_NAME=x"
@@ -340,6 +417,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(target_os = "linux")]
     fn finds_devices_in_sysfs() {
         let root = std::env::temp_dir().join(format!("sf-busylight-{}", std::process::id()));
         for (name, id) in [

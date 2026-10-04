@@ -44,6 +44,49 @@ unter dem Namen `starface-linuxclient` und registriert die Link-Handler `starfac
 Zwischenstände: Jeder Build auf `main` legt unter **Actions** das Artefakt
 `starclx-<version>-linux-x86_64` ab (Version `1.0.0+<Laufnummer>`).
 
+### macOS und Windows
+
+StarCLX läuft auch unter macOS (Apple Silicon) und Windows (x64) und lässt sich **neben der
+offiziellen STARFACE-App** verwenden:
+
+- Eigenes Telefon auf der Anlage: StarCLX meldet sich mit der Geräte-ID des Linux-Clients an,
+  die offizielle App mit ihrer eigenen. Beide klingeln parallel.
+- Eigener Eintrag im Schlüsselbund bzw. in der Windows-Anmeldeinformationsverwaltung
+  (`starface-linuxclient`) und eigene App-Kennung.
+- Die Anmeldung läuft immer im eigenen Fenster; `starface-app://` gehört der offiziellen App und
+  wird von StarCLX dort nicht registriert. „Im Browser anmelden“ fehlt deshalb.
+- `tel:`, `callto:` und `sip:` sind angemeldet; welche App sie öffnet, legt das System fest.
+- Systemweite Tastenkürzel meldet die App selbst an (Einstellungen → Hotkeys). „Markierte
+  Rufnummer wählen“ nimmt dort die Zwischenablage, eine Markierung wie unter Linux gibt es nicht.
+- Selbstsignierte Zertifikate lassen sich wie unter Linux einmalig bestätigen.
+- G.722 kommt hier aus der mitgelieferten libg722 statt aus spandsp.
+
+Fertige Pakete für alle drei Systeme gibt es unter [Releases](../../releases); jeder Build auf
+`main` legt sie außerdem unter **Actions** als Artefakte ab.
+
+Selbst bauen unter macOS (Homebrew):
+
+```sh
+brew install cmake openssl@3
+git submodule update --init --recursive
+cd apps/desktop && npm install && npm run tauri build
+```
+
+Unter Windows (Visual Studio mit C++, CMake, Rust, Node 22):
+
+```powershell
+vcpkg install openssl:x64-windows-static-md
+$env:OPENSSL_DIR = "<vcpkg>\installed\x64-windows-static-md"
+git submodule update --init --recursive
+cd apps/desktop; npm install; npm run tauri build
+```
+
+Beim ersten Anruf fragt macOS nach dem Mikrofon.
+
+Die Mac-Builds sind nur ad-hoc signiert (keine Apple-Developer-ID). Nach dem Download einmalig
+in Systemeinstellungen → Datenschutz & Sicherheit „Trotzdem öffnen“ wählen, oder im Terminal:
+`xattr -dr com.apple.quarantine /Applications/StarCLX.app`
+
 ### Voraussetzungen auf der Anlage
 
 - STARFACE 10 mit erreichbarem OneHub-Port 9092 und SIP/TLS
@@ -68,9 +111,9 @@ Tag `v<Version>` von Hand bewirkt dasselbe.
 | `crates/sf-tls` | TLS-Konfiguration inkl. bestätigter Zertifikate |
 | `crates/sf-core` | Sitzung, Adressbuch, Rufliste, Funktionstasten, Erreichbarkeit, Voicemail |
 | `crates/sf-sip` | Softphone auf Basis von libbaresip |
-| `crates/sf-audio` | Audiogeräte, Klingeltöne, Testton (PulseAudio/PipeWire) |
+| `crates/sf-audio` | Audiogeräte, Klingeltöne, Testton (PulseAudio/PipeWire; macOS/Windows über cpal) |
 | `crates/sf-chat` | XMPP-Chat |
-| `crates/sf-busylight` | Kuando Busylight über hidraw |
+| `crates/sf-busylight` | Kuando Busylight (Linux hidraw, macOS/Windows hidapi) |
 | `apps/desktop` | Desktop-App: Tauri 2, Oberfläche in Svelte 5 / TypeScript |
 | `apps/sfctl` | Kommandozeile für Tests und Skripte |
 

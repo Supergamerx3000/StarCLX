@@ -21,3 +21,9 @@ zbus-secret-service-keyring-store = { version = "1", features = ["rt-tokio-crypt
 [dev-dependencies]
 serde_json.workspace = true
 tokio = { workspace = true, features = ["rt"] }
+
+[target.'cfg(target_os = "macos")'.dependencies]
+apple-native-keyring-store = { version = "1", features = ["keychain"] }
+
+[target.'cfg(windows)'.dependencies]
+windows-native-keyring-store = "1"

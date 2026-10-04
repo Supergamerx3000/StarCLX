@@ -7,7 +7,7 @@
   import { onMount } from "svelte";
   import Icon from "./Icon.svelte";
   import Toggle from "./Toggle.svelte";
-  import { t } from "./i18n.svelte";
+  import { t } from "./i18n.svelte.js";
 
   let { server }: { server: string } = $props();
 

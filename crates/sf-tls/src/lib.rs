@@ -49,6 +49,15 @@ pub fn fingerprint(cert: &[u8]) -> String {
         .join(":")
 }
 
+/// Fingerabdruck des ersten Zertifikats in PEM-Text (WebView2 liefert PEM).
+pub fn fingerprint_pem(pem: &str) -> Option<String> {
+    use rustls::pki_types::CertificateDer;
+    use rustls::pki_types::pem::PemObject;
+    CertificateDer::from_pem_slice(pem.as_bytes())
+        .ok()
+        .map(|der| fingerprint(&der))
+}
+
 /// Ersetzt die Liste der bestätigten Zertifikate.
 pub fn set_trusted(fingerprints: impl IntoIterator<Item = String>) {
     *TRUSTED.write().unwrap() = fingerprints.into_iter().map(normalize).collect();
@@ -82,6 +91,42 @@ fn provider() -> Arc<CryptoProvider> {
     static PROVIDER: LazyLock<Arc<CryptoProvider>> =
         LazyLock::new(|| Arc::new(rustls::crypto::aws_lc_rs::default_provider()));
     PROVIDER.clone()
+}
+
+/// Wurzelzertifikate des Systems als PEM, z. B. als CA-Datei für baresip
+/// unter Windows, wo OpenSSL keinen Zertifikatspeicher findet.
+pub fn native_roots_pem() -> String {
+    let mut pem = String::new();
+    for cert in rustls_native_certs::load_native_certs().certs {
+        pem += "-----BEGIN CERTIFICATE-----\n";
+        for line in base64(&cert).as_bytes().chunks(64) {
+            pem += std::str::from_utf8(line).unwrap_or_default();
+            pem.push('\n');
+        }
+        pem += "-----END CERTIFICATE-----\n";
+    }
+    pem
+}
+
+fn base64(data: &[u8]) -> String {
+    const ABC: &[u8; 64] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+    let mut out = String::with_capacity(data.len().div_ceil(3) * 4);
+    for chunk in data.chunks(3) {
+        let b = [
+            chunk[0],
+            *chunk.get(1).unwrap_or(&0),
+            *chunk.get(2).unwrap_or(&0),
+        ];
+        let n = (u32::from(b[0]) << 16) | (u32::from(b[1]) << 8) | u32::from(b[2]);
+        for i in 0..4 {
+            if i <= chunk.len() {
+                out.push(ABC[(n >> (18 - 6 * i)) as usize & 63] as char);
+            } else {
+                out.push('=');
+            }
+        }
+    }
+    out
 }
 
 fn webpki() -> Arc<WebPkiServerVerifier> {
@@ -292,6 +337,25 @@ impl ServerCertVerifier for Probe {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn pem_fingerprint_matches_der() {
+        let cert = rcgen::generate_simple_self_signed(vec!["pbx.local".into()]).unwrap();
+        assert_eq!(
+            fingerprint_pem(&cert.cert.pem()).as_deref(),
+            Some(fingerprint(cert.cert.der()).as_str())
+        );
+        assert_eq!(fingerprint_pem("kein PEM"), None);
+    }
+
+    #[test]
+    fn base64_padding() {
+        assert_eq!(base64(b""), "");
+        assert_eq!(base64(b"f"), "Zg==");
+        assert_eq!(base64(b"fo"), "Zm8=");
+        assert_eq!(base64(b"foo"), "Zm9v");
+        assert_eq!(base64(b"foobar"), "Zm9vYmFy");
+    }
     use tokio::io::AsyncWriteExt;
 
     /// TLS-Server mit selbstsigniertem Zertifikat für `localhost`.

@@ -276,6 +276,8 @@ const dict: Record<string, string> = {
   "Beim Minimieren nur als Symbol im Infobereich anzeigen": "Quando ridotto, mostra solo come icona nell'area di notifica",
   "Immer im Vordergrund": "Sempre in primo piano",
   "Unter Wayland bestimmt der Desktop, ob ein Fenster oben bleibt. Bei GNOME geht es über Alt+Leertaste → „Immer im Vordergrund“.": "Con Wayland è il desktop a decidere se una finestra resta in primo piano. In GNOME: Alt+Spazio → «Sempre in primo piano».",
+  "Tastenkürzel systemweit aktivieren": "Attiva le scorciatoie da tastiera per tutto il sistema",
+  "Die Kürzel gelten dann in allen Programmen. Ist eine Kombination schon von einem anderen Programm belegt, meldet StarCLX das beim Speichern.": "Le scorciatoie funzionano in tutte le applicazioni. Se una combinazione è già usata da un'altra applicazione, StarCLX lo segnala al salvataggio.",
   "Tastenkürzel systemweit in GNOME eintragen": "Registra le scorciatoie da tastiera in GNOME per tutto il sistema",
   "Die Kürzel gelten dann in allen Programmen und überschreiben dort gleiche Kombinationen. Andere eigene Tastenkürzel bleiben unverändert.": "Le scorciatoie valgono allora in tutti i programmi e sostituiscono le combinazioni uguali. Le altre scorciatoie personali restano invariate.",
   "Dieser Desktop erlaubt Programmen keine globalen Tastenkürzel. Lege in den Systemeinstellungen eine eigene Tastenkombination mit diesem Befehl an:": "Questo desktop non consente scorciatoie globali ai programmi. Crea nelle impostazioni di sistema una scorciatoia personalizzata con questo comando:",

@@ -276,6 +276,8 @@ const dict: Record<string, string> = {
   "Beim Minimieren nur als Symbol im Infobereich anzeigen": "When minimised, show only as an icon in the system tray",
   "Immer im Vordergrund": "Always on top",
   "Unter Wayland bestimmt der Desktop, ob ein Fenster oben bleibt. Bei GNOME geht es über Alt+Leertaste → „Immer im Vordergrund“.": "Under Wayland the desktop decides whether a window stays on top. In GNOME use Alt+Space → “Always on Top”.",
+  "Tastenkürzel systemweit aktivieren": "Enable keyboard shortcuts system-wide",
+  "Die Kürzel gelten dann in allen Programmen. Ist eine Kombination schon von einem anderen Programm belegt, meldet StarCLX das beim Speichern.": "The shortcuts then work in every application. If another application already uses a combination, StarCLX reports it when saving.",
   "Tastenkürzel systemweit in GNOME eintragen": "Register keyboard shortcuts system-wide in GNOME",
   "Die Kürzel gelten dann in allen Programmen und überschreiben dort gleiche Kombinationen. Andere eigene Tastenkürzel bleiben unverändert.": "The shortcuts then work in all applications and override identical combinations there. Your other custom shortcuts remain unchanged.",
   "Dieser Desktop erlaubt Programmen keine globalen Tastenkürzel. Lege in den Systemeinstellungen eine eigene Tastenkombination mit diesem Befehl an:": "This desktop does not allow applications to use global shortcuts. Create a custom shortcut with this command in the system settings:",

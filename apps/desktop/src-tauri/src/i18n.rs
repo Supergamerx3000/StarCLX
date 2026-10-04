@@ -268,6 +268,14 @@ const TEXTS: &[(&str, [&str; 3])] = &[
         ],
     ),
     (
+        "Belegt oder ungültig: {keys}",
+        [
+            "Already taken or invalid: {keys}",
+            "Déjà utilisé ou invalide : {keys}",
+            "Già in uso o non valido: {keys}",
+        ],
+    ),
+    (
         "Tastenkürzel lassen sich nur unter GNOME automatisch eintragen.",
         [
             "Keyboard shortcuts can only be registered automatically under GNOME.",

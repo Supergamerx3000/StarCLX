@@ -1,7 +1,7 @@
 <script lang="ts">
   import logo from "$lib/assets/logo.png";
   import ContactForm from "$lib/ContactForm.svelte";
-  import { contactEdit } from "$lib/contactform.svelte";
+  import { contactEdit } from "$lib/contactform.svelte.js";
   import { invoke } from "@tauri-apps/api/core";
   import { listen } from "@tauri-apps/api/event";
   import { onMount } from "svelte";
@@ -12,15 +12,15 @@
   import Chat from "$lib/Chat.svelte";
   import Voicemail from "$lib/Voicemail.svelte";
   import FunctionKeys from "$lib/FunctionKeys.svelte";
-  import { initVoicemail, loadVoicemails, unheard, voicemail } from "$lib/voicemail.svelte";
-  import { initChat, unreadTotal } from "$lib/chat.svelte";
+  import { initVoicemail, loadVoicemails, unheard, voicemail } from "$lib/voicemail.svelte.js";
+  import { initChat, unreadTotal } from "$lib/chat.svelte.js";
   import Icon, { type IconName } from "$lib/Icon.svelte";
   import Settings from "$lib/Settings.svelte";
-  import { initPhone, phone, run, isRingingIn } from "$lib/phone.svelte";
-  import { initCallActions } from "$lib/callactions.svelte";
-  import { loadPrefs, prefs, savePrefs, type Tile } from "$lib/prefs.svelte";
+  import { initPhone, phone, run, isRingingIn } from "$lib/phone.svelte.js";
+  import { initCallActions } from "$lib/callactions.svelte.js";
+  import { loadPrefs, prefs, savePrefs, type Tile } from "$lib/prefs.svelte.js";
   import Workspace, { tilesOf } from "$lib/Workspace.svelte";
-  import { t } from "$lib/i18n.svelte";
+  import { t } from "$lib/i18n.svelte.js";
 
   type SessionInfo = { server: string; server_version: string; display_name: string };
   type UntrustedCert = { host: string; port: number; fingerprint: string; reason: string };
@@ -112,6 +112,10 @@
 
   /** Anmeldung im Systembrowser statt im eigenen Fenster */
   let viaBrowser = $state(false);
+  /** Unter macOS und Windows gehört starface-app:// der offiziellen
+   *  STARFACE-App; der Rücksprung aus dem Browser käme dort an. Nur das
+   *  eigene Fenster geht. */
+  const browserLogin = !/Mac OS X|Windows/.test(navigator.userAgent);
 
   async function login(event?: Event) {
     event?.preventDefault();
@@ -315,9 +319,11 @@
       <button class="primary" type="submit" onclick={() => (viaBrowser = false)}>
         {phase === "waiting" ? t("Warte auf Anmeldung …") : t("Anmelden")}
       </button>
-      <button type="submit" class="link" onclick={() => (viaBrowser = true)}>
-        {t("Stattdessen im Browser anmelden")}
-      </button>
+      {#if browserLogin}
+        <button type="submit" class="link" onclick={() => (viaBrowser = true)}>
+          {t("Stattdessen im Browser anmelden")}
+        </button>
+      {/if}
     </form>
     {#if untrusted}
       <div class="cert" role="alertdialog" aria-labelledby="cert-title">

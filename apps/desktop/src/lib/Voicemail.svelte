@@ -2,9 +2,9 @@
   import { invoke } from "@tauri-apps/api/core";
   import { onMount } from "svelte";
   import Icon from "./Icon.svelte";
-  import { phone, run } from "./phone.svelte";
-  import { loadVoicemails, voicemail, type Voicemail } from "./voicemail.svelte";
-  import { locale, t } from "./i18n.svelte";
+  import { phone, run } from "./phone.svelte.js";
+  import { loadVoicemails, voicemail, type Voicemail } from "./voicemail.svelte.js";
+  import { locale, t } from "./i18n.svelte.js";
 
   type Folder = Voicemail["folder"];
   const folders: { id: Folder; label: string }[] = $derived([

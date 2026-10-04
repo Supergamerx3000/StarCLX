@@ -1,6 +1,6 @@
 // Benutzereinstellungen (lokal gespeichert, siehe settings.rs).
 import { invoke } from "@tauri-apps/api/core";
-import { setLanguage } from "./i18n.svelte";
+import { setLanguage } from "./i18n.svelte.js";
 
 export type Prefs = {
   softphone: boolean;

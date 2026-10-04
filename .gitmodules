@@ -6,3 +6,7 @@
 	path = crates/sf-sip/vendor/baresip
 	url = https://github.com/baresip/baresip
 	shallow = true
+[submodule "crates/sf-sip/vendor/libg722"]
+	path = crates/sf-sip/vendor/libg722
+	url = https://github.com/sippy/libg722
+	shallow = true

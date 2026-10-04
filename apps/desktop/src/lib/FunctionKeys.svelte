@@ -2,9 +2,9 @@
   // Arbeitsbereich „Funktionstasten“: Tasten der Anlage zum Auslösen.
   import { onMount } from "svelte";
   import FkeyTile from "./FkeyTile.svelte";
-  import { fkeys, keyAt, loadFkeys, press } from "./fkeys.svelte";
-  import { prefs } from "./prefs.svelte";
-  import { t } from "./i18n.svelte";
+  import { fkeys, keyAt, loadFkeys, press } from "./fkeys.svelte.js";
+  import { prefs } from "./prefs.svelte.js";
+  import { t } from "./i18n.svelte.js";
 
   onMount(() => { loadFkeys(); });
   const columns = $derived(prefs.value?.fkey_columns ?? 3);

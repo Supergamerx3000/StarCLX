@@ -276,6 +276,8 @@ const dict: Record<string, string> = {
   "Beim Minimieren nur als Symbol im Infobereich anzeigen": "Une fois réduit, afficher uniquement comme icône dans la zone de notification",
   "Immer im Vordergrund": "Toujours au premier plan",
   "Unter Wayland bestimmt der Desktop, ob ein Fenster oben bleibt. Bei GNOME geht es über Alt+Leertaste → „Immer im Vordergrund“.": "Sous Wayland, c'est le bureau qui décide si une fenêtre reste au premier plan. Sous GNOME : Alt+Espace → « Toujours au premier plan ».",
+  "Tastenkürzel systemweit aktivieren": "Activer les raccourcis clavier pour tout le système",
+  "Die Kürzel gelten dann in allen Programmen. Ist eine Kombination schon von einem anderen Programm belegt, meldet StarCLX das beim Speichern.": "Les raccourcis fonctionnent alors dans toutes les applications. Si une combinaison est déjà utilisée par une autre application, StarCLX le signale à l'enregistrement.",
   "Tastenkürzel systemweit in GNOME eintragen": "Inscrire les raccourcis clavier dans GNOME pour tout le système",
   "Die Kürzel gelten dann in allen Programmen und überschreiben dort gleiche Kombinationen. Andere eigene Tastenkürzel bleiben unverändert.": "Les raccourcis s'appliquent alors dans tous les programmes et y remplacent les combinaisons identiques. Vos autres raccourcis personnels restent inchangés.",
   "Dieser Desktop erlaubt Programmen keine globalen Tastenkürzel. Lege in den Systemeinstellungen eine eigene Tastenkombination mit diesem Befehl an:": "Ce bureau n'autorise pas les raccourcis globaux pour les programmes. Créez un raccourci personnalisé avec cette commande dans les paramètres du système :",

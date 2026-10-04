@@ -13,7 +13,7 @@
 
 <script lang="ts">
   import Icon from "./Icon.svelte";
-  import { t } from "./i18n.svelte";
+  import { t } from "./i18n.svelte.js";
 
   let { order = $bindable([]), devices }: { order: string[]; devices: Device[] } = $props();
   let selected = $state(0);

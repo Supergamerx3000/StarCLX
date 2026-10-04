@@ -1,8 +1,8 @@
 // URL oder Programm bei Anruf: erkennt Klingeln, Annahme und abgehende
 // Anrufe; Filter und Ausführung erledigt call_actions_fire in Rust.
 import { invoke } from "@tauri-apps/api/core";
-import { phone, type Call } from "./phone.svelte";
-import { prefs, type CallAction } from "./prefs.svelte";
+import { phone, type Call } from "./phone.svelte.js";
+import { prefs, type CallAction } from "./prefs.svelte.js";
 
 /** Bereits ausgelöste Ereignisse je Anruf-ID */
 const fired = new Map<string, Set<CallAction["trigger"]>>();
