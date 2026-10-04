@@ -11,6 +11,10 @@
 #include <string.h>
 #include <re.h>
 #include <baresip.h>
+
+/* re_dbg.h warnt sonst per #warning; MSVC bricht daran ab. */
+#define DEBUG_MODULE "sfsip"
+#define DEBUG_LEVEL 5
 #include <re_dbg.h>
 
 enum sfsip_op {
