@@ -284,6 +284,22 @@ const TEXTS: &[(&str, [&str; 3])] = &[
         ],
     ),
     (
+        "Die Anlage hat die Anmeldung abgelehnt: {e}",
+        [
+            "The PBX rejected the sign-in: {e}",
+            "Le PBX a refusé la connexion : {e}",
+            "Il centralino ha rifiutato l’accesso: {e}",
+        ],
+    ),
+    (
+        "Die Antwort gehört zu einem älteren Anmeldeversuch. Bitte erneut anmelden.",
+        [
+            "The response belongs to an earlier sign-in attempt. Please sign in again.",
+            "La réponse appartient à une tentative de connexion précédente. Veuillez vous reconnecter.",
+            "La risposta appartiene a un tentativo di accesso precedente. Accedi di nuovo.",
+        ],
+    ),
+    (
         "Tastenkürzel lassen sich nur unter GNOME automatisch eintragen.",
         [
             "Keyboard shortcuts can only be registered automatically under GNOME.",
