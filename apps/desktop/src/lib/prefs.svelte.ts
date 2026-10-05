@@ -41,6 +41,8 @@ export type Prefs = {
   fkey_columns: number;
   workspace: "tabs" | "free";
   workspace_tiles: Tile[] | null;
+  /** Ausführliches Protokoll (Anruf- und Verbindungsdetails) */
+  verbose_log: boolean;
 };
 
 /** Kachel im freien Arbeitsbereich: Lage in Rasterzellen (12 Spalten) */

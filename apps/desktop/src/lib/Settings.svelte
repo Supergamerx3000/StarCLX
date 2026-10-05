@@ -193,6 +193,23 @@
     }
   }
 
+  async function exportLog() {
+    try {
+      const path = await invoke<string | null>("log_export");
+      if (path) notice = t("Protokoll gespeichert: {path}", { path });
+    } catch (e) {
+      notice = String(e);
+    }
+  }
+
+  async function openLogDir() {
+    try {
+      await invoke("log_open_dir");
+    } catch (e) {
+      notice = String(e);
+    }
+  }
+
   async function pickDownloadDir() {
     if (!draft) return;
     try {
@@ -266,6 +283,7 @@
     {/each}
     <h2>{t("Konto")}</h2>
     <button class="nav" onclick={() => jump("account")}><Icon name="account" size={18} /><span>{t("Konto")}</span></button>
+    <button class="nav" onclick={() => jump("log")}><Icon name="list" size={18} /><span>{t("Protokoll")}</span></button>
   </nav>
 
   <div class="content" bind:this={content}>
@@ -544,6 +562,19 @@
           {#if version}<p class="version">{t("Version {v}", { v: version })}</p>{/if}
         </div>
       </section>
+
+      <section id="log">
+        <h3>{t("Protokoll")}</h3>
+        <div class="card">
+          <p class="muted">{t("Bei einem Problem das Protokoll speichern und uns schicken, z. B. als Anhang an ein GitHub-Issue.")}</p>
+          <div class="buttons">
+            <button onclick={exportLog}><Icon name="folder" size={18} /> {t("Protokoll speichern …")}</button>
+            <button onclick={openLogDir}>{t("Ordner öffnen")}</button>
+          </div>
+          <Toggle bind:checked={draft.verbose_log} label={t("Ausführlich protokollieren (Anruf- und Verbindungsdetails)")} />
+          <p class="small muted">{t("Das Protokoll kann Namen und Rufnummern enthalten. Passwörter und Tokens stehen nicht darin.")}</p>
+        </div>
+      </section>
     {/if}
   </div>
 
@@ -619,6 +650,8 @@
   .cc { display: flex; align-items: center; gap: 0.3rem; }
   .cc input { width: 4rem; }
   .logout { align-self: flex-start; display: flex; align-items: center; gap: 0.5rem; }
+  .buttons { display: flex; flex-wrap: wrap; gap: 0.6rem; margin: 0.4rem 0 0.6rem; }
+  .buttons button { display: flex; align-items: center; gap: 0.4rem; }
   footer {
     grid-column: 1 / -1; display: flex; justify-content: flex-end; align-items: center; gap: 1rem;
     padding: 0.8rem 1.2rem; border-top: 1px solid var(--line); background: var(--bg);

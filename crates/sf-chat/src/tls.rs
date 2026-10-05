@@ -1,6 +1,9 @@
 //! STARTTLS wie in `tokio_xmpp::connect::StartTlsServerConnector`, aber mit
 //! der Zertifikatsprüfung aus `sf_tls`, damit vom Benutzer bestätigte
-//! Zertifikate lokaler Anlagen auch für den Chat gelten.
+//! Zertifikate lokaler Anlagen auch für den Chat gelten. Den Namen der
+//! Anlage löst das Betriebssystem auf, nicht hickory: Dessen Resolver findet
+//! unter Windows manche Namen nicht, die das System (und damit die
+//! HTTPS-Anmeldung) auflöst.
 
 use std::borrow::Cow;
 use std::sync::Arc;
@@ -10,7 +13,7 @@ use sasl::common::ChannelBinding;
 use tokio::io::BufStream;
 use tokio::net::TcpStream;
 use tokio_rustls::client::TlsStream;
-use tokio_xmpp::connect::{DnsConfig, ServerConnector};
+use tokio_xmpp::connect::ServerConnector;
 use tokio_xmpp::error::{Error, ProtocolError};
 use tokio_xmpp::jid::Jid;
 use tokio_xmpp::parsers::starttls;
@@ -22,7 +25,10 @@ use tokio_xmpp::xmlstream::{
 };
 
 #[derive(Debug, Clone)]
-pub struct StartTls(pub DnsConfig);
+pub struct StartTls {
+    pub host: String,
+    pub port: u16,
+}
 
 impl ServerConnector for StartTls {
     type Stream = BufStream<TlsStream<TcpStream>>;
@@ -38,7 +44,7 @@ impl ServerConnector for StartTls {
             from: None,
             id: None,
         };
-        let tcp = BufStream::new(self.0.resolve().await?);
+        let tcp = BufStream::new(TcpStream::connect((self.host.as_str(), self.port)).await?);
         let stream = initiate_stream(tcp, ns, header(), timeouts).await?;
         let (features, mut stream): (_, XmppStream<_>) = stream.recv_features().await?;
         if !features.can_starttls() {

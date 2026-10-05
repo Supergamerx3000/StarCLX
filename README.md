@@ -31,10 +31,34 @@ Was sich seit der letzten Version geändert hat, steht in [CHANGELOG.md](CHANGEL
 
 ## Installieren
 
-Fertige Pakete gibt es unter [Releases](https://github.com/crazmoe/StarCLX/releases):
+### Paketquelle (empfohlen, mit automatischen Updates)
+
+Debian, Ubuntu und Abkömmlinge:
+
+```sh
+curl -fsSL https://crazmoe.github.io/StarCLX/starclx.gpg | sudo tee /usr/share/keyrings/starclx.gpg >/dev/null
+echo "deb [signed-by=/usr/share/keyrings/starclx.gpg] https://crazmoe.github.io/StarCLX/deb stable main" \
+  | sudo tee /etc/apt/sources.list.d/starclx.list
+sudo apt update && sudo apt install starclx
+```
+
+Fedora (und andere RPM-Distributionen mit dnf):
+
+```sh
+sudo curl -fsSL -o /etc/yum.repos.d/starclx.repo https://crazmoe.github.io/StarCLX/starclx.repo
+sudo dnf install starclx
+```
+
+Die Quellen sind signiert; neue Versionen kommen mit dem normalen System-Update.
+
+### Einzelne Pakete
+
+Fertige Pakete gibt es auch unter [Releases](../../releases): `.deb`, `.rpm`, AppImage, `.dmg`
+(macOS) und Installer (Windows).
 
 ```sh
 sudo apt install ./starclx_<version>_amd64.deb
+sudo dnf install ./starclx-<version>-1.x86_64.rpm
 ```
 
 oder ohne Installation das AppImage ausführbar machen und starten. Das Paket ersetzt ältere Builds

@@ -55,6 +55,8 @@
     <span class="time">{duration(call, phone.now)}</span>
   </header>
 
+  <!-- Karte und Aktionsleiste liegen wie im Original in einer gemeinsamen Schale -->
+  <div class="shell">
   <!-- Gespräch lässt sich auf ein Besetztlampenfeld ziehen (Vermitteln) -->
   <div class="pill" class:draggable={(connected || held) && !call.consultation_of} role="group" onpointerdown={(e) => startCallDrag(e, call)}>
     <div class="avatar"><Icon name="person" size={34} /></div>
@@ -64,7 +66,7 @@
       {#if sub}<span class="sub">{sub}</span>{/if}
       {#if transfers}<span class="sub">{t("Auflegen vermittelt das gehaltene Gespräch")}</span>{/if}
       {#if call.local_number || call.local_name}
-        <small>{call.local_number} {call.local_name}</small>
+        <small><b>{call.local_number}</b> {call.local_name}</small>
       {/if}
     </div>
     {#if connected}
@@ -110,6 +112,22 @@
         <Icon name="voicemail" /><span>Voicemail</span>
       </button>
     </nav>
+  {:else if connected}
+    <nav class="tabs">
+      {@render tabButton("consult", null, t("Rückfrage"))}
+      {@render tabButton("conference", "group", t("Konferenz"))}
+      {@render tabButton("extras", "more", t("Extras"))}
+    </nav>
+  {:else if held}
+    <nav class="tabs">
+      <button class="tab" onclick={() => run("phone_hold", { callId: call.id, hold: false })}>
+        <Icon name="play" /><span>{t("Fortsetzen")}</span>
+      </button>
+    </nav>
+  {/if}
+  </div>
+
+  {#if ringingIn}
     {#if forwarding}
       <form class="target" onsubmit={(e) => submitTarget(e, "forward")}>
         <input bind:value={target} placeholder={t("Umleiten an Nummer")} inputmode="tel" />
@@ -117,11 +135,6 @@
       </form>
     {/if}
   {:else if connected}
-    <nav class="tabs">
-      {@render tabButton("consult", null, t("Rückfrage"))}
-      {@render tabButton("conference", "group", t("Konferenz"))}
-      {@render tabButton("extras", "more", t("Extras"))}
-    </nav>
     {#if tab === "consult"}
       <div class="panel">
         <button class="row" onclick={() => run("phone_hold", { callId: call.id, hold: true })}>
@@ -174,12 +187,6 @@
         </button>
       </div>
     {/if}
-  {:else if held}
-    <nav class="tabs">
-      <button class="tab" onclick={() => run("phone_hold", { callId: call.id, hold: false })}>
-        <Icon name="play" /><span>{t("Fortsetzen")}</span>
-      </button>
-    </nav>
   {/if}
 </article>
 
@@ -202,38 +209,50 @@
   header { display: flex; align-items: center; gap: 0.4rem; font-size: 0.85rem; color: var(--muted); }
   header .time { margin-left: auto; font-variant-numeric: tabular-nums; }
   .rec { color: var(--red); }
+  .shell {
+    display: flex; flex-direction: column;
+    padding: 0.4rem 0.4rem 0.3rem; border-radius: 2.6rem 2.6rem 1.8rem 1.8rem;
+    background: linear-gradient(#cfd1d4, #b7babe);
+    box-shadow: 0 1px 0 #fff8 inset, 0 2px 8px #0005;
+  }
   .pill {
     display: flex; align-items: center; gap: 0.75rem;
-    padding: 0.6rem 0.7rem; border-radius: 3rem 1.6rem 1.6rem 3rem;
-    background: #e6e8eb; color: #202326;
-    box-shadow: 0 2px 6px #0006 inset;
+    padding: 0.35rem 0.35rem 0.35rem 0.4rem; border-radius: 999px;
+    background: #fff; color: #202326;
+    box-shadow: 0 2px 5px #0004;
   }
   .avatar {
-    flex: none; width: 3.2rem; height: 3.2rem; border-radius: 50%;
-    display: grid; place-items: center; background: #c4c8cd; color: #7a8088;
+    flex: none; width: 3.6rem; height: 3.6rem; border-radius: 50%;
+    display: grid; place-items: center; background: #d9dbde; color: #4a4f55;
+    border: 2px solid #9a9ea3; overflow: hidden;
   }
   .who { flex: 1; min-width: 0; display: flex; flex-direction: column; }
   .who strong { font-size: 1.05rem; }
   .who span, .who small { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
-  .who small { border-top: 1px solid #b9bdc2; margin-top: 0.25rem; padding-top: 0.2rem; font-size: 0.75rem; color: #555b62; }
+  .who span { color: #555b62; }
+  .who small { align-self: flex-start; max-width: 100%; border-top: 1px solid #b9bdc2; margin-top: 0.3rem; padding-top: 0.25rem; padding-right: 2rem; font-size: 0.8rem; color: #555b62; }
+  .who small b { color: #202326; font-weight: 500; margin-right: 0.2rem; }
   .sub { color: #555b62; font-size: 0.9rem; }
   .round {
     flex: none; display: grid; place-items: center; border: none; border-radius: 50%;
     width: 3rem; height: 3rem; padding: 0; color: #fff; cursor: pointer;
     box-shadow: 0 2px 4px #0005;
   }
-  .round.big { width: 3.8rem; height: 3.8rem; }
-  .red { background: radial-gradient(circle at 50% 35%, #ff4b4b, #c4161c); }
-  .green { background: radial-gradient(circle at 50% 35%, #8fe04a, #3fa716); }
+  .round.big { width: 4rem; height: 4rem; }
+  /* Grauer Ring wie beim Original */
+  .red { background: radial-gradient(circle at 50% 30%, #f03a3a, #b3060c); box-shadow: 0 0 0 3px #b3b6ba, 0 2px 4px #0005; }
+  .green { background: radial-gradient(circle at 50% 30%, #8fe04a, #3a9a12); box-shadow: 0 0 0 3px #b3b6ba, 0 2px 4px #0005; }
   .mute { background: none; border: none; color: #5d636a; padding: 0.3rem; border-radius: 50%; cursor: pointer; }
   .mute.on { color: #fff; background: var(--red); }
-  .tabs { display: flex; justify-content: space-around; background: #e6e8eb; border-radius: 0 0 16px 16px; margin-top: -0.9rem; padding-top: 0.6rem; }
+  .tabs { display: flex; justify-content: space-around; padding: 0.35rem 0.6rem 0.1rem; }
   .tab {
-    flex: 1; display: flex; flex-direction: column; align-items: center; gap: 0.1rem;
-    background: none; border: none; color: #202326; padding: 0.35rem 0.5rem; font-size: 0.75rem; cursor: pointer;
+    flex: 1; display: flex; flex-direction: column; align-items: center; gap: 0.15rem;
+    background: none; border: 2px solid transparent; border-radius: 4px; color: #3b4045;
+    padding: 0.3rem 0.4rem; font-size: 0.8rem; cursor: pointer;
   }
+  .tab:hover { background: #fff3; }
   .tab b { font-size: 1.3rem; line-height: 24px; }
-  .tab.active { background: var(--accent); }
+  .tab.active { border-color: var(--accent); background: #fff3; }
   .panel { display: flex; flex-direction: column; gap: 0.4rem; padding-top: 0.3rem; }
   .row {
     display: flex; align-items: center; gap: 0.75rem; text-align: left;

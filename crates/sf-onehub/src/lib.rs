@@ -5,6 +5,7 @@
 //! werden, ohne die Verbindung neu aufzubauen.
 
 use std::sync::{Arc, RwLock};
+use std::time::Duration;
 
 use sf_proto::v1;
 use tonic::metadata::MetadataValue;
@@ -24,6 +25,20 @@ pub const DEFAULT_PORT: u16 = 9092;
 /// FFFDF5C8-E74F-4B18-B258-4B66C3FFFFAB, Android
 /// 244C5E4C-4011-4F76-A7E1-52D40F399C6B. Hier: "UCC Client for Linux".
 pub const SIP_DEVICE_ID: &str = "D4CC1516-EC90-42C7-8F70-B0853B173232";
+/// Geräte-ID der Windows-App
+pub const SIP_DEVICE_ID_WINDOWS: &str = "163C00A2-C2F1-4FFE-9474-49283C379852";
+/// Geräte-ID der Mac-App
+pub const SIP_DEVICE_ID_MAC: &str = "E22FF5B3-38ED-4A5E-966A-80B4785A2FF7";
+
+/// Ersatz, wenn die Anlage das Linux-App-Telefon verweigert: Ohne das Recht
+/// `uci_autoprovisioning` legt sie es nicht an, die Telefone der Desktop-Apps
+/// aber schon. Genommen wird das einer App, die auf diesem System nicht
+/// offiziell läuft, damit StarCLX der offiziellen App auf demselben Rechner
+/// nicht das Telefon wegnimmt.
+#[cfg(windows)]
+pub const SIP_DEVICE_ID_FALLBACK: &str = SIP_DEVICE_ID_MAC;
+#[cfg(not(windows))]
+pub const SIP_DEVICE_ID_FALLBACK: &str = SIP_DEVICE_ID_WINDOWS;
 
 fn phone_matches_sip_user(phone_name: &str, sip_user: &str) -> bool {
     phone_name.strip_prefix("SIP/").unwrap_or(phone_name) == sip_user
@@ -58,6 +73,17 @@ pub enum Error {
 }
 
 pub type Result<T> = std::result::Result<T, Error>;
+
+impl Error {
+    /// Meldung der Anlage, wenn dem Benutzer ein Recht fehlt
+    /// (gRPC `PermissionDenied`), sonst `None`.
+    pub fn permission_denied(&self) -> Option<&str> {
+        match self {
+            Error::Status(s) if s.code() == tonic::Code::PermissionDenied => Some(s.message()),
+            _ => None,
+        }
+    }
+}
 
 /// Gemeinsam genutztes Access-Token.
 #[derive(Clone, Default)]
@@ -107,12 +133,24 @@ macro_rules! service {
     };
 }
 
+/// Abstand der HTTP/2-Pings und Wartezeit auf die Antwort
+const KEEPALIVE_INTERVAL: Duration = Duration::from_secs(20);
+const KEEPALIVE_TIMEOUT: Duration = Duration::from_secs(10);
+
 impl OneHub {
     /// `host` ohne Schema, z. B. `pbx.example.com`.
     pub async fn connect(host: &str, port: u16, token: TokenHandle) -> Result<Self> {
+        // Keepalive: Nach Ruhezustand oder Netzwechsel ist die Verbindung oft
+        // tot, ohne dass ein Abbau ankommt. Ohne Pings warten die Event-Streams
+        // dann ewig; mit Pings brechen sie ab und verbinden neu.
         let channel = Endpoint::from_shared(format!("https://{host}:{port}"))?
             .tls_config_with_verifier(ClientTlsConfig::new().domain_name(host), sf_tls::verifier())?
             .user_agent(concat!("starclx/", env!("CARGO_PKG_VERSION")))?
+            .connect_timeout(Duration::from_secs(10))
+            .tcp_keepalive(Some(Duration::from_secs(20)))
+            .http2_keep_alive_interval(KEEPALIVE_INTERVAL)
+            .keep_alive_timeout(KEEPALIVE_TIMEOUT)
+            .keep_alive_while_idle(true)
             .connect()
             .await?;
         Ok(Self { channel, token })

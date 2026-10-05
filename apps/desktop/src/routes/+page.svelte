@@ -39,6 +39,9 @@
       listen<string>("logged-out", (e) => { session = null; notice = e.payload; phase = "login"; voicemail.list = []; }),
       listen<{ action: string; text: string | null }>("hotkey", (e) => hotkey(e.payload.action, e.payload.text)),
       listen("dial-request", takeDialRequest),
+      // Nach dem Standby: Voicemails neu holen (Funktionstasten und
+      // Umleitungen hören selbst auf "resumed" bzw. "reach-changed")
+      listen("resumed", () => { if (session) loadVoicemails(); }),
     ];
     initPhone();
     initCallActions();

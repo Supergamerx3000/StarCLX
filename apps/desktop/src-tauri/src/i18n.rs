@@ -12,6 +12,12 @@ static CURRENT: AtomicUsize = AtomicUsize::new(0);
 
 /// Deutsch → Englisch, Französisch, Italienisch
 const TEXTS: &[(&str, [&str; 3])] = &[
+    // Protokoll
+    (
+        "Protokoll speichern",
+        ["Save log", "Enregistrer le journal", "Salva registro"],
+    ),
+    ("Textdatei", ["Text file", "Fichier texte", "File di testo"]),
     // Tray und Fenster
     ("Öffnen", ["Open", "Ouvrir", "Apri"]),
     (
@@ -281,6 +287,30 @@ const TEXTS: &[(&str, [&str; 3])] = &[
             "Membership in “{name}” cannot be changed",
             "L’inscription dans « {name} » ne peut pas être modifiée",
             "L’accesso a «{name}» non può essere modificato",
+        ],
+    ),
+    (
+        "Die Anlage hat die Anmeldung abgelehnt: {e}",
+        [
+            "The PBX rejected the sign-in: {e}",
+            "Le PBX a refusé la connexion : {e}",
+            "Il centralino ha rifiutato l’accesso: {e}",
+        ],
+    ),
+    (
+        "Die Antwort gehört zu einem älteren Anmeldeversuch. Bitte erneut anmelden.",
+        [
+            "The response belongs to an earlier sign-in attempt. Please sign in again.",
+            "La réponse appartient à une tentative de connexion précédente. Veuillez vous reconnecter.",
+            "La risposta appartiene a un tentativo di accesso precedente. Accedi di nuovo.",
+        ],
+    ),
+    (
+        "Dem Benutzer fehlt in der Anlage das Recht für App-Telefone (uci_autoprovisioning). Der Administrator kann es unter Benutzer → Rechte freischalten.",
+        [
+            "The user lacks the permission for app phones on the PBX (uci_autoprovisioning). An administrator can grant it under Users → Permissions.",
+            "L’utilisateur n’a pas le droit pour les téléphones d’application sur le PBX (uci_autoprovisioning). Un administrateur peut l’accorder sous Utilisateurs → Droits.",
+            "L’utente non ha il permesso per i telefoni app sul centralino (uci_autoprovisioning). Un amministratore può concederlo in Utenti → Permessi.",
         ],
     ),
     (

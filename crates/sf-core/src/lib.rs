@@ -18,13 +18,13 @@ use std::time::Duration;
 
 use sf_auth::Tokens;
 use sf_onehub::{OneHub, TokenHandle};
-use tokio::sync::mpsc;
+use tokio::sync::{mpsc, oneshot};
 use tokio::task::JoinHandle;
 
 /// Erneuern, sobald das Access-Token in weniger als dieser Zeit abläuft.
 const REFRESH_MARGIN: Duration = Duration::from_secs(60);
-/// Prüfintervall. Bewusst kurz und an der Wanduhr gemessen, damit nach dem
-/// Aufwachen aus dem Standby sofort erneuert wird.
+/// Prüfintervall. Bewusst kurz; die Ablaufzeit wird an der Wanduhr gemessen.
+/// Nach dem Aufwachen aus dem Standby erneuert [`Session::resume`] sofort.
 const CHECK_INTERVAL: Duration = Duration::from_secs(15);
 const MAX_BACKOFF: Duration = Duration::from_secs(60);
 
@@ -55,6 +55,28 @@ pub struct SessionInfo {
     pub first_name: String,
     pub last_name: String,
     pub user_id: String,
+    /// Anlage an den STARFACE-Cloud-Diensten (Login über den zentralen
+    /// STARFACE-Login, gRPC über das Cloud-Gateway)
+    pub cloud: bool,
+}
+
+/// Erneuert das Access-Token sofort, z. B. nach dem Aufwachen aus dem Standby.
+#[derive(Clone)]
+pub struct Resumer(mpsc::UnboundedSender<oneshot::Sender<()>>);
+
+impl Resumer {
+    /// `true`, sobald ein frisches Token gilt; `false` nach Zeitüberschreitung
+    /// (z. B. Netz noch nicht da; die Erneuerung läuft dann weiter).
+    pub async fn resume(&self) -> bool {
+        let (tx, rx) = oneshot::channel();
+        if self.0.send(tx).is_err() {
+            return false;
+        }
+        matches!(
+            tokio::time::timeout(Duration::from_secs(30), rx).await,
+            Ok(Ok(()))
+        )
+    }
 }
 
 pub struct Session {
@@ -62,6 +84,8 @@ pub struct Session {
     info: SessionInfo,
     auth: std::sync::Arc<sf_auth::Client>,
     refresher: JoinHandle<()>,
+    /// Sofort erneuern; der Sender meldet den Erfolg zurück
+    wake: mpsc::UnboundedSender<oneshot::Sender<()>>,
 }
 
 impl Session {
@@ -78,7 +102,11 @@ impl Session {
             .and_then(|u| u.host_str().map(str::to_owned))
             .ok_or_else(|| Error::Server(server.to_owned()))?;
         let token = TokenHandle::new(tokens.access_token.clone());
-        let hub = OneHub::connect(&host, sf_onehub::DEFAULT_PORT, token.clone()).await?;
+        // Cloud-Anlagen: gRPC über das Gateway der STARFACE-Cloud
+        let (grpc_host, grpc_port) = auth
+            .grpc_endpoint()
+            .unwrap_or_else(|| (host.clone(), sf_onehub::DEFAULT_PORT));
+        let hub = OneHub::connect(&grpc_host, grpc_port, token.clone()).await?;
 
         let server_version = hub.server_version().await?;
         let user = hub
@@ -95,6 +123,7 @@ impl Session {
         }
 
         let auth = std::sync::Arc::new(auth);
+        let (wake, wake_rx) = mpsc::unbounded_channel();
         let refresher = tokio::spawn(refresh_loop(
             server.to_owned(),
             auth.clone(),
@@ -102,6 +131,7 @@ impl Session {
             token,
             events,
             CHECK_INTERVAL,
+            wake_rx,
         ));
         let info = SessionInfo {
             server: server.to_owned(),
@@ -109,12 +139,14 @@ impl Session {
             first_name: user.first_name,
             last_name: user.last_name,
             user_id: user.user_id.map(|u| u.id).unwrap_or_default(),
+            cloud: auth.discovery().edge_node_id.is_some(),
         };
         Ok(Self {
             hub,
             info,
             auth,
             refresher,
+            wake,
         })
     }
 
@@ -150,6 +182,12 @@ impl Session {
 
     pub fn info(&self) -> &SessionInfo {
         &self.info
+    }
+
+    /// Griff zum sofortigen Erneuern des Tokens, nutzbar ohne die Sitzung
+    /// selbst festzuhalten.
+    pub fn resumer(&self) -> Resumer {
+        Resumer(self.wake.clone())
     }
 
     /// Meldet ab: Token bei der Anlage widerrufen (soweit möglich) und aus dem
@@ -195,11 +233,20 @@ async fn refresh_loop(
     handle: TokenHandle,
     events: mpsc::UnboundedSender<SessionEvent>,
     check_interval: Duration,
+    mut wake: mpsc::UnboundedReceiver<oneshot::Sender<()>>,
 ) {
     let mut backoff = Duration::from_secs(5);
+    // Warten auf eine erzwungene Erneuerung (Session::resume)
+    let mut waiting: Vec<oneshot::Sender<()>> = Vec::new();
     loop {
-        tokio::time::sleep(check_interval).await;
-        if !tokens.expires_within(REFRESH_MARGIN) {
+        let forced = tokio::select! {
+            () = tokio::time::sleep(check_interval) => !waiting.is_empty(),
+            Some(w) = wake.recv() => {
+                waiting.push(w);
+                true
+            }
+        };
+        if !forced && !tokens.expires_within(REFRESH_MARGIN) {
             continue;
         }
         let Some(refresh_token) = tokens.refresh_token.clone() else {
@@ -224,6 +271,9 @@ async fn refresh_loop(
                 tokens = fresh;
                 backoff = Duration::from_secs(5);
                 tracing::debug!("Access-Token erneuert");
+                for w in waiting.drain(..) {
+                    let _ = w.send(());
+                }
             }
             Err(sf_auth::Error::Rejected { error, description }) => {
                 let _ = delete_refresh_token(&server).await;
@@ -264,7 +314,10 @@ mod tests {
                 let mut buf = vec![0u8; 8192];
                 let n = sock.read(&mut buf).await.unwrap();
                 let req = String::from_utf8_lossy(&buf[..n]).into_owned();
-                let (status, body) = if req.starts_with("GET /.well-known") {
+                let (status, body) = if req.starts_with("GET /rpc/oauth/login-config") {
+                    // Anlage ohne Login-Konfiguration (ältere Version)
+                    (404, String::new())
+                } else if req.starts_with("GET /.well-known") {
                     (
                         200,
                         format!(
@@ -296,6 +349,41 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn resume_forces_refresh_of_valid_token() {
+        keyring_core::set_default_store(keyring_core::mock::Store::new().unwrap());
+        let (server, seen) = fake_oauth(vec![(
+            200,
+            r#"{"access_token":"at-1","refresh_token":"rt-1","expires_in":300}"#,
+        )])
+        .await;
+        let auth = std::sync::Arc::new(sf_auth::Client::discover(&server).await.unwrap());
+        let handle = TokenHandle::new("at-0");
+        let valid: Tokens = serde_json::from_str(
+            r#"{"access_token":"at-0","refresh_token":"rt-1","expires_in":300}"#,
+        )
+        .unwrap();
+        let (wake, wake_rx) = mpsc::unbounded_channel();
+        let task = tokio::spawn(refresh_loop(
+            server,
+            auth,
+            valid,
+            handle.clone(),
+            mpsc::unbounded_channel().0,
+            Duration::from_secs(3600),
+            wake_rx,
+        ));
+        let (tx, rx) = oneshot::channel();
+        wake.send(tx).unwrap();
+        tokio::time::timeout(Duration::from_secs(5), rx)
+            .await
+            .unwrap()
+            .unwrap();
+        assert_eq!(handle.get(), "at-1");
+        assert_eq!(seen.lock().unwrap().len(), 1);
+        task.abort();
+    }
+
+    #[tokio::test]
     async fn refreshes_and_stores_rotated_token_then_logs_out_on_rejection() {
         keyring_core::set_default_store(keyring_core::mock::Store::new().unwrap());
         let (server, seen) = fake_oauth(vec![
@@ -320,6 +408,7 @@ mod tests {
             handle.clone(),
             tx,
             Duration::from_millis(10),
+            mpsc::unbounded_channel().1,
         ));
 
         let event = tokio::time::timeout(Duration::from_secs(5), rx.recv())

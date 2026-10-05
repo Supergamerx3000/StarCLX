@@ -10,11 +10,13 @@ mod chat;
 mod desktop;
 mod fkeys;
 mod i18n;
+mod log;
 mod login;
 mod presence;
 mod reach;
 mod settings;
 mod voicemail;
+mod wake;
 
 use i18n::{t, tf};
 use serde::Serialize;
@@ -245,7 +247,17 @@ async fn start_phone(app: AppHandle, hub: sf_onehub::OneHub, host: String) {
     }
     let (tx, mut rx) = mpsc::unbounded_channel();
     let mut config = audio::softphone_config(&prefs).await;
-    if certs::is_confirmed(&host).await {
+    // Cloud-Anlagen nutzen für SIP ein Zertifikat der privaten „STARFACE CA“
+    // (auf die IP ausgestellt), das kein System kennt; baresip kann es nicht
+    // einzeln bestätigen. Wie bei bestätigten Zertifikaten nicht prüfen.
+    let cloud = app
+        .state::<AppState>()
+        .session
+        .lock()
+        .await
+        .as_ref()
+        .is_some_and(|s| s.info().cloud);
+    if cloud || certs::is_confirmed(&host).await {
         config.verify_server = false;
     }
     match Phone::start(hub.clone(), &host, &config, env!("CARGO_PKG_VERSION"), tx).await {
@@ -263,9 +275,16 @@ async fn start_phone(app: AppHandle, hub: sf_onehub::OneHub, host: String) {
         }
         Err(e) => {
             tracing::warn!(error = %e, "Softphone nicht gestartet");
+            let detail = match &e {
+                sf_core::phone::PhoneError::NoProvisioningRight(_) => t(
+                    "Dem Benutzer fehlt in der Anlage das Recht für App-Telefone (uci_autoprovisioning). Der Administrator kann es unter Benutzer → Rechte freischalten.",
+                )
+                .to_owned(),
+                _ => e.to_string(),
+            };
             update_phone_status(&app, |s| {
                 s.state = "error".into();
-                s.detail = e.to_string();
+                s.detail = detail;
             });
             return;
         }
@@ -509,6 +528,7 @@ async fn save_prefs(
         i18n::set_language(&prefs.language);
         relabel(&app, state.session.lock().await.as_ref());
     }
+    log::set_verbose(prefs.verbose_log);
     busylight::refresh(&app);
     desktop::apply_window(&app, &prefs);
     if old.handle_tel_links != prefs.handle_tel_links {
@@ -716,13 +736,25 @@ async fn finish_login(app: &AppHandle, redirect: &str) -> Result<SessionInfo, St
         .await
         .take()
         .ok_or(t("Kein Login ausstehend"))?;
-    let code = sf_auth::code_from_redirect(redirect, &pending.state)
-        .ok_or(t("Antwort der Anlage enthält keinen gültigen Code"))?;
+    tracing::info!(redirect = %sf_auth::redacted_redirect(redirect), "Rücksprung vom Login");
+    let code = sf_auth::code_from_redirect(redirect, &pending.state).map_err(|e| match e {
+        sf_auth::RedirectError::Denied { error, description } => tf(
+            "Die Anlage hat die Anmeldung abgelehnt: {e}",
+            &[("e", format!("{error} {description}").trim())],
+        ),
+        sf_auth::RedirectError::StateMismatch => {
+            t("Die Antwort gehört zu einem älteren Anmeldeversuch. Bitte erneut anmelden.").into()
+        }
+        sf_auth::RedirectError::NoCode => {
+            t("Antwort der Anlage enthält keinen gültigen Code").into()
+        }
+    })?;
     let tokens = pending
         .auth
         .exchange_code(&code, &pending.pkce)
         .await
         .map_err(|e| e.to_string())?;
+    tracing::info!(token = %tokens.summary(), "Token erhalten");
     let session = Session::start(&pending.server, pending.auth, tokens, state.events.clone())
         .await
         .map_err(|e| e.to_string())?;
@@ -821,9 +853,7 @@ fn build_tray(app: &AppHandle) -> tauri::Result<()> {
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    tracing_subscriber::fmt()
-        .with_env_filter(tracing_subscriber::EnvFilter::from_default_env())
-        .init();
+    log::init();
     if let Err(e) = sf_auth::secret::init_system_store() {
         tracing::error!(error = %e, "Schlüsselbund nicht verfügbar; Anmeldung wird nicht gespeichert");
     }
@@ -860,9 +890,12 @@ pub fn run() {
             dial_request: std::sync::Mutex::default(),
         })
         .setup(move |app| {
+            log::open(app.handle());
             certs::init(app.handle());
             presence::start(app.handle());
+            wake::start(app.handle());
             let prefs = settings::load(app.handle()).prefs;
+            log::set_verbose(prefs.verbose_log);
             i18n::set_language(&prefs.language);
             desktop::apply_window(app.handle(), &prefs);
             desktop::show_on_start(app.handle(), &prefs);
@@ -915,15 +948,20 @@ pub fn run() {
             });
             Ok(())
         })
-        // Schliessen versteckt das Fenster nur; die App bleibt im Tray erreichbar.
+        // Schliessen versteckt Haupt- und Schnellwahlfenster nur; die App
+        // bleibt im Tray erreichbar. Andere Fenster (Anmeldung) schliessen
+        // wirklich, sonst scheitert die nächste Anmeldung am vorhandenen Label.
         .on_window_event(|window, event| match event {
-            WindowEvent::CloseRequested { api, .. } => {
+            WindowEvent::CloseRequested { api, .. }
+                if matches!(window.label(), "main" | "quick") =>
+            {
                 let _ = window.hide();
                 api.prevent_close();
             }
             // Minimieren kommt unter Linux als Grössenänderung an
             WindowEvent::Resized(_)
-                if window.is_minimized().unwrap_or(false)
+                if window.label() == "main"
+                    && window.is_minimized().unwrap_or(false)
                     && settings::load(window.app_handle()).prefs.minimize_to_tray =>
             {
                 let _ = window.hide();
@@ -995,6 +1033,8 @@ pub fn run() {
             voicemail::voicemail_delete,
             voicemail::voicemail_via_phone,
             chat::pick_download_dir,
+            log::log_export,
+            log::log_open_dir,
             audio::audio_info,
             audio::audio_preview,
             audio::audio_stop,

@@ -17,6 +17,25 @@ use sf_sip::{SipEvent, Softphone};
 use tokio::sync::mpsc;
 use tokio::task::JoinHandle;
 
+/// Löst die Anlage über das Betriebssystem auf (wie die HTTPS-Anmeldung),
+/// IPv4 bevorzugt. `None`, wenn das scheitert; dann fragt baresip selbst.
+async fn resolve(host: &str, port: u16) -> Option<std::net::SocketAddr> {
+    match tokio::net::lookup_host((host, port)).await {
+        Ok(addrs) => {
+            let addrs: Vec<_> = addrs.collect();
+            addrs
+                .iter()
+                .find(|a| a.is_ipv4())
+                .or(addrs.first())
+                .copied()
+        }
+        Err(e) => {
+            tracing::warn!(host, error = %e, "Anlage nicht auflösbar");
+            None
+        }
+    }
+}
+
 /// So lange nach `dial` gilt ein eingehender SIP-Anruf als Rückruf der
 /// Anlage und wird automatisch angenommen.
 const DIAL_WINDOW: Duration = Duration::from_secs(20);
@@ -30,6 +49,10 @@ pub enum PhoneError {
     Sip(#[from] sf_sip::Error),
     #[error("App-Telefon SIP/{0} nicht auf der Anlage gefunden")]
     NoPhone(String),
+    /// Dem Benutzer fehlt das Recht `uci_autoprovisioning`; ohne es gibt die
+    /// Anlage keine SIP-Zugangsdaten für App-Telefone heraus.
+    #[error("Recht „Autoprovisionierung“ (uci_autoprovisioning) fehlt: {0}")]
+    NoProvisioningRight(String),
     #[error("SIP-Registrierung fehlgeschlagen: {0}")]
     Register(String),
     #[error("Dieser Anruf klingelt nicht am Softphone")]
@@ -128,13 +151,39 @@ impl Phone {
         app_version: &str,
         events: mpsc::UnboundedSender<PhoneEvent>,
     ) -> PhoneResult<Self> {
-        let creds = hub
+        let creds = match hub
             .register_sip_device(sf_onehub::SIP_DEVICE_ID, app_version)
-            .await?;
+            .await
+        {
+            Ok(c) => c,
+            // Ohne uci_autoprovisioning legt die Anlage kein Linux-App-Telefon
+            // an; das einer Desktop-App bekommt jeder Benutzer.
+            Err(e) if e.permission_denied().is_some() => {
+                tracing::info!(
+                    reason = e.permission_denied(),
+                    "Linux-App-Telefon verweigert, nehme das einer Desktop-App"
+                );
+                hub.register_sip_device(sf_onehub::SIP_DEVICE_ID_FALLBACK, app_version)
+                    .await
+                    .map_err(|e| match e.permission_denied() {
+                        Some(msg) => PhoneError::NoProvisioningRight(msg.to_owned()),
+                        None => e.into(),
+                    })?
+            }
+            Err(e) => return Err(e.into()),
+        };
         let phone_id = hub
             .phone_id_for_sip_user(&creds.user)
             .await?
             .ok_or_else(|| PhoneError::NoPhone(creds.user.clone()))?;
+
+        // Ohne Zertifikatsprüfung (Cloud, bestätigte Zertifikate) darf
+        // baresip die Anlage per IP ansprechen; die löst hier das System auf.
+        let outbound = if config.verify_server {
+            None
+        } else {
+            resolve(host, creds.port).await
+        };
 
         let software = format!("starclx/{app_version}");
         let (sip, mut sip_rx) = Softphone::start(config, &software)?;
@@ -145,6 +194,7 @@ impl Phone {
             host: host.to_owned(),
             port: creds.port,
             register_interval: 3600,
+            outbound,
         })?;
 
         // Auf die erste Registrierung warten, damit ein Fehler beim Start
@@ -397,6 +447,15 @@ impl Phone {
             .await
             .map_err(sf_onehub::Error::from)?;
         Ok(())
+    }
+
+    /// Nach dem Aufwachen aus dem Standby: SIP-Verbindung neu aufbauen und
+    /// neu registrieren, sonst laufen eingehende Anrufe bis zur nächsten
+    /// regulären Registrierung ins Leere.
+    pub fn resume(&self) {
+        if let Err(e) = self.sip.reset() {
+            tracing::warn!(error = %e, "Softphone nicht neu verbunden");
+        }
     }
 
     /// Schaltet das Mikrofon für alle Gespräche am Softphone stumm.
