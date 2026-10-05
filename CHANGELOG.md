@@ -1,5 +1,49 @@
 # Änderungen
 
+## 1.1.0 – 2026-10-05
+
+### Anmeldung an Cloud-Anlagen
+Anlagen an den STARFACE-Cloud-Diensten (Login über den zentralen STARFACE-Login, auch mit
+Microsoft o. ä. dahinter) ließen sich nicht anmelden.
+
+- Login-Konfiguration der Anlage (`/rpc/oauth/login-config`) wie in der STARFACE-App: Token mit
+  `resource=edgenode://…` für genau diese Anlage, gRPC über das Cloud-Gateway
+- Beim zentralen STARFACE-Login passende Scopes statt `pbx-login`
+- Softphone an Cloud-Anlagen: SIP-Zertifikat der STARFACE-CA wird angenommen
+- Lehnt die Anlage die Anmeldung ab, steht jetzt ihr Grund in der Meldung
+
+### Softphone und Chat
+- Benutzer ohne das Recht „Autoprovisionierung“ (`uci_autoprovisioning`) bekommen trotzdem ein
+  Softphone: StarCLX nimmt dann das App-Telefon der Windows-App; fehlt auch das, sagt die Meldung,
+  welches Recht der Administrator freischalten muss
+- Chat und Softphone lösen den Namen der Anlage über das System auf wie die Anmeldung. Die
+  eigenen DNS-Clients fanden manche Anlagen nicht („NXDomain“ im Chat, „destination address
+  required“ beim Softphone)
+
+### Verbindung nach Standby
+Blieb StarCLX über Nacht offen und wurde der Rechner zugeklappt, fehlten danach Funktionstasten,
+neue Anrufe, Rufliste und Voicemail, weil tote Verbindungen nicht bemerkt wurden.
+
+- Verbindung zur Anlage mit Keepalive (HTTP/2 und TCP): abgebrochene Verbindungen fallen nach
+  spätestens etwa 30 Sekunden auf und werden neu aufgebaut
+- Aufwachen aus dem Standby wird erkannt: Anmeldung (Token) sofort erneuern, Softphone neu
+  verbinden und registrieren, Funktionstasten, Voicemail und Umleitungen neu laden
+- Funktionstasten versuchen es nach einem Ladefehler selbst erneut, statt leer zu bleiben
+
+### Protokoll für Fehlerberichte
+- Die App schreibt ein Protokoll in ihren Log-Ordner (`~/.local/share/ch.crazmoe.starface-linuxclient/logs`)
+- Einstellungen → Protokoll: speichern (mit Version, Distribution, Kernel und Desktop) und uns
+  schicken, Ordner öffnen, auf Wunsch ausführlich mit Anruf- und Verbindungsdetails
+
+### Call Manager
+- Anrufkarte wie in der STARFACE-App: Karte und Aktionen (Rückfrage, Konferenz, Extras) in einer
+  gemeinsamen Schale statt einer verrutschten Leiste
+
+### Pakete
+- RPM-Paket für Fedora, openSUSE und andere RPM-Distributionen
+- Signierte Paketquellen für apt (Debian/Ubuntu) und dnf (Fedora) auf GitHub Pages, Updates
+  kommen mit dem normalen System-Update
+
 ## 1.0.0 – 2026-10-02
 
 Erste vollständige Version von StarCLX, dem Linux-Client für STARFACE-Telefonanlagen.
