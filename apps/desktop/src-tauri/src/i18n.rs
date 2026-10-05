@@ -300,6 +300,14 @@ const TEXTS: &[(&str, [&str; 3])] = &[
         ],
     ),
     (
+        "Dem Benutzer fehlt in der Anlage das Recht für App-Telefone (uci_autoprovisioning). Der Administrator kann es unter Benutzer → Rechte freischalten.",
+        [
+            "The user lacks the permission for app phones on the PBX (uci_autoprovisioning). An administrator can grant it under Users → Permissions.",
+            "L’utilisateur n’a pas le droit pour les téléphones d’application sur le PBX (uci_autoprovisioning). Un administrateur peut l’accorder sous Utilisateurs → Droits.",
+            "L’utente non ha il permesso per i telefoni app sul centralino (uci_autoprovisioning). Un amministratore può concederlo in Utenti → Permessi.",
+        ],
+    ),
+    (
         "Tastenkürzel lassen sich nur unter GNOME automatisch eintragen.",
         [
             "Keyboard shortcuts can only be registered automatically under GNOME.",

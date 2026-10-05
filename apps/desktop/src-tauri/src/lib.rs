@@ -274,9 +274,16 @@ async fn start_phone(app: AppHandle, hub: sf_onehub::OneHub, host: String) {
         }
         Err(e) => {
             tracing::warn!(error = %e, "Softphone nicht gestartet");
+            let detail = match &e {
+                sf_core::phone::PhoneError::NoProvisioningRight(_) => t(
+                    "Dem Benutzer fehlt in der Anlage das Recht für App-Telefone (uci_autoprovisioning). Der Administrator kann es unter Benutzer → Rechte freischalten.",
+                )
+                .to_owned(),
+                _ => e.to_string(),
+            };
             update_phone_status(&app, |s| {
                 s.state = "error".into();
-                s.detail = e.to_string();
+                s.detail = detail;
             });
             return;
         }

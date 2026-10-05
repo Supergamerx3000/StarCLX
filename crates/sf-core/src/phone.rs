@@ -30,6 +30,10 @@ pub enum PhoneError {
     Sip(#[from] sf_sip::Error),
     #[error("App-Telefon SIP/{0} nicht auf der Anlage gefunden")]
     NoPhone(String),
+    /// Dem Benutzer fehlt das Recht `uci_autoprovisioning`; ohne es gibt die
+    /// Anlage keine SIP-Zugangsdaten für App-Telefone heraus.
+    #[error("Recht „Autoprovisionierung“ (uci_autoprovisioning) fehlt: {0}")]
+    NoProvisioningRight(String),
     #[error("SIP-Registrierung fehlgeschlagen: {0}")]
     Register(String),
     #[error("Dieser Anruf klingelt nicht am Softphone")]
@@ -130,7 +134,11 @@ impl Phone {
     ) -> PhoneResult<Self> {
         let creds = hub
             .register_sip_device(sf_onehub::SIP_DEVICE_ID, app_version)
-            .await?;
+            .await
+            .map_err(|e| match e.permission_denied() {
+                Some(msg) => PhoneError::NoProvisioningRight(msg.to_owned()),
+                None => e.into(),
+            })?;
         let phone_id = hub
             .phone_id_for_sip_user(&creds.user)
             .await?

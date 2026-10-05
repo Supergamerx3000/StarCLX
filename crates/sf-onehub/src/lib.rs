@@ -60,6 +60,17 @@ pub enum Error {
 
 pub type Result<T> = std::result::Result<T, Error>;
 
+impl Error {
+    /// Meldung der Anlage, wenn dem Benutzer ein Recht fehlt
+    /// (gRPC `PermissionDenied`), sonst `None`.
+    pub fn permission_denied(&self) -> Option<&str> {
+        match self {
+            Error::Status(s) if s.code() == tonic::Code::PermissionDenied => Some(s.message()),
+            _ => None,
+        }
+    }
+}
+
 /// Gemeinsam genutztes Access-Token.
 #[derive(Clone, Default)]
 pub struct TokenHandle(Arc<RwLock<String>>);
