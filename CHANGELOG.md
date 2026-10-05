@@ -1,5 +1,17 @@
 # Änderungen
 
+## 1.2.3 – 2026-10-05
+
+### Anmeldung an Cloud-Anlagen
+Anlagen an den STARFACE-Cloud-Diensten (Login über den zentralen STARFACE-Login, auch mit
+Microsoft o. ä. dahinter) ließen sich nicht anmelden.
+
+- Login-Konfiguration der Anlage (`/rpc/oauth/login-config`) wie in der STARFACE-App: Token mit
+  `resource=edgenode://…` für genau diese Anlage, gRPC über das Cloud-Gateway
+- Beim zentralen STARFACE-Login passende Scopes statt `pbx-login`
+- Softphone an Cloud-Anlagen: SIP-Zertifikat der STARFACE-CA wird angenommen
+- Lehnt die Anlage die Anmeldung ab, steht jetzt ihr Grund in der Meldung
+
 ## 1.2.2 – 2026-10-05
 
 ### Pakete

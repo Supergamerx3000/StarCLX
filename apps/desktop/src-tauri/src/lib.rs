@@ -246,7 +246,17 @@ async fn start_phone(app: AppHandle, hub: sf_onehub::OneHub, host: String) {
     }
     let (tx, mut rx) = mpsc::unbounded_channel();
     let mut config = audio::softphone_config(&prefs).await;
-    if certs::is_confirmed(&host).await {
+    // Cloud-Anlagen nutzen für SIP ein Zertifikat der privaten „STARFACE CA“
+    // (auf die IP ausgestellt), das kein System kennt; baresip kann es nicht
+    // einzeln bestätigen. Wie bei bestätigten Zertifikaten nicht prüfen.
+    let cloud = app
+        .state::<AppState>()
+        .session
+        .lock()
+        .await
+        .as_ref()
+        .is_some_and(|s| s.info().cloud);
+    if cloud || certs::is_confirmed(&host).await {
         config.verify_server = false;
     }
     match Phone::start(hub.clone(), &host, &config, env!("CARGO_PKG_VERSION"), tx).await {
@@ -717,13 +727,25 @@ async fn finish_login(app: &AppHandle, redirect: &str) -> Result<SessionInfo, St
         .await
         .take()
         .ok_or(t("Kein Login ausstehend"))?;
-    let code = sf_auth::code_from_redirect(redirect, &pending.state)
-        .ok_or(t("Antwort der Anlage enthält keinen gültigen Code"))?;
+    tracing::info!(redirect = %sf_auth::redacted_redirect(redirect), "Rücksprung vom Login");
+    let code = sf_auth::code_from_redirect(redirect, &pending.state).map_err(|e| match e {
+        sf_auth::RedirectError::Denied { error, description } => tf(
+            "Die Anlage hat die Anmeldung abgelehnt: {e}",
+            &[("e", format!("{error} {description}").trim())],
+        ),
+        sf_auth::RedirectError::StateMismatch => {
+            t("Die Antwort gehört zu einem älteren Anmeldeversuch. Bitte erneut anmelden.").into()
+        }
+        sf_auth::RedirectError::NoCode => {
+            t("Antwort der Anlage enthält keinen gültigen Code").into()
+        }
+    })?;
     let tokens = pending
         .auth
         .exchange_code(&code, &pending.pkce)
         .await
         .map_err(|e| e.to_string())?;
+    tracing::info!(token = %tokens.summary(), "Token erhalten");
     let session = Session::start(&pending.server, pending.auth, tokens, state.events.clone())
         .await
         .map_err(|e| e.to_string())?;
