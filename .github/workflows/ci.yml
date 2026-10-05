@@ -47,6 +47,11 @@ jobs:
         with:
           components: clippy, rustfmt
       - uses: Swatinem/rust-cache@v2
+        with:
+          # Eigener Cache je Ubuntu-Version: Mit 24.04 gebaute C-Teile
+          # (aws-lc-sys) verweisen auf glibc-2.38-Symbole und linken auf
+          # 22.04 nicht.
+          key: ubuntu-22.04
 
       - uses: actions/setup-node@v7
         with:
