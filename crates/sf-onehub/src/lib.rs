@@ -5,6 +5,7 @@
 //! werden, ohne die Verbindung neu aufzubauen.
 
 use std::sync::{Arc, RwLock};
+use std::time::Duration;
 
 use sf_proto::v1;
 use tonic::metadata::MetadataValue;
@@ -107,12 +108,24 @@ macro_rules! service {
     };
 }
 
+/// Abstand der HTTP/2-Pings und Wartezeit auf die Antwort
+const KEEPALIVE_INTERVAL: Duration = Duration::from_secs(20);
+const KEEPALIVE_TIMEOUT: Duration = Duration::from_secs(10);
+
 impl OneHub {
     /// `host` ohne Schema, z. B. `pbx.example.com`.
     pub async fn connect(host: &str, port: u16, token: TokenHandle) -> Result<Self> {
+        // Keepalive: Nach Ruhezustand oder Netzwechsel ist die Verbindung oft
+        // tot, ohne dass ein Abbau ankommt. Ohne Pings warten die Event-Streams
+        // dann ewig; mit Pings brechen sie ab und verbinden neu.
         let channel = Endpoint::from_shared(format!("https://{host}:{port}"))?
             .tls_config_with_verifier(ClientTlsConfig::new().domain_name(host), sf_tls::verifier())?
             .user_agent(concat!("starclx/", env!("CARGO_PKG_VERSION")))?
+            .connect_timeout(Duration::from_secs(10))
+            .tcp_keepalive(Some(Duration::from_secs(20)))
+            .http2_keep_alive_interval(KEEPALIVE_INTERVAL)
+            .keep_alive_timeout(KEEPALIVE_TIMEOUT)
+            .keep_alive_while_idle(true)
             .connect()
             .await?;
         Ok(Self { channel, token })

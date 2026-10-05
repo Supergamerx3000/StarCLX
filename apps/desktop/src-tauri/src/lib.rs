@@ -15,6 +15,7 @@ mod presence;
 mod reach;
 mod settings;
 mod voicemail;
+mod wake;
 
 use i18n::{t, tf};
 use serde::Serialize;
@@ -867,6 +868,7 @@ pub fn run() {
         .setup(move |app| {
             certs::init(app.handle());
             presence::start(app.handle());
+            wake::start(app.handle());
             let prefs = settings::load(app.handle()).prefs;
             i18n::set_language(&prefs.language);
             desktop::apply_window(app.handle(), &prefs);

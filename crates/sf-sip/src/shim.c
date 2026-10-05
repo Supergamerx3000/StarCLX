@@ -26,6 +26,7 @@ enum sfsip_op {
 	SFSIP_OP_DTMF,
 	SFSIP_OP_CONNECT,
 	SFSIP_OP_QUIT,
+	SFSIP_OP_RESET,
 };
 
 /* Stabile Ereigniscodes für Rust (unabhängig von enum bevent_ev) */
@@ -205,6 +206,12 @@ static void mqueue_handler(int id, void *data, void *arg)
 			err = ENOENT;
 		if (err)
 			emit(SFSIP_EV_ERROR, ua, NULL, "connect");
+		break;
+
+	case SFSIP_OP_RESET:
+		/* Nach Standby oder Netzwechsel: SIP-Verbindungen neu aufbauen,
+		 * neu registrieren und laufende Gespräche per re-INVITE umziehen. */
+		err = uag_reset_transp(true, true);
 		break;
 
 	case SFSIP_OP_QUIT:

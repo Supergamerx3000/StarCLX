@@ -1,5 +1,17 @@
 # Änderungen
 
+## 1.1.1 – 2026-10-05
+
+### Verbindung nach Standby
+Blieb StarCLX über Nacht offen und wurde der Rechner zugeklappt, fehlten danach Funktionstasten,
+neue Anrufe, Rufliste und Voicemail, weil tote Verbindungen nicht bemerkt wurden.
+
+- Verbindung zur Anlage mit Keepalive (HTTP/2 und TCP): abgebrochene Verbindungen fallen nach
+  spätestens etwa 30 Sekunden auf und werden neu aufgebaut
+- Aufwachen aus dem Standby wird erkannt: Anmeldung (Token) sofort erneuern, Softphone neu
+  verbinden und registrieren, Funktionstasten, Voicemail und Umleitungen neu laden
+- Funktionstasten versuchen es nach einem Ladefehler selbst erneut, statt leer zu bleiben
+
 ## 1.1.0 – 2026-10-05
 
 StarCLX läuft jetzt auch unter macOS und Windows, neben der offiziellen STARFACE-App.

@@ -78,13 +78,22 @@ export const fkeys = $state({
 });
 
 let started = false;
+let retry: ReturnType<typeof setTimeout> | undefined;
+/** Neuer Versuch nach einem Fehler, z. B. wenn nach dem Aufwachen das Netz
+ *  noch nicht da ist; danach alle 30 s, bis es klappt. */
+const RETRY_MS = 10_000;
+let retryMs = RETRY_MS;
 
 export async function loadFkeys() {
   if (!started) {
     started = true;
     listen<Record<string, UserState>>("fkey-presence", (e) => (fkeys.presence = e.payload));
     listen("reach-changed", () => loadRedirects());
+    // Nach dem Standby neu laden (Token, Präsenz und Tasten frisch holen)
+    listen("resumed", () => loadFkeys());
   }
+  clearTimeout(retry);
+  retry = undefined;
   try {
     const k = await invoke<Keys>("fkeys_load");
     fkeys.setId = k.set_id;
@@ -97,8 +106,12 @@ export async function loadFkeys() {
     fkeys.error = "";
     fkeys.loaded = true;
     fkeys.presence = await invoke<Record<string, UserState>>("fkey_presence");
+    retryMs = RETRY_MS;
   } catch (e) {
+    // Bisherige Tasten bleiben stehen; nur der Fehler wird angezeigt.
     fkeys.error = String(e);
+    retry = setTimeout(() => loadFkeys(), retryMs);
+    retryMs = Math.min(retryMs * 3, 30_000);
   }
   loadRedirects();
 }

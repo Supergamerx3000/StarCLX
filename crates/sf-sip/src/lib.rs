@@ -27,6 +27,7 @@ mod ffi {
     pub const OP_DTMF: c_int = 6;
     pub const OP_CONNECT: c_int = 7;
     pub const OP_QUIT: c_int = 8;
+    pub const OP_RESET: c_int = 9;
 
     pub const EV_READY: c_int = 1;
     pub const EV_ERROR: c_int = 2;
@@ -452,6 +453,12 @@ impl Softphone {
             return Err(Error::InvalidValue("dtmf".into()));
         }
         self.cmd(ffi::OP_DTMF, Some(call_id), Some(digits))
+    }
+
+    /// Baut nach Standby oder Netzwechsel die SIP-Verbindungen neu auf und
+    /// registriert alle Konten neu.
+    pub fn reset(&self) -> Result<()> {
+        self.cmd(ffi::OP_RESET, None, None)
     }
 
     /// Direkter SIP-Anruf von einem Konto aus. Im Client normalerweise nicht
