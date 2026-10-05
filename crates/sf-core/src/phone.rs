@@ -399,6 +399,15 @@ impl Phone {
         Ok(())
     }
 
+    /// Nach dem Aufwachen aus dem Standby: SIP-Verbindung neu aufbauen und
+    /// neu registrieren, sonst laufen eingehende Anrufe bis zur nächsten
+    /// regulären Registrierung ins Leere.
+    pub fn resume(&self) {
+        if let Err(e) = self.sip.reset() {
+            tracing::warn!(error = %e, "Softphone nicht neu verbunden");
+        }
+    }
+
     /// Schaltet das Mikrofon für alle Gespräche am Softphone stumm.
     pub fn set_mute(&self, muted: bool) -> PhoneResult<()> {
         let active = {
