@@ -25,6 +25,20 @@ pub const DEFAULT_PORT: u16 = 9092;
 /// FFFDF5C8-E74F-4B18-B258-4B66C3FFFFAB, Android
 /// 244C5E4C-4011-4F76-A7E1-52D40F399C6B. Hier: "UCC Client for Linux".
 pub const SIP_DEVICE_ID: &str = "D4CC1516-EC90-42C7-8F70-B0853B173232";
+/// Geräte-ID der Windows-App
+pub const SIP_DEVICE_ID_WINDOWS: &str = "163C00A2-C2F1-4FFE-9474-49283C379852";
+/// Geräte-ID der Mac-App
+pub const SIP_DEVICE_ID_MAC: &str = "E22FF5B3-38ED-4A5E-966A-80B4785A2FF7";
+
+/// Ersatz, wenn die Anlage das Linux-App-Telefon verweigert: Ohne das Recht
+/// `uci_autoprovisioning` legt sie es nicht an, die Telefone der Desktop-Apps
+/// aber schon. Genommen wird das einer App, die auf diesem System nicht
+/// offiziell läuft, damit StarCLX der offiziellen App auf demselben Rechner
+/// nicht das Telefon wegnimmt.
+#[cfg(windows)]
+pub const SIP_DEVICE_ID_FALLBACK: &str = SIP_DEVICE_ID_MAC;
+#[cfg(not(windows))]
+pub const SIP_DEVICE_ID_FALLBACK: &str = SIP_DEVICE_ID_WINDOWS;
 
 fn phone_matches_sip_user(phone_name: &str, sip_user: &str) -> bool {
     phone_name.strip_prefix("SIP/").unwrap_or(phone_name) == sip_user

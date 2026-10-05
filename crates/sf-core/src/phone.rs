@@ -132,13 +132,27 @@ impl Phone {
         app_version: &str,
         events: mpsc::UnboundedSender<PhoneEvent>,
     ) -> PhoneResult<Self> {
-        let creds = hub
+        let creds = match hub
             .register_sip_device(sf_onehub::SIP_DEVICE_ID, app_version)
             .await
-            .map_err(|e| match e.permission_denied() {
-                Some(msg) => PhoneError::NoProvisioningRight(msg.to_owned()),
-                None => e.into(),
-            })?;
+        {
+            Ok(c) => c,
+            // Ohne uci_autoprovisioning legt die Anlage kein Linux-App-Telefon
+            // an; das einer Desktop-App bekommt jeder Benutzer.
+            Err(e) if e.permission_denied().is_some() => {
+                tracing::info!(
+                    reason = e.permission_denied(),
+                    "Linux-App-Telefon verweigert, nehme das einer Desktop-App"
+                );
+                hub.register_sip_device(sf_onehub::SIP_DEVICE_ID_FALLBACK, app_version)
+                    .await
+                    .map_err(|e| match e.permission_denied() {
+                        Some(msg) => PhoneError::NoProvisioningRight(msg.to_owned()),
+                        None => e.into(),
+                    })?
+            }
+            Err(e) => return Err(e.into()),
+        };
         let phone_id = hub
             .phone_id_for_sip_user(&creds.user)
             .await?
