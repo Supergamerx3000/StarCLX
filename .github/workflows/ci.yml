@@ -19,6 +19,9 @@ jobs:
     runs-on: ubuntu-24.04
     permissions:
       contents: write
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      release: ${{ steps.version.outputs.release }}
     steps:
       - name: Platz schaffen
         run: |
@@ -72,6 +75,7 @@ jobs:
       # hängen die Laufnummer an (1.0.0+123): unterscheidbar, für apt neuer
       # als das Release und älter als das nächste.
       - name: Version setzen
+        id: version
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
@@ -93,14 +97,16 @@ jobs:
           fi
           echo "RELEASE=$RELEASE" >> "$GITHUB_ENV"
           echo "VERSION=$VERSION" >> "$GITHUB_ENV"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "release=$RELEASE" >> "$GITHUB_OUTPUT"
           sed -i "0,/^version = \".*\"/s//version = \"$VERSION\"/" Cargo.toml
           sed -i "s/\"version\": \"[^\"]*\"/\"version\": \"$VERSION\"/" apps/desktop/src-tauri/tauri.conf.json
           grep -m1 '^version' Cargo.toml
           grep '"version"' apps/desktop/src-tauri/tauri.conf.json
 
-      - name: Pakete bauen (.deb, AppImage)
+      - name: Pakete bauen (.deb, .rpm, AppImage)
         working-directory: apps/desktop
-        run: npx tauri build --bundles deb,appimage
+        run: npx tauri build --bundles deb,rpm,appimage
 
       - name: sfctl bauen
         run: cargo build --release -p sfctl
@@ -110,6 +116,7 @@ jobs:
           name: starclx-${{ env.VERSION }}-linux-x86_64
           path: |
             target/release/bundle/deb/*.deb
+            target/release/bundle/rpm/*.rpm
             target/release/bundle/appimage/*.AppImage
             target/release/sfctl
 
@@ -123,5 +130,138 @@ jobs:
           awk -v v="## $VERSION" '$0 ~ "^## " {p = index($0, v) == 1} p' CHANGELOG.md > notes.md
           gh release create "v$VERSION" --target "$GITHUB_SHA" --title "StarCLX $VERSION" --notes-file notes.md \
             target/release/bundle/deb/*.deb \
+            target/release/bundle/rpm/*.rpm \
             target/release/bundle/appimage/*.AppImage \
             "sfctl-${VERSION}-linux-x86_64"
+
+  # Paketquellen für apt und dnf auf GitHub Pages (Branch gh-pages). Signiert
+  # mit dem Schlüssel aus dem Secret REPO_GPG_KEY; ohne Secret wird nichts
+  # veröffentlicht. Es bleiben die letzten drei Versionen.
+  repo:
+    needs: build
+    if: needs.build.outputs.release == '1'
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    env:
+      VERSION: ${{ needs.build.outputs.version }}
+      KEEP: 3
+    steps:
+      - name: Schlüssel vorhanden?
+        id: key
+        env:
+          REPO_GPG_KEY: ${{ secrets.REPO_GPG_KEY }}
+        run: |
+          if [ -z "$REPO_GPG_KEY" ]; then
+            echo "::warning::Secret REPO_GPG_KEY fehlt, Paketquellen werden nicht aktualisiert"
+            echo "ok=0" >> "$GITHUB_OUTPUT"
+          else
+            echo "ok=1" >> "$GITHUB_OUTPUT"
+          fi
+
+      - uses: actions/checkout@v7
+        if: steps.key.outputs.ok == '1'
+
+      - name: Werkzeuge und Schlüssel
+        if: steps.key.outputs.ok == '1'
+        env:
+          REPO_GPG_KEY: ${{ secrets.REPO_GPG_KEY }}
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y apt-utils createrepo-c rpm
+          echo "$REPO_GPG_KEY" | gpg --batch --import
+          FPR=$(gpg --list-secret-keys --with-colons | awk -F: '/^fpr/{print $10; exit}')
+          echo "FPR=$FPR" >> "$GITHUB_ENV"
+
+      - name: Bisherige Quellen holen
+        if: steps.key.outputs.ok == '1'
+        run: |
+          if git fetch --depth 1 origin gh-pages; then
+            git worktree add site FETCH_HEAD
+          else
+            mkdir site
+          fi
+          mkdir -p site/deb/pool/main site/rpm/x86_64
+
+      - name: Neue Pakete übernehmen
+        if: steps.key.outputs.ok == '1'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release download "v$VERSION" -p '*.deb' -D site/deb/pool/main --clobber
+          gh release download "v$VERSION" -p '*.rpm' -D site/rpm/x86_64 --clobber
+          # nur die letzten $KEEP Versionen behalten
+          for d in site/deb/pool/main site/rpm/x86_64; do
+            ls "$d" | sort -V | head -n -"$KEEP" | while read -r f; do rm -f "$d/$f"; done
+          done
+          ls -R site/deb/pool site/rpm
+
+      - name: apt-Quelle
+        if: steps.key.outputs.ok == '1'
+        working-directory: site/deb
+        run: |
+          mkdir -p dists/stable/main/binary-amd64
+          apt-ftparchive packages pool > dists/stable/main/binary-amd64/Packages
+          gzip -9kf dists/stable/main/binary-amd64/Packages
+          apt-ftparchive \
+            -o APT::FTPArchive::Release::Origin=StarCLX \
+            -o APT::FTPArchive::Release::Label=StarCLX \
+            -o APT::FTPArchive::Release::Suite=stable \
+            -o APT::FTPArchive::Release::Codename=stable \
+            -o APT::FTPArchive::Release::Architectures=amd64 \
+            -o APT::FTPArchive::Release::Components=main \
+            release dists/stable > dists/stable/Release
+          gpg --batch --yes -u "$FPR" --clearsign -o dists/stable/InRelease dists/stable/Release
+          gpg --batch --yes -u "$FPR" -abs -o dists/stable/Release.gpg dists/stable/Release
+
+      - name: dnf-Quelle
+        if: steps.key.outputs.ok == '1'
+        working-directory: site/rpm
+        run: |
+          for f in x86_64/*.rpm; do
+            rpmsign --addsign --define "_gpg_name $FPR" "$f"
+          done
+          createrepo_c --update .
+          gpg --batch --yes -u "$FPR" --detach-sign --armor repodata/repomd.xml
+
+      - name: Schlüssel, Repo-Datei und Startseite
+        if: steps.key.outputs.ok == '1'
+        working-directory: site
+        run: |
+          BASE="https://${GITHUB_REPOSITORY_OWNER,,}.github.io/${GITHUB_REPOSITORY#*/}"
+          gpg --armor --export "$FPR" > starclx.asc
+          gpg --export "$FPR" > starclx.gpg
+          cat > starclx.repo <<REPO
+          [starclx]
+          name=StarCLX
+          baseurl=$BASE/rpm
+          enabled=1
+          gpgcheck=1
+          repo_gpgcheck=1
+          gpgkey=$BASE/starclx.asc
+          REPO
+          sed -i 's/^ *//' starclx.repo
+          cat > index.html <<HTML
+          <!doctype html><meta charset="utf-8"><title>StarCLX Paketquellen</title>
+          <h1>StarCLX Paketquellen</h1>
+          <h2>Debian / Ubuntu</h2>
+          <pre>curl -fsSL $BASE/starclx.gpg | sudo tee /usr/share/keyrings/starclx.gpg &gt;/dev/null
+          echo "deb [signed-by=/usr/share/keyrings/starclx.gpg] $BASE/deb stable main" | sudo tee /etc/apt/sources.list.d/starclx.list
+          sudo apt update &amp;&amp; sudo apt install starclx</pre>
+          <h2>Fedora / openSUSE</h2>
+          <pre>sudo curl -fsSL -o /etc/yum.repos.d/starclx.repo $BASE/starclx.repo
+          sudo dnf install starclx</pre>
+          HTML
+          touch .nojekyll
+
+      - name: Veröffentlichen
+        if: steps.key.outputs.ok == '1'
+        working-directory: site
+        run: |
+          # Ohne Historie, damit der Branch nicht mit alten Paketen wächst
+          rm -rf .git
+          git init -q -b gh-pages
+          git add -A
+          git -c user.name="github-actions[bot]" -c user.email="41898282+github-actions[bot]@users.noreply.github.com" \
+            commit -q -m "Paketquellen für $VERSION"
+          git push -f "https://x-access-token:${{ github.token }}@github.com/${GITHUB_REPOSITORY}.git" gh-pages
