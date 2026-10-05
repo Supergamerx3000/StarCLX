@@ -118,8 +118,12 @@ impl Session {
             .user;
         let user = user.unwrap_or_default();
 
-        if let Some(rt) = &tokens.refresh_token {
-            store_refresh_token(server, rt).await?;
+        // Ohne Schlüsselbund (kein gnome-keyring/KWallet) trotzdem anmelden,
+        // nur eben nicht über das Beenden hinaus.
+        if let Some(rt) = &tokens.refresh_token
+            && let Err(e) = store_refresh_token(server, rt).await
+        {
+            tracing::warn!(error = %e, "Refresh-Token nicht gespeichert; Anmeldung gilt bis zum Beenden");
         }
 
         let auth = std::sync::Arc::new(auth);
@@ -157,10 +161,7 @@ impl Session {
         server: &str,
         events: mpsc::UnboundedSender<SessionEvent>,
     ) -> Result<Option<Self>> {
-        let key = server.to_owned();
-        let stored = tokio::task::spawn_blocking(move || sf_auth::secret::load_refresh_token(&key))
-            .await??;
-        let Some(refresh_token) = stored else {
+        let Some(refresh_token) = load_refresh_token(server).await else {
             return Ok(None);
         };
         let auth = sf_auth::Client::discover(server).await?;
@@ -168,7 +169,7 @@ impl Session {
             Ok(tokens) => tokens,
             Err(sf_auth::Error::Rejected { error, .. }) => {
                 tracing::info!(%error, "gespeichertes Refresh-Token abgelehnt");
-                delete_refresh_token(server).await?;
+                delete_refresh_token(server).await;
                 return Ok(None);
             }
             Err(e) => return Err(e.into()),
@@ -191,19 +192,17 @@ impl Session {
     }
 
     /// Meldet ab: Token bei der Anlage widerrufen (soweit möglich) und aus dem
-    /// Schlüsselbund löschen.
+    /// Schlüsselbund löschen. Gelingt das nicht, ist man trotzdem abgemeldet.
     pub async fn logout(self) -> Result<()> {
         self.refresher.abort();
         let server = self.info.server.clone();
-        let key = server.clone();
-        let stored = tokio::task::spawn_blocking(move || sf_auth::secret::load_refresh_token(&key))
-            .await??;
-        if let Some(rt) = stored
+        if let Some(rt) = load_refresh_token(&server).await
             && let Err(e) = self.auth.revoke(&rt).await
         {
             tracing::warn!(error = %e, "Widerruf fehlgeschlagen, lösche Token nur lokal");
         }
-        delete_refresh_token(&server).await
+        delete_refresh_token(&server).await;
+        Ok(())
     }
 }
 
@@ -220,10 +219,31 @@ async fn store_refresh_token(server: &str, token: &str) -> Result<()> {
     Ok(())
 }
 
-async fn delete_refresh_token(server: &str) -> Result<()> {
+/// Gespeichertes Refresh-Token; ohne Schlüsselbund wie „nichts gespeichert“.
+async fn load_refresh_token(server: &str) -> Option<String> {
+    let key = server.to_owned();
+    match tokio::task::spawn_blocking(move || sf_auth::secret::load_refresh_token(&key)).await {
+        Ok(Ok(token)) => token,
+        Ok(Err(e)) => {
+            tracing::warn!(error = %e, "Schlüsselbund nicht lesbar");
+            None
+        }
+        Err(e) => {
+            tracing::warn!(error = %e, "Schlüsselbund nicht lesbar");
+            None
+        }
+    }
+}
+
+/// Löscht das gespeicherte Token; ein fehlender Schlüsselbund ist kein Fehler.
+async fn delete_refresh_token(server: &str) {
     let server = server.to_owned();
-    tokio::task::spawn_blocking(move || sf_auth::secret::delete_refresh_token(&server)).await??;
-    Ok(())
+    match tokio::task::spawn_blocking(move || sf_auth::secret::delete_refresh_token(&server)).await
+    {
+        Ok(Ok(())) => {}
+        Ok(Err(e)) => tracing::warn!(error = %e, "Refresh-Token nicht gelöscht"),
+        Err(e) => tracing::warn!(error = %e, "Refresh-Token nicht gelöscht"),
+    }
 }
 
 async fn refresh_loop(
@@ -276,7 +296,7 @@ async fn refresh_loop(
                 }
             }
             Err(sf_auth::Error::Rejected { error, description }) => {
-                let _ = delete_refresh_token(&server).await;
+                delete_refresh_token(&server).await;
                 let _ = events.send(SessionEvent::LoggedOut {
                     reason: format!("{error} {description}"),
                 });
