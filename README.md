@@ -36,8 +36,8 @@ Was sich seit der letzten Version geändert hat, steht in [CHANGELOG.md](CHANGEL
 Debian, Ubuntu und Abkömmlinge:
 
 ```sh
-curl -fsSL https://supergamerx3000.github.io/StarCLX/starclx.gpg | sudo tee /usr/share/keyrings/starclx.gpg >/dev/null
-echo "deb [signed-by=/usr/share/keyrings/starclx.gpg] https://supergamerx3000.github.io/StarCLX/deb stable main" \
+curl -fsSL https://crazmoe.github.io/StarCLX/starclx.gpg | sudo tee /usr/share/keyrings/starclx.gpg >/dev/null
+echo "deb [signed-by=/usr/share/keyrings/starclx.gpg] https://crazmoe.github.io/StarCLX/deb stable main" \
   | sudo tee /etc/apt/sources.list.d/starclx.list
 sudo apt update && sudo apt install starclx
 ```
@@ -45,7 +45,7 @@ sudo apt update && sudo apt install starclx
 Fedora (und andere RPM-Distributionen mit dnf):
 
 ```sh
-sudo curl -fsSL -o /etc/yum.repos.d/starclx.repo https://supergamerx3000.github.io/StarCLX/starclx.repo
+sudo curl -fsSL -o /etc/yum.repos.d/starclx.repo https://crazmoe.github.io/StarCLX/starclx.repo
 sudo dnf install starclx
 ```
 
