@@ -948,15 +948,20 @@ pub fn run() {
             });
             Ok(())
         })
-        // Schliessen versteckt das Fenster nur; die App bleibt im Tray erreichbar.
+        // Schliessen versteckt Haupt- und Schnellwahlfenster nur; die App
+        // bleibt im Tray erreichbar. Andere Fenster (Anmeldung) schliessen
+        // wirklich, sonst scheitert die nächste Anmeldung am vorhandenen Label.
         .on_window_event(|window, event| match event {
-            WindowEvent::CloseRequested { api, .. } => {
+            WindowEvent::CloseRequested { api, .. }
+                if matches!(window.label(), "main" | "quick") =>
+            {
                 let _ = window.hide();
                 api.prevent_close();
             }
             // Minimieren kommt unter Linux als Grössenänderung an
             WindowEvent::Resized(_)
-                if window.is_minimized().unwrap_or(false)
+                if window.label() == "main"
+                    && window.is_minimized().unwrap_or(false)
                     && settings::load(window.app_handle()).prefs.minimize_to_tray =>
             {
                 let _ = window.hide();
