@@ -82,6 +82,8 @@ pub struct Prefs {
     pub workspace: String,
     /// Lage der Kacheln im freien Arbeitsbereich; gehört der Oberfläche
     pub workspace_tiles: serde_json::Value,
+    /// Ausführliches Protokoll (Anruf- und Verbindungsdetails)
+    pub verbose_log: bool,
 }
 
 impl Default for Prefs {
@@ -124,6 +126,7 @@ impl Default for Prefs {
             fkey_columns: 3,
             workspace: "tabs".into(),
             workspace_tiles: serde_json::Value::Null,
+            verbose_log: false,
         }
     }
 }

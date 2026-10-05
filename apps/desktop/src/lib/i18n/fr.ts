@@ -401,5 +401,12 @@ const dict: Record<string, string> = {
   "Ein Klick auf eine Rufnummer im Browser oder Mailprogramm wählt sie mit dem Softphone.": "Un clic sur un numéro dans le navigateur ou le logiciel de messagerie le compose avec le softphone.",
   "Der Link enthält keine Rufnummer": "Le lien ne contient aucun numéro",
   "Softphone nicht bereit, {number} nicht gewählt": "Softphone pas prêt, {number} non composé",
+  "Protokoll": "Journal",
+  "Protokoll gespeichert: {path}": "Journal enregistré : {path}",
+  "Bei einem Problem das Protokoll speichern und uns schicken, z. B. als Anhang an ein GitHub-Issue.": "En cas de problème, enregistrez le journal et envoyez-le-nous, p. ex. en pièce jointe d’un ticket GitHub.",
+  "Protokoll speichern …": "Enregistrer le journal …",
+  "Ordner öffnen": "Ouvrir le dossier",
+  "Ausführlich protokollieren (Anruf- und Verbindungsdetails)": "Journal détaillé (détails des appels et des connexions)",
+  "Das Protokoll kann Namen und Rufnummern enthalten. Passwörter und Tokens stehen nicht darin.": "Le journal peut contenir des noms et des numéros de téléphone. Il ne contient ni mots de passe ni jetons.",
 };
 export default dict;

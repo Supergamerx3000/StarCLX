@@ -10,6 +10,7 @@ mod chat;
 mod desktop;
 mod fkeys;
 mod i18n;
+mod log;
 mod login;
 mod presence;
 mod reach;
@@ -527,6 +528,7 @@ async fn save_prefs(
         i18n::set_language(&prefs.language);
         relabel(&app, state.session.lock().await.as_ref());
     }
+    log::set_verbose(prefs.verbose_log);
     busylight::refresh(&app);
     desktop::apply_window(&app, &prefs);
     if old.handle_tel_links != prefs.handle_tel_links {
@@ -851,9 +853,7 @@ fn build_tray(app: &AppHandle) -> tauri::Result<()> {
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    tracing_subscriber::fmt()
-        .with_env_filter(tracing_subscriber::EnvFilter::from_default_env())
-        .init();
+    log::init();
     if let Err(e) = sf_auth::secret::init_system_store() {
         tracing::error!(error = %e, "Schlüsselbund nicht verfügbar; Anmeldung wird nicht gespeichert");
     }
@@ -890,10 +890,12 @@ pub fn run() {
             dial_request: std::sync::Mutex::default(),
         })
         .setup(move |app| {
+            log::open(app.handle());
             certs::init(app.handle());
             presence::start(app.handle());
             wake::start(app.handle());
             let prefs = settings::load(app.handle()).prefs;
+            log::set_verbose(prefs.verbose_log);
             i18n::set_language(&prefs.language);
             desktop::apply_window(app.handle(), &prefs);
             desktop::show_on_start(app.handle(), &prefs);
@@ -1026,6 +1028,8 @@ pub fn run() {
             voicemail::voicemail_delete,
             voicemail::voicemail_via_phone,
             chat::pick_download_dir,
+            log::log_export,
+            log::log_open_dir,
             audio::audio_info,
             audio::audio_preview,
             audio::audio_stop,

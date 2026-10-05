@@ -12,6 +12,12 @@ static CURRENT: AtomicUsize = AtomicUsize::new(0);
 
 /// Deutsch → Englisch, Französisch, Italienisch
 const TEXTS: &[(&str, [&str; 3])] = &[
+    // Protokoll
+    (
+        "Protokoll speichern",
+        ["Save log", "Enregistrer le journal", "Salva registro"],
+    ),
+    ("Textdatei", ["Text file", "Fichier texte", "File di testo"]),
     // Tray und Fenster
     ("Öffnen", ["Open", "Ouvrir", "Apri"]),
     (
