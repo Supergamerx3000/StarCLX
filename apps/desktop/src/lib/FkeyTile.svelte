@@ -19,6 +19,8 @@
     }
   });
   const stateText: Record<string, string> = $derived({ on: t("aktiv"), busy: t("im Gespräch"), ringing: t("klingelt"), free: t("frei"), off: t("nicht erreichbar"), parked: t("Gespräch geparkt") });
+  // Gruppen-Taste: grün = angemeldet, leer = abgemeldet
+  const groupText: Record<string, string> = $derived({ free: t("angemeldet"), off: t("abgemeldet") });
 </script>
 
 <button
@@ -28,7 +30,7 @@
   class:unusable={!info.usable && !blank}
   class:target={callDrag.call && callDrag.over === key.id}
   data-fkey={key.id}
-  title={blank ? undefined : [info.label, stateText[state]].filter(Boolean).join(" · ")}
+  title={blank ? undefined : [info.label, (key.functionKeyType === "GROUPLOGIN" ? groupText : stateText)[state]].filter(Boolean).join(" · ")}
   disabled={disabled || blank}
   {onclick}
 >

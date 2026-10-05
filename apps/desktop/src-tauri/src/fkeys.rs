@@ -199,7 +199,8 @@ pub async fn fkey_group_toggle(
         ));
     }
     let on = !targets.iter().any(|m| m.logged_on);
-    for m in targets {
+    // Nur Gruppen umschalten, die noch nicht im Zielzustand sind
+    for m in targets.into_iter().filter(|m| m.logged_on != on) {
         sf_core::group::set_logged_on(&hub, &m.id, on)
             .await
             .map_err(|e| e.to_string())?;

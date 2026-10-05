@@ -128,6 +128,8 @@ const dict: Record<string, string> = {
   "aktiv": "active",
   "im Gespräch": "on a call",
   "klingelt": "ringing",
+  "angemeldet": "logged on",
+  "abgemeldet": "logged off",
   "frei": "available",
   "nicht erreichbar": "unavailable",
   "Gespräch geparkt": "call parked",
