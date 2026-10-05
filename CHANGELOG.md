@@ -1,5 +1,12 @@
 # Änderungen
 
+## 1.2.2 – 2026-10-05
+
+### Pakete
+- RPM-Paket für Fedora, openSUSE und andere RPM-Distributionen
+- Signierte Paketquellen für apt (Debian/Ubuntu) und dnf (Fedora) auf GitHub Pages, Updates
+  kommen mit dem normalen System-Update
+
 ## 1.2.1 – 2026-10-05
 
 ### Autostart
