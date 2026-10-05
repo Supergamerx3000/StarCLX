@@ -177,6 +177,10 @@ impl OneHub {
         fmc_phone,
         v1::fmcphone::fmc_phone_service_client::FmcPhoneServiceClient
     );
+    service!(
+        group,
+        v1::sfpbx::group::group_service_client::GroupServiceClient
+    );
 
     /// Holt die SIP-Zugangsdaten für das App-Telefon zu `device_id` (siehe
     /// [`SIP_DEVICE_ID`]). Legt das Telefon bei Bedarf auf der Anlage an.
