@@ -43,6 +43,7 @@ neue Anrufe, Rufliste und Voicemail, weil tote Verbindungen nicht bemerkt wurden
 - RPM-Paket für Fedora, openSUSE und andere RPM-Distributionen
 - Signierte Paketquellen für apt (Debian/Ubuntu) und dnf (Fedora) auf GitHub Pages, Updates
   kommen mit dem normalen System-Update
+- Pakete starten auch unter Debian 12 und Ubuntu 22.04 (gebaut mit älterer glibc)
 
 ## 1.0.0 – 2026-10-02
 

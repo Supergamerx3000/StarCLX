@@ -16,7 +16,9 @@ env:
 
 jobs:
   build:
-    runs-on: ubuntu-24.04
+    # 22.04 statt 24.04: glibc 2.35, damit die Pakete auch unter Debian 12
+    # und Ubuntu 22.04 starten (mit 24.04 gebaut verlangen sie glibc 2.38)
+    runs-on: ubuntu-22.04
     permissions:
       contents: write
     outputs:
