@@ -284,6 +284,14 @@ const TEXTS: &[(&str, [&str; 3])] = &[
         ],
     ),
     (
+        "Für den Autostart StarCLX bitte zuerst in den Ordner „Programme“ verschieben und von dort starten.",
+        [
+            "For autostart, please move StarCLX to the Applications folder first and start it from there.",
+            "Pour le démarrage automatique, déplacez d’abord StarCLX dans le dossier Applications et lancez-le depuis là.",
+            "Per l’avvio automatico, sposta prima StarCLX nella cartella Applicazioni e avvialo da lì.",
+        ],
+    ),
+    (
         "Belegt oder ungültig: {keys}",
         [
             "Already taken or invalid: {keys}",

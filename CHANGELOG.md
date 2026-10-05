@@ -1,5 +1,14 @@
 # Änderungen
 
+## 1.2.1 – 2026-10-05
+
+### Autostart
+- macOS: der Autostart startet das App-Bundle über `open` wie der Finder. Läuft StarCLX noch aus
+  der DMG oder direkt aus „Downloads“ (zufälliger Pfad durch macOS), kommt ein Hinweis, die App
+  erst nach „Programme“ zu verschieben, statt eines Eintrags, der nach dem Neustart ins Leere geht
+- Tests für alle Plattformen: Linux (Autostart-Datei), macOS (gültige Property-List), Windows
+  (Registry-Eintrag anlegen, lesen, löschen)
+
 ## 1.2.0 – 2026-10-05
 
 ### Funktionstasten

@@ -15,7 +15,7 @@ use std::process::Command;
 use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, Emitter, Manager, Theme};
 
-#[cfg(not(any(target_os = "macos", windows)))]
+#[cfg(not(windows))]
 use crate::i18n::t;
 use crate::i18n::tf;
 use crate::settings::Prefs;
@@ -338,9 +338,38 @@ fn xml_escape(s: &str) -> String {
         .replace('"', "&quot;")
 }
 
+/// Das `.app`-Bundle um das laufende Programm, falls es in einem liegt
+#[cfg(target_os = "macos")]
+fn app_bundle(exe: &str) -> Option<&str> {
+    let end = exe.find(".app/Contents/MacOS/")? + ".app".len();
+    Some(&exe[..end])
+}
+
+/// Startbefehl für den LaunchAgent. Ein Bundle wird über `open` gestartet
+/// wie aus dem Finder. Läuft die App aus der DMG oder ist sie von macOS in
+/// einen Zufallsordner verschoben (App Translocation, z. B. direkt aus
+/// „Downloads“ gestartet), wäre der Pfad nach dem Neustart weg.
+#[cfg(target_os = "macos")]
+fn autostart_command(exe: &str) -> Result<Vec<String>, String> {
+    if exe.starts_with("/Volumes/") || exe.contains("/AppTranslocation/") {
+        return Err(t(
+            "Für den Autostart StarCLX bitte zuerst in den Ordner „Programme“ verschieben und von dort starten.",
+        )
+        .into());
+    }
+    Ok(match app_bundle(exe) {
+        Some(bundle) => vec!["/usr/bin/open".into(), "-a".into(), bundle.into()],
+        None => vec![exe.into()],
+    })
+}
+
 /// LaunchAgent, der das Programm bei der Anmeldung startet
 #[cfg(target_os = "macos")]
-fn autostart_entry(program: &str) -> String {
+fn autostart_entry(command: &[String]) -> String {
+    let args: String = command
+        .iter()
+        .map(|a| format!("    <string>{}</string>\n", xml_escape(a)))
+        .collect();
     format!(
         concat!(
             "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n",
@@ -348,13 +377,13 @@ fn autostart_entry(program: &str) -> String {
             "\"http://www.apple.com/DTDs/PropertyList-1.0.dtd\">\n",
             "<plist version=\"1.0\">\n<dict>\n",
             "  <key>Label</key>\n  <string>{label}</string>\n",
-            "  <key>ProgramArguments</key>\n  <array>\n    <string>{program}</string>\n  </array>\n",
+            "  <key>ProgramArguments</key>\n  <array>\n{args}  </array>\n",
             "  <key>RunAtLoad</key>\n  <true/>\n",
             "  <key>ProcessType</key>\n  <string>Interactive</string>\n",
             "</dict>\n</plist>\n"
         ),
         label = MAC_AGENT_LABEL,
-        program = xml_escape(program)
+        args = args
     )
 }
 
@@ -366,23 +395,26 @@ const RUN_KEY: &str = r"HKCU\Software\Microsoft\Windows\CurrentVersion\Run";
 /// aufgerufen, damit der Pfad nach einem Update stimmt.
 #[cfg(windows)]
 pub fn apply_autostart(on: bool) -> Result<(), String> {
+    let value = format!("\"{}\"", program());
+    set_run_value("StarCLX", on.then_some(value.as_str()))
+}
+
+/// Setzt (`Some`) oder löscht (`None`) einen Wert unter HKCU\…\Run.
+#[cfg(windows)]
+fn set_run_value(name: &str, value: Option<&str>) -> Result<(), String> {
     use std::os::windows::process::CommandExt;
     const CREATE_NO_WINDOW: u32 = 0x0800_0000;
     let mut cmd = Command::new("reg");
-    if on {
-        let value = format!("\"{}\"", program());
-        cmd.args([
-            "add", RUN_KEY, "/v", "StarCLX", "/t", "REG_SZ", "/d", &value, "/f",
-        ]);
-    } else {
-        cmd.args(["delete", RUN_KEY, "/v", "StarCLX", "/f"]);
-    }
+    match value {
+        Some(v) => cmd.args(["add", RUN_KEY, "/v", name, "/t", "REG_SZ", "/d", v, "/f"]),
+        None => cmd.args(["delete", RUN_KEY, "/v", name, "/f"]),
+    };
     let out = cmd
         .creation_flags(CREATE_NO_WINDOW)
         .output()
         .map_err(|e| e.to_string())?;
     // Löschen eines fehlenden Werts ist kein Fehler
-    if on && !out.status.success() {
+    if value.is_some() && !out.status.success() {
         return Err(String::from_utf8_lossy(&out.stderr).trim().to_owned());
     }
     Ok(())
@@ -395,20 +427,33 @@ pub fn apply_autostart(on: bool) -> Result<(), String> {
     let Some(path) = autostart_file() else {
         return Ok(());
     };
-    if on {
-        let entry = autostart_entry(&program());
-        if std::fs::read_to_string(&path).is_ok_and(|old| old == entry) {
-            return Ok(());
+    if !on {
+        return write_autostart(&path, None);
+    }
+    #[cfg(target_os = "macos")]
+    let entry = autostart_entry(&autostart_command(&program())?);
+    #[cfg(not(target_os = "macos"))]
+    let entry = autostart_entry(&program());
+    write_autostart(&path, Some(&entry))
+}
+
+/// Schreibt den Eintrag (nur bei Änderung) bzw. entfernt ihn.
+#[cfg(not(windows))]
+fn write_autostart(path: &std::path::Path, entry: Option<&str>) -> Result<(), String> {
+    match entry {
+        Some(entry) => {
+            if std::fs::read_to_string(path).is_ok_and(|old| old == entry) {
+                return Ok(());
+            }
+            path.parent()
+                .map_or(Ok(()), std::fs::create_dir_all)
+                .and_then(|()| std::fs::write(path, entry))
+                .map_err(|e| e.to_string())
         }
-        path.parent()
-            .map_or(Ok(()), std::fs::create_dir_all)
-            .and_then(|()| std::fs::write(&path, entry))
-            .map_err(|e| e.to_string())
-    } else {
-        match std::fs::remove_file(&path) {
+        None => match std::fs::remove_file(path) {
             Err(e) if e.kind() != std::io::ErrorKind::NotFound => Err(e.to_string()),
             _ => Ok(()),
-        }
+        },
     }
 }
 
@@ -660,13 +705,84 @@ mod tests {
         assert_eq!(exec_quote("/a\\b"), r#""/a\\\\b""#);
     }
 
+    /// Eintrag anlegen, unverändert lassen, entfernen (Linux und macOS)
+    #[test]
+    #[cfg(not(windows))]
+    fn autostart_write_and_remove() {
+        let dir = std::env::temp_dir().join(format!("starclx-autostart-{}", std::process::id()));
+        let path = dir.join("sub").join("entry");
+        write_autostart(&path, Some("a")).unwrap();
+        assert_eq!(std::fs::read_to_string(&path).unwrap(), "a");
+        write_autostart(&path, Some("a")).unwrap();
+        write_autostart(&path, Some("b")).unwrap();
+        assert_eq!(std::fs::read_to_string(&path).unwrap(), "b");
+        write_autostart(&path, None).unwrap();
+        assert!(!path.exists());
+        write_autostart(&path, None).unwrap();
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
     #[test]
     #[cfg(target_os = "macos")]
-    fn autostart_launch_agent() {
-        let e = autostart_entry("/Applications/Star & CLX.app/Contents/MacOS/starclx");
-        assert!(
-            e.contains("<string>/Applications/Star &amp; CLX.app/Contents/MacOS/starclx</string>")
+    fn autostart_command_uses_bundle() {
+        assert_eq!(
+            autostart_command("/Applications/Star & CLX.app/Contents/MacOS/starclx").unwrap(),
+            ["/usr/bin/open", "-a", "/Applications/Star & CLX.app"]
         );
+        assert_eq!(
+            autostart_command("/Users/x/dev/target/debug/starclx").unwrap(),
+            ["/Users/x/dev/target/debug/starclx"]
+        );
+        assert!(autostart_command("/Volumes/StarCLX/StarCLX.app/Contents/MacOS/starclx").is_err());
+        assert!(
+            autostart_command(
+                "/private/var/folders/x/T/AppTranslocation/ABC/d/StarCLX.app/Contents/MacOS/starclx"
+            )
+            .is_err()
+        );
+    }
+
+    /// Der LaunchAgent muss eine gültige Property-List sein (plutil prüft).
+    #[test]
+    #[cfg(target_os = "macos")]
+    fn autostart_launch_agent_is_valid_plist() {
+        let cmd = autostart_command("/Applications/Star & CLX.app/Contents/MacOS/starclx").unwrap();
+        let e = autostart_entry(&cmd);
+        assert!(e.contains("<string>/Applications/Star &amp; CLX.app</string>"));
         assert!(e.contains("<key>RunAtLoad</key>\n  <true/>"));
+        let path = std::env::temp_dir().join(format!("starclx-agent-{}.plist", std::process::id()));
+        std::fs::write(&path, &e).unwrap();
+        let out = std::process::Command::new("plutil")
+            .arg("-lint")
+            .arg(&path)
+            .output()
+            .unwrap();
+        std::fs::remove_file(&path).ok();
+        assert!(
+            out.status.success(),
+            "{}",
+            String::from_utf8_lossy(&out.stdout)
+        );
+    }
+
+    /// Echter Registry-Eintrag mit eigenem Wertnamen: anlegen, lesen, löschen.
+    #[test]
+    #[cfg(windows)]
+    fn autostart_registry_round_trip() {
+        let name = format!("StarCLX-Test-{}", std::process::id());
+        let value = r#""C:\Program Files\Star CLX\starclx.exe""#;
+        let query = || {
+            Command::new("reg")
+                .args(["query", RUN_KEY, "/v", &name])
+                .output()
+                .unwrap()
+        };
+        set_run_value(&name, Some(value)).unwrap();
+        let out = query();
+        let text = String::from_utf8_lossy(&out.stdout);
+        assert!(out.status.success() && text.contains(value), "{text}");
+        set_run_value(&name, None).unwrap();
+        assert!(!query().status.success());
+        set_run_value(&name, None).unwrap();
     }
 }
