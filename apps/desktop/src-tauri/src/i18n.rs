@@ -268,6 +268,22 @@ const TEXTS: &[(&str, [&str; 3])] = &[
         ],
     ),
     (
+        "Gruppe nicht gefunden oder kein Mitglied",
+        [
+            "Group not found or not a member",
+            "Groupe introuvable ou pas membre",
+            "Gruppo non trovato o non membro",
+        ],
+    ),
+    (
+        "Die Anmeldung in „{name}“ lässt sich nicht ändern",
+        [
+            "Membership in “{name}” cannot be changed",
+            "L’inscription dans « {name} » ne peut pas être modifiée",
+            "L’accesso a «{name}» non può essere modificato",
+        ],
+    ),
+    (
         "Belegt oder ungültig: {keys}",
         [
             "Already taken or invalid: {keys}",

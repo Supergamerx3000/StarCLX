@@ -42,7 +42,7 @@ type Group = "fav" | "fn" | "desk";
 export const types = (): { type: string; label: string; group: Group; usable: boolean }[] => [
   { type: "BUSYLAMPFIELD", label: t("Besetztlampenfeld"), group: "fav", usable: true },
   { type: "QUICKDIAL", label: t("Direktwahl"), group: "fav", usable: true },
-  { type: "GROUPLOGIN", label: t("Gruppe An-/Abmelden"), group: "fn", usable: false },
+  { type: "GROUPLOGIN", label: t("Gruppe An-/Abmelden"), group: "fn", usable: true },
   { type: "DONOTDISTURB", label: t("Ruhe"), group: "fn", usable: true },
   { type: "COMPLETIONOFCALLSTOBUSYSUBSCRIBER", label: t("Rückruf bei Besetzt"), group: "fn", usable: false },
   { type: "SIGNALNUMBER", label: t("Rufnummer anzeigen"), group: "fn", usable: true },
@@ -71,11 +71,24 @@ export const fkeys = $state({
   accounts: [] as Account[],
   presence: {} as Record<string, UserState>,
   redirects: [] as Redirect[],
+  groups: [] as Membership[],
   me: "",
   error: "",
   notice: "",
   loaded: false,
 });
+
+/** Gruppe, in der man Mitglied ist (für „Gruppe An-/Abmelden“) */
+export type Membership = { id: string; name: string; logon_id: string; logged_on: boolean; read_only: boolean };
+
+/** Gruppen einer Taste: über die IDs, sonst über den Namen in `Gruppe[Name]` */
+function groupsOf(k: FunctionKey): Membership[] {
+  const ids = k.groupIds.map(String);
+  const byId = fkeys.groups.filter((g) => ids.includes(g.id) || ids.includes(g.logon_id));
+  if (byId.length) return byId;
+  const name = /\[(.*)\]$/.exec(k.name)?.[1] ?? k.name;
+  return fkeys.groups.filter((g) => g.name === name);
+}
 
 let started = false;
 let retry: ReturnType<typeof setTimeout> | undefined;
@@ -88,6 +101,7 @@ export async function loadFkeys() {
   if (!started) {
     started = true;
     listen<Record<string, UserState>>("fkey-presence", (e) => (fkeys.presence = e.payload));
+    listen<Membership[]>("fkey-groups", (e) => (fkeys.groups = e.payload));
     listen("reach-changed", () => loadRedirects());
     // Nach dem Standby neu laden (Token, Präsenz und Tasten frisch holen)
     listen("resumed", () => loadFkeys());
@@ -106,6 +120,7 @@ export async function loadFkeys() {
     fkeys.error = "";
     fkeys.loaded = true;
     fkeys.presence = await invoke<Record<string, UserState>>("fkey_presence");
+    fkeys.groups = await invoke<Membership[]>("fkey_groups");
     retryMs = RETRY_MS;
   } catch (e) {
     // Bisherige Tasten bleiben stehen; nur der Fehler wird angezeigt.
@@ -190,6 +205,10 @@ export function keyState(k: FunctionKey): string {
     }
     case "DONOTDISTURB":
       return ownDnd() ? "on" : "";
+    case "GROUPLOGIN": {
+      const list = groupsOf(k);
+      return !list.length ? "" : list.some((g) => g.logged_on) ? "free" : "off";
+    }
     case "FORWARD":
     case "FORWARDNUMBER":
     case "FORWARDTOTARGET":
@@ -240,6 +259,8 @@ export async function press(k: FunctionKey) {
       return;
     case "DONOTDISTURB":
       return call("fkey_dnd", { enabled: !ownDnd() });
+    case "GROUPLOGIN":
+      return call("fkey_group_toggle", { groupIds: k.groupIds, keyName: k.name });
     case "SIGNALNUMBER": {
       const list = await invoke<SignalingNumber[]>("signaling_numbers").catch(() => []);
       const n = k.displayNumberId === 0 ? list.find((x) => x.suppressed) : list.find((x) => x.id === String(k.displayNumberId));

@@ -8,6 +8,7 @@ pub mod account;
 pub mod contact_form;
 pub mod directory;
 pub mod fkeys;
+pub mod group;
 pub mod journal;
 pub mod phone;
 pub mod redirect;

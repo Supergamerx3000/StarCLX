@@ -1,5 +1,12 @@
 # Änderungen
 
+## 1.2.0 – 2026-10-05
+
+### Funktionstasten
+- „Gruppe An-/Abmelden“ funktioniert: ein Klick meldet in der Gruppe an bzw. ab, die Lampe
+  zeigt den Stand (grün angemeldet, leer abgemeldet) und folgt Änderungen auch von anderen
+  Telefonen oder Clients
+
 ## 1.1.1 – 2026-10-05
 
 ### Verbindung nach Standby

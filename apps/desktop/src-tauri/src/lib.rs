@@ -991,6 +991,8 @@ pub fn run() {
             fkeys::fkey_delete,
             fkeys::fkeys_reorder,
             fkeys::fkey_dnd,
+            fkeys::fkey_groups,
+            fkeys::fkey_group_toggle,
             fkeys::fkey_park,
             fkeys::fkey_grab,
             voicemail::voicemails,
