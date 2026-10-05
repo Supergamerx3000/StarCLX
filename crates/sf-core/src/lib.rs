@@ -314,7 +314,10 @@ mod tests {
                 let mut buf = vec![0u8; 8192];
                 let n = sock.read(&mut buf).await.unwrap();
                 let req = String::from_utf8_lossy(&buf[..n]).into_owned();
-                let (status, body) = if req.starts_with("GET /.well-known") {
+                let (status, body) = if req.starts_with("GET /rpc/oauth/login-config") {
+                    // Anlage ohne Login-Konfiguration (ältere Version)
+                    (404, String::new())
+                } else if req.starts_with("GET /.well-known") {
                     (
                         200,
                         format!(
