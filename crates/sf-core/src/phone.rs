@@ -17,6 +17,25 @@ use sf_sip::{SipEvent, Softphone};
 use tokio::sync::mpsc;
 use tokio::task::JoinHandle;
 
+/// Löst die Anlage über das Betriebssystem auf (wie die HTTPS-Anmeldung),
+/// IPv4 bevorzugt. `None`, wenn das scheitert; dann fragt baresip selbst.
+async fn resolve(host: &str, port: u16) -> Option<std::net::SocketAddr> {
+    match tokio::net::lookup_host((host, port)).await {
+        Ok(addrs) => {
+            let addrs: Vec<_> = addrs.collect();
+            addrs
+                .iter()
+                .find(|a| a.is_ipv4())
+                .or(addrs.first())
+                .copied()
+        }
+        Err(e) => {
+            tracing::warn!(host, error = %e, "Anlage nicht auflösbar");
+            None
+        }
+    }
+}
+
 /// So lange nach `dial` gilt ein eingehender SIP-Anruf als Rückruf der
 /// Anlage und wird automatisch angenommen.
 const DIAL_WINDOW: Duration = Duration::from_secs(20);
@@ -158,6 +177,14 @@ impl Phone {
             .await?
             .ok_or_else(|| PhoneError::NoPhone(creds.user.clone()))?;
 
+        // Ohne Zertifikatsprüfung (Cloud, bestätigte Zertifikate) darf
+        // baresip die Anlage per IP ansprechen; die löst hier das System auf.
+        let outbound = if config.verify_server {
+            None
+        } else {
+            resolve(host, creds.port).await
+        };
+
         let software = format!("starclx/{app_version}");
         let (sip, mut sip_rx) = Softphone::start(config, &software)?;
         let sip = Arc::new(sip);
@@ -167,6 +194,7 @@ impl Phone {
             host: host.to_owned(),
             port: creds.port,
             register_interval: 3600,
+            outbound,
         })?;
 
         // Auf die erste Registrierung warten, damit ein Fehler beim Start

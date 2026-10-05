@@ -16,7 +16,7 @@ prost-types.workspace = true
 thiserror.workspace = true
 tracing.workspace = true
 url.workspace = true
-tokio = { workspace = true, features = ["sync", "time"] }
+tokio = { workspace = true, features = ["net", "sync", "time"] }
 
 [dev-dependencies]
 keyring-core = "1"

@@ -197,6 +197,7 @@ async fn softphone(hub: &OneHub, host: &str, opts: SoftphoneOpts) -> Result<()> 
         host: host.to_owned(),
         port: creds.port,
         register_interval: 3600,
+        outbound: None,
     })?;
 
     let registered = tokio::time::timeout(Duration::from_secs(15), async {

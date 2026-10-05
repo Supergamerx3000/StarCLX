@@ -10,6 +10,7 @@
 //! einen tokio-Kanal zurück.
 
 use std::ffi::{CStr, CString, c_char, c_int, c_void};
+use std::net::SocketAddr;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::thread::JoinHandle;
 use std::time::Duration;
@@ -193,6 +194,10 @@ pub struct Account {
     pub port: u16,
     /// Registrierungsintervall in Sekunden; 0 = nicht registrieren.
     pub register_interval: u32,
+    /// Bereits aufgelöste Adresse der Anlage. baresip schickt dann alles
+    /// dorthin und fragt kein DNS; dessen eigener Resolver findet unter
+    /// Windows manche Namen nicht, die das System auflöst.
+    pub outbound: Option<SocketAddr>,
 }
 
 impl std::fmt::Debug for Account {
@@ -203,6 +208,7 @@ impl std::fmt::Debug for Account {
             .field("host", &self.host)
             .field("port", &self.port)
             .field("register_interval", &self.register_interval)
+            .field("outbound", &self.outbound)
             .finish()
     }
 }
@@ -220,9 +226,13 @@ impl Account {
                 return Err(Error::InvalidValue(name.into()));
             }
         }
+        let outbound = self
+            .outbound
+            .map(|a| format!(";outbound=\"sip:{a};transport=tls\""))
+            .unwrap_or_default();
         Ok(format!(
             "<sip:{user}@{host}:{port};transport=tls>;auth_pass={pw};mediaenc=srtp-mand;\
-             regint={regint};answermode=manual;audio_codecs=g722,pcma,pcmu",
+             regint={regint};answermode=manual;audio_codecs=g722,pcma,pcmu{outbound}",
             user = self.user,
             host = self.host,
             port = self.port,
@@ -449,6 +459,7 @@ mod tests {
             host: "pbx.example.com".into(),
             port: 5061,
             register_interval: 3600,
+            outbound: None,
         };
         let aor = acc.to_aor().unwrap();
         assert!(aor.starts_with("<sip:1004.WinClient@pbx.example.com:5061;transport=tls>"));
@@ -464,7 +475,28 @@ mod tests {
             host: "h".into(),
             port: 5061,
             register_interval: 0,
+            outbound: None,
         };
         assert!(acc.to_aor().is_err());
+    }
+
+    #[test]
+    fn aor_with_resolved_outbound_proxy() {
+        let acc = Account {
+            user: "1004.WinClient".into(),
+            password: "geheim".into(),
+            host: "pbx.example.com".into(),
+            port: 5061,
+            register_interval: 3600,
+            outbound: Some("192.0.2.7:5061".parse().unwrap()),
+        };
+        let aor = acc.to_aor().unwrap();
+        assert!(aor.starts_with("<sip:1004.WinClient@pbx.example.com:5061;transport=tls>"));
+        assert!(aor.ends_with(";outbound=\"sip:192.0.2.7:5061;transport=tls\""));
+        let v6 = Account {
+            outbound: Some("[2001:db8::1]:5061".parse().unwrap()),
+            ..acc
+        };
+        assert!(v6.to_aor().unwrap().contains("sip:[2001:db8::1]:5061;"));
     }
 }
