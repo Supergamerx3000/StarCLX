@@ -14,6 +14,7 @@ pub mod phone;
 pub mod redirect;
 pub mod voicemail;
 
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::Duration;
 
 use sf_auth::Tokens;
@@ -120,9 +121,11 @@ impl Session {
 
         // Ohne Schlüsselbund (kein gnome-keyring/KWallet) trotzdem anmelden,
         // nur eben nicht über das Beenden hinaus.
+        STORE_WARNED.store(false, Ordering::Relaxed);
         if let Some(rt) = &tokens.refresh_token
             && let Err(e) = store_refresh_token(server, rt).await
         {
+            STORE_WARNED.store(true, Ordering::Relaxed);
             tracing::warn!(error = %e, "Refresh-Token nicht gespeichert; Anmeldung gilt bis zum Beenden");
         }
 
@@ -212,6 +215,10 @@ impl Drop for Session {
     }
 }
 
+/// Schon gewarnt, dass das Refresh-Token nicht gespeichert werden kann;
+/// gilt bis zur nächsten Anmeldung.
+static STORE_WARNED: AtomicBool = AtomicBool::new(false);
+
 async fn store_refresh_token(server: &str, token: &str) -> Result<()> {
     let (server, token) = (server.to_owned(), token.to_owned());
     tokio::task::spawn_blocking(move || sf_auth::secret::save_refresh_token(&server, &token))
@@ -282,7 +289,13 @@ async fn refresh_loop(
                 match &fresh.refresh_token {
                     Some(rt) if *rt != refresh_token => {
                         if let Err(e) = store_refresh_token(&server, rt).await {
-                            tracing::warn!(error = %e, "Refresh-Token nicht gespeichert");
+                            // Ohne Schlüsselbund scheitert das bei jeder Erneuerung;
+                            // einmal warnen reicht.
+                            if STORE_WARNED.swap(true, Ordering::Relaxed) {
+                                tracing::debug!(error = %e, "Refresh-Token nicht gespeichert");
+                            } else {
+                                tracing::warn!(error = %e, "Refresh-Token nicht gespeichert");
+                            }
                         }
                     }
                     Some(_) => {}

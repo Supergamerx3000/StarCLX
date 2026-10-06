@@ -9,6 +9,8 @@
 ### Anmeldung
 - Ohne Schlüsselbund (kein gnome-keyring/KWallet) ist Anmelden und Abmelden jetzt möglich; die
   Anmeldung gilt dann bis zum Beenden
+- Ohne Schlüsselbund steht der Hinweis darauf nur noch einmal im Protokoll statt bei jeder
+  Erneuerung der Anmeldung
 
 ## 1.1.0 – 2026-10-05
 
