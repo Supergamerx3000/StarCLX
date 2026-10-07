@@ -556,17 +556,14 @@ impl Phone {
         let hub = self.hub.clone();
         let inner = self.inner.clone();
         let events = self.events.clone();
-        tokio::spawn(async move {
-            let mut backoff = Duration::from_secs(1);
-            loop {
-                match pbx_session(&hub, &inner, &events).await {
-                    Ok(()) => backoff = Duration::from_secs(1),
-                    Err(e) => tracing::warn!(error = %e, "Anruf-Ereignisse unterbrochen"),
-                }
-                tokio::time::sleep(backoff).await;
-                backoff = (backoff * 2).min(MAX_BACKOFF);
-            }
-        })
+        tokio::spawn(crate::reconnect::forever(
+            "Anruf-Ereignisse",
+            MAX_BACKOFF,
+            move || {
+                let (hub, inner, events) = (hub.clone(), inner.clone(), events.clone());
+                async move { pbx_session(&hub, &inner, &events).await }
+            },
+        ))
     }
 }
 

@@ -63,22 +63,20 @@ impl Journal {
         let task = {
             let hub = hub.clone();
             let entries = entries.clone();
-            tokio::spawn(async move {
-                let mut backoff = Duration::from_secs(1);
-                loop {
-                    match session(&hub, &entries, &events).await {
-                        Ok(()) => backoff = Duration::from_secs(1),
-                        Err(e) => {
-                            tracing::warn!(error = %e, "Rufliste unterbrochen");
+            tokio::spawn(crate::reconnect::forever(
+                "Rufliste",
+                MAX_BACKOFF,
+                move || {
+                    let (hub, entries, events) = (hub.clone(), entries.clone(), events.clone());
+                    async move {
+                        session(&hub, &entries, &events).await.inspect_err(|e| {
                             let _ = events.send(JournalEvent::Error {
                                 message: e.to_string(),
                             });
-                        }
+                        })
                     }
-                    tokio::time::sleep(backoff).await;
-                    backoff = (backoff * 2).min(MAX_BACKOFF);
-                }
-            })
+                },
+            ))
         };
         Self { hub, entries, task }
     }

@@ -144,17 +144,14 @@ pub struct Watcher(JoinHandle<()>);
 
 impl Watcher {
     pub fn start(hub: OneHub, events: mpsc::UnboundedSender<VoicemailEvent>) -> Self {
-        Self(tokio::spawn(async move {
-            let mut backoff = Duration::from_secs(1);
-            loop {
-                match watch(&hub, &events).await {
-                    Ok(()) => backoff = Duration::from_secs(1),
-                    Err(e) => tracing::warn!(error = %e, "Voicemail-Ereignisse unterbrochen"),
-                }
-                tokio::time::sleep(backoff).await;
-                backoff = (backoff * 2).min(MAX_BACKOFF);
-            }
-        }))
+        Self(tokio::spawn(crate::reconnect::forever(
+            "Voicemail-Ereignisse",
+            MAX_BACKOFF,
+            move || {
+                let (hub, events) = (hub.clone(), events.clone());
+                async move { watch(&hub, &events).await }
+            },
+        )))
     }
 }
 

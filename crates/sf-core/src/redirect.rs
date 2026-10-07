@@ -389,20 +389,12 @@ impl Drop for Watcher {
     }
 }
 
-async fn retry<F, Fut>(what: &'static str, mut f: F)
+async fn retry<F, Fut>(what: &'static str, f: F)
 where
     F: FnMut() -> Fut,
     Fut: std::future::Future<Output = sf_onehub::Result<()>>,
 {
-    let mut backoff = Duration::from_secs(1);
-    loop {
-        match f().await {
-            Ok(()) => backoff = Duration::from_secs(1),
-            Err(e) => tracing::warn!(error = %e, "{what}: Ereignisse unterbrochen"),
-        }
-        tokio::time::sleep(backoff).await;
-        backoff = (backoff * 2).min(MAX_BACKOFF);
-    }
+    crate::reconnect::forever(what, MAX_BACKOFF, f).await;
 }
 
 #[cfg(test)]
