@@ -5150,6 +5150,7 @@ name = "starclx"
 version = "1.2.1"
 dependencies = [
  "arboard",
+ "base64 0.22.1",
  "serde",
  "serde_json",
  "sf-audio",

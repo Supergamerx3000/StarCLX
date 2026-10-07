@@ -1,5 +1,8 @@
 <script lang="ts">
   // Gemeinsame Farben und Grundstile für alle Fenster (Hauptfenster, Schnellwahl)
+  // Inter wird mitgeliefert: unter Linux gäbe es sonst je nach Distribution
+  // eine andere, oft sehr breite Schrift (z. B. DejaVu Sans).
+  import "@fontsource-variable/inter";
   let { children } = $props();
 </script>
 
@@ -7,7 +10,9 @@
 
 <style>
   :global(:root) {
-    font-family: "Segoe UI", system-ui, sans-serif;
+    font-family: "Inter Variable", "Segoe UI", system-ui, sans-serif;
+    /* Kompakt wie die STARFACE-App; alle rem-Maße skalieren mit */
+    font-size: 15px;
     color-scheme: dark;
     --bg: #1f2226;
     --bar: #16181b;

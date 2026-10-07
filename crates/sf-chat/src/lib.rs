@@ -114,19 +114,30 @@ enum Command {
     },
 }
 
+/// Verfügbarkeit im Chat, wie in der STARFACE-App
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub enum Availability {
+    #[default]
+    Available,
+    Away,
+    DoNotDisturb,
+}
+
 /// Eigener Status, wie ihn die anderen sehen
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct Own {
-    pub away: bool,
+    pub availability: Availability,
     pub status: String,
 }
 
 impl Own {
     fn presence(&self) -> Presence {
         let mut p = Presence::available();
-        if self.away {
-            p.show = Some(Show::Away);
-        }
+        p.show = match self.availability {
+            Availability::Available => None,
+            Availability::Away => Some(Show::Away),
+            Availability::DoNotDisturb => Some(Show::Dnd),
+        };
         if !self.status.is_empty() {
             p.set_status(Lang::default(), self.status.clone());
         }
@@ -191,9 +202,9 @@ impl Chat {
     }
 
     /// Setzt den eigenen Status (auch für spätere Neuverbindungen).
-    pub fn set_presence(&self, away: bool, status: &str) {
+    pub fn set_presence(&self, availability: Availability, status: &str) {
         let _ = self.commands.send(Command::Presence(Own {
-            away,
+            availability,
             status: status.to_owned(),
         }));
     }

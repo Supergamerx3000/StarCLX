@@ -239,6 +239,44 @@ impl OneHub {
         group,
         v1::sfpbx::group::group_service_client::GroupServiceClient
     );
+    service!(user, v1::user::user_service_client::UserServiceClient);
+    service!(
+        call_back_on_busy,
+        v1::ccbs::call_back_on_busy_service_client::CallBackOnBusyServiceClient
+    );
+    service!(
+        module,
+        v1::module::module_service_client::ModuleServiceClient
+    );
+
+    /// Benutzerbild als Datei (meist JPEG oder PNG); `None`, wenn keins
+    /// hinterlegt ist.
+    pub async fn avatar(&self, user_id: &str) -> Result<Option<Vec<u8>>> {
+        let req = v1::types::GetAvatarRequest {
+            user_id: Some(v1::types::UserId {
+                id: user_id.to_owned(),
+            }),
+        };
+        let mut stream = match self.user().get_avatar(req).await {
+            Ok(r) => r.into_inner(),
+            Err(s) if s.code() == tonic::Code::NotFound => return Ok(None),
+            Err(s) => return Err(s.into()),
+        };
+        let mut data = Vec::new();
+        loop {
+            match stream.message().await {
+                Ok(Some(chunk)) => {
+                    if let Some(c) = chunk.avatar_chunk {
+                        data.extend_from_slice(&c.data);
+                    }
+                }
+                Ok(None) => break,
+                Err(s) if s.code() == tonic::Code::NotFound => return Ok(None),
+                Err(s) => return Err(s.into()),
+            }
+        }
+        Ok((!data.is_empty()).then_some(data))
+    }
 
     /// Holt die SIP-Zugangsdaten für das App-Telefon zu `device_id` (siehe
     /// [`SIP_DEVICE_ID`]). Legt das Telefon bei Bedarf auf der Anlage an.
