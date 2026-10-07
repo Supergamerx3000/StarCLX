@@ -5,32 +5,26 @@
 mod audio;
 mod bus;
 mod certs;
-mod chat;
 mod desktop;
-mod fkeys;
 mod flatpak;
 mod i18n;
 mod log;
 mod login;
 mod plugins;
 mod presence;
-mod reach;
 mod settings;
-mod voicemail;
 mod wake;
 
 use bus::Event;
 use i18n::{t, tf};
-use plugins::busylight;
+use plugins::{busylight, chat, fkeys, reach, voicemail};
 use serde::Serialize;
 use settings::Prefs;
-use sf_core::journal::{Journal, JournalEvent};
 use sf_core::{Session, SessionEvent};
 use tauri::menu::{Menu, MenuItem};
 use tauri::tray::TrayIconBuilder;
 use tauri::{AppHandle, Emitter, Manager, State, WindowEvent};
 use tauri_plugin_deep_link::DeepLinkExt;
-use tauri_plugin_notification::NotificationExt;
 use tauri_plugin_opener::OpenerExt;
 use tokio::sync::{Mutex, mpsc};
 
@@ -45,7 +39,6 @@ pub(crate) struct AppState {
     pending: Mutex<Option<PendingLogin>>,
     session: Mutex<Option<Session>>,
     events: mpsc::UnboundedSender<SessionEvent>,
-    journal: Mutex<Option<Journal>>,
     /// Rufnummer aus einem tel:-Link, bis die Oberfläche sie abholt; leer
     /// heisst: Link ohne Nummer
     dial_request: std::sync::Mutex<Option<String>>,
@@ -117,84 +110,22 @@ fn set_tray_tooltip(app: &AppHandle, session: Option<&Session>) {
 
 async fn set_session(app: &AppHandle, session: Option<Session>) {
     set_tray_tooltip(app, session.as_ref());
-    let state = app.state::<AppState>();
-    // Erst das alte Softphone beenden, dann ggf. ein neues starten.
-    bus::publish(app, Event::SessionEnded);
-    let host = session.as_ref().and_then(|s| {
-        url::Url::parse(&s.info().server)
-            .ok()
-            .and_then(|u| u.host_str().map(str::to_owned))
+    // Erst alles von der alten Sitzung beenden, dann ggf. neu starten.
+    plugins::session_ended(app).await;
+    let login = session.as_ref().and_then(|s| {
+        let host = url::Url::parse(&s.info().server)
+            .ok()?
+            .host_str()?
+            .to_owned();
+        Some(plugins::Login {
+            hub: s.hub().clone(),
+            host,
+            user_id: s.info().user_id.clone(),
+        })
     });
-    let hub = session.as_ref().map(|s| s.hub().clone());
-    let user_id = session.as_ref().map(|s| s.info().user_id.clone());
-    *state.session.lock().await = session;
-    *state.journal.lock().await = hub.clone().map(|hub| start_journal(app, hub));
-    reach::restart(app, hub.clone()).await;
-    voicemail::restart(app, hub.clone()).await;
-    fkeys::stop(app).await;
-    chat::stop(app).await;
-    if let (Some(hub), Some(host), Some(user_id)) = (&hub, &host, user_id) {
-        chat::start(app, hub.clone(), host.clone(), user_id);
-    }
-    if hub.is_none() {
-        let _ = app.emit("journal", Vec::<sf_core::journal::Entry>::new());
-    }
-    if let (Some(hub), Some(host)) = (hub, host) {
-        bus::publish(app, Event::SessionStarted { hub, host });
-    }
-}
-
-fn start_journal(app: &AppHandle, hub: sf_onehub::OneHub) -> Journal {
-    let (tx, mut rx) = mpsc::unbounded_channel();
-    let journal = Journal::start(hub, tx);
-    let app = app.clone();
-    tauri::async_runtime::spawn(async move {
-        while let Some(ev) = rx.recv().await {
-            match ev {
-                JournalEvent::Entries { entries } => {
-                    let _ = app.emit("journal", entries);
-                }
-                JournalEvent::Missed { entry } => notify_missed(&app, &entry),
-                JournalEvent::Error { message } => {
-                    let _ = app.emit("journal-error", message);
-                }
-            }
-        }
-    });
-    journal
-}
-
-fn notify_missed(app: &AppHandle, entry: &sf_core::journal::Entry) {
-    let prefs = settings::load(app).prefs;
-    let group = !entry.group.is_empty();
-    if !(if group {
-        prefs.notify_missed_group
-    } else {
-        prefs.notify_missed
-    }) {
-        return;
-    }
-    let who = match (entry.name.trim(), entry.number.trim()) {
-        ("", "") => t("Unbekannt").to_owned(),
-        ("", n) | (n, "") => n.to_owned(),
-        (name, n) => format!("{name} ({n})"),
-    };
-    let body = if group {
-        tf(
-            "{who} über Gruppe {group}",
-            &[("who", &who), ("group", &entry.group)],
-        )
-    } else {
-        who
-    };
-    if let Err(e) = app
-        .notification()
-        .builder()
-        .title(t("Verpasster Anruf"))
-        .body(body)
-        .show()
-    {
-        tracing::warn!(error = %e, "Benachrichtigung nicht angezeigt");
+    *app.state::<AppState>().session.lock().await = session;
+    if let Some(login) = login {
+        plugins::session_started(app, login).await;
     }
 }
 
@@ -330,123 +261,6 @@ async fn set_signaling_number(state: State<'_, AppState>, id: String) -> Result<
     sf_core::account::set_signaling_number(&hub(&state).await?, &id)
         .await
         .map_err(|e| e.to_string())
-}
-
-#[tauri::command]
-async fn contacts_search(
-    state: State<'_, AppState>,
-    term: String,
-) -> Result<Vec<sf_core::directory::ContactView>, String> {
-    if term.trim().chars().count() < 2 {
-        return Ok(Vec::new());
-    }
-    sf_core::directory::search(&hub(&state).await?, &term, 8)
-        .await
-        .map_err(|e| e.to_string())
-}
-
-#[tauri::command]
-async fn contacts_folders(
-    state: State<'_, AppState>,
-) -> Result<Vec<sf_core::directory::Folder>, String> {
-    let (hub, server) = state
-        .session
-        .lock()
-        .await
-        .as_ref()
-        .map(|s| (s.hub().clone(), s.info().server.clone()))
-        .ok_or("Nicht angemeldet")?;
-    sf_core::directory::folders(&hub, &server)
-        .await
-        .map_err(|e| e.to_string())
-}
-
-#[tauri::command]
-async fn contacts_list(
-    state: State<'_, AppState>,
-    folder: String,
-    term: String,
-    offset: i32,
-) -> Result<sf_core::directory::Page, String> {
-    sf_core::directory::list(&hub(&state).await?, &folder, &term, offset, 50)
-        .await
-        .map_err(|e| e.to_string())
-}
-
-/// Formular für einen neuen (`id` leer) oder bestehenden Kontakt
-#[tauri::command]
-async fn contact_form(
-    state: State<'_, AppState>,
-    id: String,
-) -> Result<Vec<sf_core::contact_form::Field>, String> {
-    let hub = hub(&state).await?;
-    if id.is_empty() {
-        sf_core::contact_form::empty(&hub).await
-    } else {
-        sf_core::contact_form::load(&hub, &id).await
-    }
-    .map_err(|e| e.to_string())
-}
-
-/// Speichert einen Kontakt: neu in `folder`, sonst Änderung an `id`
-#[tauri::command]
-async fn contact_save(
-    state: State<'_, AppState>,
-    id: String,
-    folder: String,
-    fields: Vec<sf_core::contact_form::Field>,
-) -> Result<(), String> {
-    if sf_core::contact_form::missing_name(&fields) {
-        return Err(t("Bitte Nachname oder Firma ausfüllen.").into());
-    }
-    let hub = hub(&state).await?;
-    if id.is_empty() {
-        sf_core::contact_form::create(&hub, &folder, &fields).await
-    } else {
-        sf_core::contact_form::update(&hub, &id, &fields).await
-    }
-    .map_err(|e| e.to_string())
-}
-
-#[tauri::command]
-async fn contact_delete(state: State<'_, AppState>, id: String) -> Result<(), String> {
-    sf_core::contact_form::delete(&hub(&state).await?, &id)
-        .await
-        .map_err(|e| e.to_string())
-}
-
-#[tauri::command]
-async fn journal_entries(
-    state: State<'_, AppState>,
-) -> Result<Vec<sf_core::journal::Entry>, String> {
-    Ok(state
-        .journal
-        .lock()
-        .await
-        .as_ref()
-        .map(Journal::entries)
-        .unwrap_or_default())
-}
-
-/// Rufliste bearbeiten: "delete", "called_back", "not_called_back" oder
-/// "comment" (mit `text`).
-#[tauri::command]
-async fn journal_action(
-    state: State<'_, AppState>,
-    action: String,
-    id: String,
-    text: Option<String>,
-) -> Result<(), String> {
-    let journal = state.journal.lock().await;
-    let journal = journal.as_ref().ok_or(t("Nicht angemeldet"))?;
-    match action.as_str() {
-        "delete" => journal.delete(&id).await,
-        "called_back" => journal.set_called_back(&id, true).await,
-        "not_called_back" => journal.set_called_back(&id, false).await,
-        "comment" => journal.set_comment(&id, &text.unwrap_or_default()).await,
-        _ => return Err(tf("Unbekannte Aktion {action}", &[("action", &action)])),
-    }
-    .map_err(|e| e.to_string())
 }
 
 #[tauri::command]
@@ -622,12 +436,12 @@ pub fn run() {
         .manage(audio::AudioState::default())
         .manage(bus::Bus::default())
         .manage(plugins::call::CallState::default())
+        .manage(plugins::journal::JournalState::default())
         .manage(busylight::BusylightState::default())
         .manage(AppState {
             pending: Mutex::default(),
             session: Mutex::default(),
             events: events_tx,
-            journal: Mutex::default(),
             dial_request: std::sync::Mutex::default(),
         })
         .setup(move |app| {
@@ -732,14 +546,14 @@ pub fn run() {
             save_prefs,
             signaling_numbers,
             set_signaling_number,
-            contacts_search,
-            contacts_folders,
-            contacts_list,
-            contact_form,
-            contact_save,
-            contact_delete,
-            journal_entries,
-            journal_action,
+            plugins::contacts::contacts_search,
+            plugins::contacts::contacts_folders,
+            plugins::contacts::contacts_list,
+            plugins::contacts::contact_form,
+            plugins::contacts::contact_save,
+            plugins::contacts::contact_delete,
+            plugins::journal::journal_entries,
+            plugins::journal::journal_action,
             chat::chat_status,
             chat::chat_recent,
             chat::chat_conversation,

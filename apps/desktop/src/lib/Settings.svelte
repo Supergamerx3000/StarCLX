@@ -5,8 +5,8 @@
   import { onMount } from "svelte";
   import DeviceList, { DEFAULT, mergeOrder, type Device } from "./DeviceList.svelte";
   import Icon, { type IconName } from "./Icon.svelte";
-  import FkeyEditor from "./FkeyEditor.svelte";
-  import Reach from "./Reach.svelte";
+  import FkeyEditor from "./plugins/fkeys/FkeyEditor.svelte";
+  import Reach from "./plugins/reach/Reach.svelte";
   import Toggle from "./Toggle.svelte";
   import BusylightSettings from "./plugins/busylight/Settings.svelte";
   import CallActionsSettings from "./plugins/callactions/Settings.svelte";

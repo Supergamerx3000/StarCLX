@@ -1,12 +1,12 @@
 <script lang="ts">
-  import { portal } from "./portal";
+  import { portal } from "../../portal";
   // Anruf mit Notiz an einen Kollegen weitergeben: per Chat direkt an einen
   // STARFACE-Benutzer oder per E-Mail über das Mailprogramm.
   import { invoke } from "@tauri-apps/api/core";
   import { openUrl } from "@tauri-apps/plugin-opener";
   import { untrack } from "svelte";
-  import { chat } from "./chat.svelte";
-  import { t } from "./i18n.svelte";
+  import { chat } from "../chat/chat.svelte";
+  import { t } from "../../i18n.svelte";
 
   let { text: initial, subject, onclose }: { text: string; subject: string; onclose: () => void } = $props();
 

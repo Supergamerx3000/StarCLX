@@ -1,8 +1,8 @@
 // Funktionstasten: Daten von der Anlage, Zustände und Auslösen.
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
-import { action, phone, run, type Call } from "./plugins/call/phone.svelte";
-import { t } from "./i18n.svelte";
+import { action, phone, run, type Call } from "../call/phone.svelte";
+import { t } from "../../i18n.svelte";
 
 export type FunctionKey = {
   functionKeyType: string;

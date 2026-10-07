@@ -1,19 +1,19 @@
 <script lang="ts">
   import logo from "$lib/assets/logo.png";
-  import ContactForm from "$lib/ContactForm.svelte";
-  import { contactEdit } from "$lib/contactform.svelte";
+  import ContactForm from "$lib/plugins/contacts/ContactForm.svelte";
+  import { contactEdit } from "$lib/plugins/contacts/contactform.svelte";
   import { invoke } from "@tauri-apps/api/core";
   import { listen } from "@tauri-apps/api/event";
   import { onMount } from "svelte";
   import CallManager from "$lib/plugins/call/CallManager.svelte";
-  import Contacts from "$lib/Contacts.svelte";
+  import Contacts from "$lib/plugins/contacts/Contacts.svelte";
   import DialSearch from "$lib/DialSearch.svelte";
-  import Journal from "$lib/Journal.svelte";
-  import Chat from "$lib/Chat.svelte";
-  import Voicemail from "$lib/Voicemail.svelte";
-  import FunctionKeys from "$lib/FunctionKeys.svelte";
-  import { initVoicemail, loadVoicemails, unheard, voicemail } from "$lib/voicemail.svelte";
-  import { initChat, unreadTotal } from "$lib/chat.svelte";
+  import Journal from "$lib/plugins/journal/Journal.svelte";
+  import Chat from "$lib/plugins/chat/Chat.svelte";
+  import Voicemail from "$lib/plugins/voicemail/Voicemail.svelte";
+  import FunctionKeys from "$lib/plugins/fkeys/FunctionKeys.svelte";
+  import { initVoicemail, loadVoicemails, unheard, voicemail } from "$lib/plugins/voicemail/voicemail.svelte";
+  import { initChat, unreadTotal } from "$lib/plugins/chat/chat.svelte";
   import Icon, { type IconName } from "$lib/Icon.svelte";
   import Settings from "$lib/Settings.svelte";
   import { initPhone, phone, run, isRingingIn } from "$lib/plugins/call/phone.svelte";

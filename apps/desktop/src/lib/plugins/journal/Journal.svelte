@@ -2,12 +2,12 @@
   import { invoke } from "@tauri-apps/api/core";
   import { listen } from "@tauri-apps/api/event";
   import { onMount } from "svelte";
-  import Icon from "./Icon.svelte";
-  import { phone, run } from "./plugins/call/phone.svelte";
-  import { contactEdit, newContact } from "./contactform.svelte";
+  import Icon from "../../Icon.svelte";
+  import { phone, run } from "../call/phone.svelte";
+  import { contactEdit, newContact } from "../contacts/contactform.svelte";
   import ShareNote from "./ShareNote.svelte";
-  import { searchable } from "./numbers";
-  import { locale, t } from "./i18n.svelte";
+  import { searchable } from "../../numbers";
+  import { locale, t } from "../../i18n.svelte";
 
   type Entry = {
     id: string;

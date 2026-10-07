@@ -1,13 +1,13 @@
 <script lang="ts">
-  import { splitter } from "./splitter";
+  import { splitter } from "../../splitter";
   import { invoke } from "@tauri-apps/api/core";
   import { onMount, tick } from "svelte";
-  import Icon from "./Icon.svelte";
+  import Icon from "../../Icon.svelte";
   import { chat, nameOf, openConversation, type ChatContact } from "./chat.svelte";
-  import { initials } from "./contacts";
-  import { numberParts } from "./numbers";
-  import { phone, run } from "./plugins/call/phone.svelte";
-  import { locale, t } from "./i18n.svelte";
+  import { initials } from "../contacts/contacts";
+  import { numberParts } from "../../numbers";
+  import { phone, run } from "../call/phone.svelte";
+  import { locale, t } from "../../i18n.svelte";
 
   let term = $state("");
   let draft = $state("");

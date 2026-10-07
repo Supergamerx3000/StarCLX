@@ -1,6 +1,6 @@
 <script lang="ts">
   import Icon, { type IconName } from "../../Icon.svelte";
-  import { backToFirst, callDrag, startCallDrag, transfersOnHangup } from "../../fkeys.svelte";
+  import { backToFirst, callDrag, startCallDrag, transfersOnHangup } from "../fkeys/fkeys.svelte";
   import { action, duration, isRingingIn, phone, run, who, type Call } from "./phone.svelte";
   import { t } from "../../i18n.svelte";
 

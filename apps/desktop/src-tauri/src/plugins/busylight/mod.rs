@@ -71,7 +71,6 @@ pub fn start(app: &AppHandle) {
         Event::PhoneReady => set_mode(app, Mode::Idle),
         Event::Calls { calls } => set_mode(app, Mode::from_calls(&calls)),
         Event::PrefsSaved => refresh(app),
-        Event::SessionStarted { .. } | Event::SessionEnded => {}
     });
 }
 

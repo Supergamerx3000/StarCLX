@@ -4,8 +4,8 @@
   import { invoke } from "@tauri-apps/api/core";
   import { onMount } from "svelte";
   import DialSearch from "$lib/DialSearch.svelte";
-  import FkeyTile from "$lib/FkeyTile.svelte";
-  import { fkeys, loadFkeys, press } from "$lib/fkeys.svelte";
+  import FkeyTile from "$lib/plugins/fkeys/FkeyTile.svelte";
+  import { fkeys, loadFkeys, press } from "$lib/plugins/fkeys/fkeys.svelte";
   import { initPhone, phone } from "$lib/plugins/call/phone.svelte";
   import { loadPrefs } from "$lib/prefs.svelte";
   import { t } from "$lib/i18n.svelte";

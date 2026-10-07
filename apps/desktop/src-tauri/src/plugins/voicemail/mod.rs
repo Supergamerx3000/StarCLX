@@ -13,8 +13,15 @@ pub struct VoicemailState {
     watcher: Mutex<Option<Watcher>>,
 }
 
-/// Beim An- und Abmelden aufrufen.
-pub async fn restart(app: &AppHandle, hub: Option<sf_onehub::OneHub>) {
+pub async fn session_ended(app: &AppHandle) {
+    restart(app, None).await;
+}
+
+pub async fn session_started(app: &AppHandle, hub: sf_onehub::OneHub) {
+    restart(app, Some(hub)).await;
+}
+
+async fn restart(app: &AppHandle, hub: Option<sf_onehub::OneHub>) {
     let state = app.state::<VoicemailState>();
     *state.watcher.lock().await = hub.map(|hub| {
         let (tx, mut rx) = mpsc::unbounded_channel();

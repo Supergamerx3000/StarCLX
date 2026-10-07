@@ -21,7 +21,7 @@ pub struct FkeyState {
 }
 
 /// Beim Abmelden die Präsenz beenden.
-pub async fn stop(app: &AppHandle) {
+pub async fn session_ended(app: &AppHandle) {
     let state = app.state::<FkeyState>();
     state.presence.lock().await.take();
     state.states.lock().unwrap().clear();

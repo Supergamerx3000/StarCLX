@@ -19,20 +19,16 @@ pub struct CallState {
     status: std::sync::Mutex<PhoneStatus>,
 }
 
-pub fn start(app: &AppHandle) {
-    bus::listen_async(app, "call", async |app, event| match event {
-        Event::SessionEnded => {
-            app.state::<CallState>().phone.lock().await.take();
-            audio::update_ringer(&app, None);
-            bus::publish(&app, Event::PhoneStopped);
-            update_phone_status(&app, |s| *s = PhoneStatus::default());
-        }
-        Event::SessionStarted { hub, host } => {
-            let app = app.clone();
-            tauri::async_runtime::spawn(async move { start_phone(app, hub, host).await });
-        }
-        _ => {}
-    });
+pub async fn session_ended(app: &AppHandle) {
+    app.state::<CallState>().phone.lock().await.take();
+    audio::update_ringer(app, None);
+    bus::publish(app, Event::PhoneStopped);
+    update_phone_status(app, |s| *s = PhoneStatus::default());
+}
+
+pub fn session_started(app: &AppHandle, hub: sf_onehub::OneHub, host: String) {
+    let app = app.clone();
+    tauri::async_runtime::spawn(async move { start_phone(app, hub, host).await });
 }
 
 /// ID des Softphones an der Anlage, sofern es läuft
