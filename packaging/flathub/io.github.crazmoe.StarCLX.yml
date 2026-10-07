@@ -4,7 +4,7 @@
 # daraus die Dateien für das Flathub-Repo.
 id: io.github.crazmoe.StarCLX
 runtime: org.gnome.Platform
-runtime-version: "50"
+runtime-version: "51"
 sdk: org.gnome.Sdk
 sdk-extensions:
   - org.freedesktop.Sdk.Extension.rust-stable
@@ -27,10 +27,10 @@ finish-args:
   # Symbol im Infobereich
   - --talk-name=org.kde.StatusNotifierWatcher
   # Chat-Status „abwesend“ bei Inaktivität und gesperrtem Bildschirm
+  # (login1 lässt Flathub nicht zu, die Sperre kommt über den Bildschirmschoner)
   - --talk-name=org.gnome.Mutter.IdleMonitor
   - --talk-name=org.gnome.ScreenSaver
   - --talk-name=org.freedesktop.ScreenSaver
-  - --system-talk-name=org.freedesktop.login1
 modules:
   - shared-modules/libayatana-appindicator/libayatana-appindicator-gtk3.json
 
