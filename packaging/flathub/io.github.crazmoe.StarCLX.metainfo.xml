@@ -16,30 +16,28 @@
       StarCLX connects to STARFACE phone systems from version 10 and brings
       the features of the official desktop app to Linux.
     </p>
+    <p xml:lang="de">
+      StarCLX verbindet sich mit STARFACE-Telefonanlagen ab Version 10 und
+      bringt die Funktionen der offiziellen Desktop-App auf Linux.
+    </p>
     <ul>
       <li>Softphone with encrypted calls (SIP/TLS, SRTP) and a call manager: hold, mute, transfer, conference, Call2Go</li>
+      <li xml:lang="de">Softphone mit verschlüsselten Gesprächen (SIP/TLS, SRTP) und Call Manager: halten, stumm, verbinden, Konferenz, Call2Go</li>
       <li>Search across all address books while typing, create and edit contacts</li>
+      <li xml:lang="de">Suche beim Tippen über alle Adressbücher, Kontakte anlegen und bearbeiten</li>
       <li>Call list with filters, notes and missed-call notifications</li>
+      <li xml:lang="de">Rufliste mit Filtern, Notizen und Benachrichtigung bei verpassten Anrufen</li>
       <li>Chat with colleagues, including presence and history</li>
+      <li xml:lang="de">Chat mit Kollegen mit Präsenz und Verlauf</li>
       <li>Voicemail, function keys, call forwarding and iFMC</li>
+      <li xml:lang="de">Voicemail, Funktionstasten, Umleitungen und iFMC</li>
       <li>Ringtones, audio devices, Kuando Busylight, tray icon and tel: links</li>
+      <li xml:lang="de">Klingeltöne, Audiogeräte, Kuando Busylight, Symbol im Infobereich und tel:-Links</li>
     </ul>
     <p>
       StarCLX is not affiliated with STARFACE GmbH. STARFACE is a trademark of
       its owner and is only used to describe compatibility.
     </p>
-    <p xml:lang="de">
-      StarCLX verbindet sich mit STARFACE-Telefonanlagen ab Version 10 und
-      bringt die Funktionen der offiziellen Desktop-App auf Linux.
-    </p>
-    <ul xml:lang="de">
-      <li>Softphone mit verschlüsselten Gesprächen (SIP/TLS, SRTP) und Call Manager: halten, stumm, verbinden, Konferenz, Call2Go</li>
-      <li>Suche beim Tippen über alle Adressbücher, Kontakte anlegen und bearbeiten</li>
-      <li>Rufliste mit Filtern, Notizen und Benachrichtigung bei verpassten Anrufen</li>
-      <li>Chat mit Kollegen mit Präsenz und Verlauf</li>
-      <li>Voicemail, Funktionstasten, Umleitungen und iFMC</li>
-      <li>Klingeltöne, Audiogeräte, Kuando Busylight, Symbol im Infobereich und tel:-Links</li>
-    </ul>
     <p xml:lang="de">
       StarCLX ist nicht mit der STARFACE GmbH verbunden. STARFACE ist eine
       Marke ihres Inhabers und wird nur zur Beschreibung der Kompatibilität
