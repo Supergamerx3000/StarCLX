@@ -95,6 +95,25 @@ Unterschiede:
   selbstsignierte Zertifikate lokaler Anlagen bestätigt man wie gewohnt in StarCLX.
 - Updates kommen nicht automatisch, sondern mit dem nächsten `.flatpak`.
 
+### Flathub
+
+`packaging/flathub` ist die Variante für Flathub (App-ID `io.github.crazmoe.StarCLX`). Sie wird
+ohne Netz aus dem Quellcode gebaut und hat weniger Rechte als das eigene Flatpak: Programme bei
+Anruf starten und GNOME-Tastenkürzel automatisch eintragen geht dort nicht (URLs bei Anruf,
+Autostart und `tel:`-Links schon). Die CI baut sie bei jedem Lauf; das Artefakt `starclx-flathub`
+enthält das Paket und unter `submission/` die Dateien für das Flathub-Repo.
+
+Einreichen (einmalig):
+
+1. Release-Tag anlegen und `packaging/flathub/prepare.sh --submission v<version>` ausführen
+   (oder `submission/` aus dem Artefakt des Release-Builds nehmen).
+2. `github.com/flathub/flathub` forken, Branch vom Branch `new-pr` anlegen, den Inhalt von
+   `submission/` hineinlegen und `git submodule add https://github.com/flathub/shared-modules.git`.
+3. Pull Request gegen `new-pr` öffnen; die Prüfer von Flathub melden sich dort.
+
+Danach liegt die App in einem eigenen Repo `github.com/flathub/io.github.crazmoe.StarCLX`; neue
+Versionen: dort Tag, Commit und die neu erzeugten `*-sources.json` per Pull Request eintragen.
+
 ### Voraussetzungen auf der Anlage
 
 - STARFACE 10 mit erreichbarem OneHub-Port 9092 und SIP/TLS
@@ -147,3 +166,7 @@ cargo run -p sfctl -- version
 cargo run -p sfctl -- phones
 cargo run -p sfctl -- call 12
 ```
+
+## Lizenz
+
+MIT, siehe [LICENSE](LICENSE).

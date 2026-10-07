@@ -3,6 +3,7 @@ name = "sf-tls"
 description = "TLS-Prüfung mit vom Benutzer bestätigten Zertifikaten (lokale Anlagen mit eigenem Zertifikat)"
 version.workspace = true
 edition.workspace = true
+license.workspace = true
 
 [dependencies]
 rustls = { version = "0.23", default-features = false, features = ["aws_lc_rs", "std", "tls12"] }

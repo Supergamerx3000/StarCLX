@@ -22,8 +22,6 @@ finish-args:
   - --talk-name=org.freedesktop.secrets
   - --talk-name=org.freedesktop.Notifications
   - --talk-name=org.kde.StatusNotifierWatcher
-  # Nur eine laufende App (Name kommt von der Tauri-Kennung)
-  - --own-name=ch.crazmoe.starface-linuxclient.SingleInstance
   # Abwesend bei Inaktivität, Bildschirmsperre
   - --talk-name=org.gnome.Mutter.IdleMonitor
   - --talk-name=org.gnome.ScreenSaver

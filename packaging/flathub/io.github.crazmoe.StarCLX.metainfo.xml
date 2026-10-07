@@ -1,0 +1,104 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<component type="desktop-application">
+  <id>io.github.crazmoe.StarCLX</id>
+  <name>StarCLX</name>
+  <summary>Free client for STARFACE phone systems</summary>
+  <summary xml:lang="de">Freier Client für STARFACE-Telefonanlagen</summary>
+  <summary xml:lang="fr">Client libre pour les systèmes téléphoniques STARFACE</summary>
+  <summary xml:lang="it">Client libero per i centralini STARFACE</summary>
+  <metadata_license>CC0-1.0</metadata_license>
+  <project_license>MIT</project_license>
+  <developer id="io.github.crazmoe">
+    <name>crazmoe</name>
+  </developer>
+  <description>
+    <p>
+      StarCLX connects to STARFACE phone systems from version 10 and brings
+      the features of the official desktop app to Linux.
+    </p>
+    <ul>
+      <li>Softphone with encrypted calls (SIP/TLS, SRTP) and a call manager: hold, mute, transfer, conference, Call2Go</li>
+      <li>Search across all address books while typing, create and edit contacts</li>
+      <li>Call list with filters, notes and missed-call notifications</li>
+      <li>Chat with colleagues, including presence and history</li>
+      <li>Voicemail, function keys, call forwarding and iFMC</li>
+      <li>Ringtones, audio devices, Kuando Busylight, tray icon and tel: links</li>
+    </ul>
+    <p>
+      StarCLX is not affiliated with STARFACE GmbH. STARFACE is a trademark of
+      its owner and is only used to describe compatibility.
+    </p>
+    <p xml:lang="de">
+      StarCLX verbindet sich mit STARFACE-Telefonanlagen ab Version 10 und
+      bringt die Funktionen der offiziellen Desktop-App auf Linux.
+    </p>
+    <ul xml:lang="de">
+      <li>Softphone mit verschlüsselten Gesprächen (SIP/TLS, SRTP) und Call Manager: halten, stumm, verbinden, Konferenz, Call2Go</li>
+      <li>Suche beim Tippen über alle Adressbücher, Kontakte anlegen und bearbeiten</li>
+      <li>Rufliste mit Filtern, Notizen und Benachrichtigung bei verpassten Anrufen</li>
+      <li>Chat mit Kollegen mit Präsenz und Verlauf</li>
+      <li>Voicemail, Funktionstasten, Umleitungen und iFMC</li>
+      <li>Klingeltöne, Audiogeräte, Kuando Busylight, Symbol im Infobereich und tel:-Links</li>
+    </ul>
+    <p xml:lang="de">
+      StarCLX ist nicht mit der STARFACE GmbH verbunden. STARFACE ist eine
+      Marke ihres Inhabers und wird nur zur Beschreibung der Kompatibilität
+      genannt.
+    </p>
+  </description>
+  <launchable type="desktop-id">io.github.crazmoe.StarCLX.desktop</launchable>
+  <url type="homepage">https://github.com/crazmoe/StarCLX</url>
+  <url type="bugtracker">https://github.com/crazmoe/StarCLX/issues</url>
+  <url type="vcs-browser">https://github.com/crazmoe/StarCLX</url>
+  <categories>
+    <category>Network</category>
+    <category>Telephony</category>
+  </categories>
+  <keywords>
+    <keyword>Softphone</keyword>
+    <keyword>SIP</keyword>
+    <keyword>VoIP</keyword>
+    <keyword>PBX</keyword>
+    <keyword>STARFACE</keyword>
+  </keywords>
+  <provides>
+    <binary>starclx</binary>
+  </provides>
+  <supports>
+    <control>pointing</control>
+    <control>keyboard</control>
+  </supports>
+  <requires>
+    <internet>always</internet>
+  </requires>
+  <branding>
+    <color type="primary" scheme_preference="light">#fbd9a0</color>
+    <color type="primary" scheme_preference="dark">#6b4508</color>
+  </branding>
+  <screenshots>
+    <screenshot type="default">
+      <caption>Main window with search and function keys</caption>
+      <image>https://raw.githubusercontent.com/crazmoe/StarCLX/main/docs/screenshots/hauptfenster.png</image>
+    </screenshot>
+    <screenshot>
+      <caption>Call manager during a call</caption>
+      <image>https://raw.githubusercontent.com/crazmoe/StarCLX/main/docs/screenshots/gespraech.png</image>
+    </screenshot>
+  </screenshots>
+  <content_rating type="oars-1.1"/>
+  <releases>
+    <release version="1.1.0" date="2026-10-05">
+      <description>
+        <ul>
+          <li>Sign-in to phone systems on the STARFACE cloud services</li>
+          <li>Softphone for users without the auto-provisioning permission</li>
+        </ul>
+      </description>
+    </release>
+    <release version="1.0.0" date="2026-10-02">
+      <description>
+        <p>First release.</p>
+      </description>
+    </release>
+  </releases>
+</component>

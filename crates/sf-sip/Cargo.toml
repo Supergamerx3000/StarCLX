@@ -3,6 +3,7 @@ name = "sf-sip"
 description = "Softphone: libbaresip eingebettet (SIP über TLS, SRTP, Audio)"
 version.workspace = true
 edition.workspace = true
+license.workspace = true
 links = "baresip"
 
 [dependencies]

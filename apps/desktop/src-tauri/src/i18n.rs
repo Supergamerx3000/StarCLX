@@ -345,6 +345,22 @@ const TEXTS: &[(&str, [&str; 3])] = &[
             "Avvia StarCLX all'accesso",
         ],
     ),
+    (
+        "Das Flatpak von Flathub kann keine Programme starten, nur URLs öffnen.",
+        [
+            "The Flathub Flatpak cannot start programs, only open URLs.",
+            "Le Flatpak de Flathub ne peut pas lancer de programmes, seulement ouvrir des URL.",
+            "Il Flatpak di Flathub non può avviare programmi, solo aprire URL.",
+        ],
+    ),
+    (
+        "Im Flatpak von Flathub lassen sich Tastenkürzel nicht automatisch eintragen. Lege den angezeigten Befehl in den Systemeinstellungen selbst auf eine Taste.",
+        [
+            "Keyboard shortcuts cannot be registered automatically in the Flathub Flatpak. Assign the command shown to a key in the system settings yourself.",
+            "Dans le Flatpak de Flathub, les raccourcis clavier ne peuvent pas être inscrits automatiquement. Attribuez vous-même la commande affichée à une touche dans les paramètres du système.",
+            "Nel Flatpak di Flathub le scorciatoie da tastiera non si possono registrare automaticamente. Assegna tu il comando mostrato a un tasto nelle impostazioni di sistema.",
+        ],
+    ),
     // URL oder Programm bei Anruf
     (
         "Anführungszeichen nicht geschlossen",

@@ -3,6 +3,7 @@ name = "sf-auth"
 description = "OAuth2-Anmeldung an der STARFACE (Authorization Code + PKCE, Refresh)"
 version.workspace = true
 edition.workspace = true
+license.workspace = true
 
 [dependencies]
 reqwest.workspace = true

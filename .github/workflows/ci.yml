@@ -186,6 +186,62 @@ jobs:
           name: starclx-${{ needs.build.outputs.version }}-flatpak
           path: starclx_*.flatpak
 
+  # Flathub-Variante (packaging/flathub): Bau aus dem Quellcode wie auf
+  # Flathub, dazu die Dateien für das Flathub-Repo als Artefakt
+  flathub:
+    runs-on: ubuntu-24.04
+    container:
+      image: ghcr.io/flathub-infra/flatpak-github-actions:gnome-50
+      options: --privileged
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          submodules: true
+          fetch-depth: 0
+
+      - uses: actions/cache@v5
+        with:
+          path: packaging/flathub/.flatpak-builder
+          key: flathub-builder-${{ hashFiles('packaging/flathub/io.github.crazmoe.StarCLX.yml', 'Cargo.lock', 'apps/desktop/package-lock.json') }}
+          restore-keys: flathub-builder-
+
+      - name: Quelllisten erzeugen
+        run: |
+          git config --global --add safe.directory "$GITHUB_WORKSPACE"
+          packaging/flathub/prepare.sh --submission "$GITHUB_SHA"
+
+      - name: Bauen
+        working-directory: packaging/flathub
+        run: |
+          flatpak remote-add --user --if-not-exists flathub https://dl.flathub.org/repo/flathub.flatpakrepo
+          flatpak-builder --user --install-deps-from=flathub --force-clean --repo=repo \
+            build io.github.crazmoe.StarCLX.yml
+          flatpak build-bundle --runtime-repo=https://dl.flathub.org/repo/flathub.flatpakrepo \
+            repo starclx-flathub.flatpak io.github.crazmoe.StarCLX
+
+      - name: Prüfen
+        working-directory: packaging/flathub
+        run: |
+          flatpak build build sh -c '
+            ldd /app/bin/starclx
+            ! ldd /app/bin/starclx | grep "not found"'
+
+      # Hinweise der Flathub-Prüfung; Fehler hier verhindern den Build nicht
+      - name: Flathub-Linter
+        continue-on-error: true
+        working-directory: packaging/flathub
+        run: |
+          flatpak install --user -y --noninteractive flathub org.flatpak.Builder
+          flatpak run --command=flatpak-builder-lint org.flatpak.Builder manifest io.github.crazmoe.StarCLX.yml
+          flatpak run --command=flatpak-builder-lint org.flatpak.Builder repo repo
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: starclx-flathub
+          path: |
+            packaging/flathub/starclx-flathub.flatpak
+            packaging/flathub/submission
+
   # Im Container fehlt gh, deshalb ein eigener Schritt für das Release
   flatpak-release:
     needs: [build, flatpak]

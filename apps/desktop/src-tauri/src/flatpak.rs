@@ -2,6 +2,9 @@
 //! (gsettings, xdg-mime, Programme bei Anruf) sind nur über
 //! `flatpak-spawn --host` erreichbar, der Autostart geht über das
 //! Background-Portal. Ausserhalb von Flatpak ändert sich nichts.
+//!
+//! Das eigene Flatpak (packaging/flatpak) darf Programme des Systems
+//! starten, das von Flathub (packaging/flathub) nicht.
 
 use std::collections::HashMap;
 use std::process::Command;
@@ -13,6 +16,19 @@ use crate::i18n::t;
 /// Flatpak-ID, wenn die App als Flatpak läuft
 pub fn app_id() -> Option<String> {
     std::env::var("FLATPAK_ID").ok().filter(|id| !id.is_empty())
+}
+
+/// Flatpak ohne Zugriff auf Programme des Systems (Flathub)
+pub fn sandboxed() -> bool {
+    app_id().is_some()
+        && !std::fs::read_to_string("/.flatpak-info").is_ok_and(|info| host_access(&info))
+}
+
+/// Darf die App laut `/.flatpak-info` `flatpak-spawn --host` benutzen?
+fn host_access(info: &str) -> bool {
+    info.lines()
+        .map(|l| l.replace(' ', ""))
+        .any(|l| l == "org.freedesktop.Flatpak=talk" || l == "org.freedesktop.Flatpak=own")
 }
 
 /// Befehl für ein Programm des Systems, nicht der Sandbox
@@ -47,4 +63,17 @@ pub fn request_autostart(on: bool) -> Result<(), String> {
     )
     .map(|_| ())
     .map_err(|e| e.to_string())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn host_access_from_info() {
+        let own = "[Application]\nname=x\n\n[Session Bus Policy]\norg.freedesktop.Flatpak=talk\n";
+        assert!(host_access(own));
+        let flathub = "[Session Bus Policy]\norg.freedesktop.secrets=talk\n";
+        assert!(!host_access(flathub));
+    }
 }

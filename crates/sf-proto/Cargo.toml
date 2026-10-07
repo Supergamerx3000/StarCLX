@@ -3,6 +3,7 @@ name = "sf-proto"
 description = "Aus den rekonstruierten OneHub-Protos generierte gRPC-Client-Stubs"
 version.workspace = true
 edition.workspace = true
+license.workspace = true
 
 [dependencies]
 tonic.workspace = true

@@ -193,6 +193,9 @@ pub fn register_schemes(app: &AppHandle, tel: bool) {
     // hier wird StarCLX nur als Standard eingetragen. Abmelden geht dort
     // nicht, ein anderes Programm wählt man in den Systemeinstellungen.
     if let Some(id) = crate::flatpak::app_id() {
+        if crate::flatpak::sandboxed() {
+            return;
+        }
         std::thread::spawn(move || {
             let tel_schemes = if tel { &TEL_SCHEMES[..] } else { &[] };
             for scheme in ["starface-app"].iter().chain(tel_schemes) {
@@ -401,6 +404,13 @@ pub fn apply_hotkeys(hotkeys: &Hotkeys) -> Result<(), String> {
     if !is_gnome() {
         return if hotkeys.enabled {
             Err(t("Tastenkürzel lassen sich nur unter GNOME automatisch eintragen.").into())
+        } else {
+            Ok(())
+        };
+    }
+    if crate::flatpak::sandboxed() {
+        return if hotkeys.enabled {
+            Err(t("Im Flatpak von Flathub lassen sich Tastenkürzel nicht automatisch eintragen. Lege den angezeigten Befehl in den Systemeinstellungen selbst auf eine Taste.").into())
         } else {
             Ok(())
         };

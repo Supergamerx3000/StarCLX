@@ -242,6 +242,11 @@ pub fn run(app: &AppHandle, target: &str, number: &str, country: &str) -> Result
             .open_url(expand_url(target, number, country), None::<&str>)
             .map_err(|e| e.to_string());
     }
+    if crate::flatpak::sandboxed() {
+        return Err(
+            t("Das Flatpak von Flathub kann keine Programme starten, nur URLs öffnen.").into(),
+        );
+    }
     let argv = expand_argv(target, number, country)?;
     let mut child = crate::flatpak::host_command(&argv[0])
         .args(&argv[1..])
