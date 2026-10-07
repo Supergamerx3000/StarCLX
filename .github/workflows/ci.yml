@@ -166,7 +166,11 @@ jobs:
           key: flatpak-builder-${{ hashFiles('packaging/flatpak/ch.crazmoe.StarCLX.yml') }}
 
       - name: Flatpak bauen
+        env:
+          # Im Container gibt es kein FUSE
+          FLATPAK_BUILDER_ARGS: --disable-rofiles-fuse
         run: |
+          dbus-uuidgen --ensure
           packaging/flatpak/build.sh dl/bundle/deb/*.deb
           mv packaging/flatpak/starclx.flatpak "starclx_${VERSION}_x86_64.flatpak"
 

@@ -29,7 +29,9 @@ fi
 [ -d shared-modules ] || git clone --depth 1 https://github.com/flathub/shared-modules.git
 
 flatpak remote-add --user --if-not-exists flathub https://dl.flathub.org/repo/flathub.flatpakrepo
-flatpak-builder --user --install-deps-from=flathub --force-clean --repo=repo build ch.crazmoe.StarCLX.yml
+# FLATPAK_BUILDER_ARGS z. B. --disable-rofiles-fuse in Containern ohne FUSE
+# shellcheck disable=SC2086
+flatpak-builder --user --install-deps-from=flathub --force-clean ${FLATPAK_BUILDER_ARGS:-} --repo=repo build ch.crazmoe.StarCLX.yml
 flatpak build-bundle --runtime-repo=https://dl.flathub.org/repo/flathub.flatpakrepo \
   repo starclx.flatpak ch.crazmoe.StarCLX
 echo "Fertig: $(pwd)/starclx.flatpak"
