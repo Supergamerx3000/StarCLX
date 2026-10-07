@@ -38,6 +38,14 @@ pub use history::History;
 
 const PORT: u16 = 5222;
 const MAX_BACKOFF: Duration = Duration::from_secs(60);
+/// Nach so langer Stille fragt der Client per Ping nach, ob die Verbindung
+/// noch steht; ohne Antwort in derselben Zeit gilt sie als tot. Der Standard
+/// von tokio-xmpp (300 s) ist zu lang: Bei Cloud-Anlagen kappte ein Proxy
+/// die stille Verbindung vorher, der Chat trennte sich alle fünf Minuten.
+const TIMEOUTS: Timeouts = Timeouts {
+    read_timeout: Duration::from_secs(60),
+    response_timeout: Duration::from_secs(60),
+};
 
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
@@ -228,9 +236,7 @@ async fn login(
         host: host.to_owned(),
         port: PORT,
     };
-    let (stream, binding) = server
-        .connect(&jid, ns::JABBER_CLIENT, Timeouts::default())
-        .await?;
+    let (stream, binding) = server.connect(&jid, ns::JABBER_CLIENT, TIMEOUTS).await?;
     let (features, stream) = stream.recv_features().await?;
     let creds = sasl::common::Credentials::default()
         .with_username(jid.node().map(|n| n.as_str()).unwrap_or_default())

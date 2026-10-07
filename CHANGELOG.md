@@ -1,5 +1,17 @@
 # Änderungen
 
+## 1.1.1 – 2026-10-06
+
+### Chat
+- Der Chat trennt sich an Cloud-Anlagen nicht mehr alle fünf Minuten: nach 60 Sekunden Stille
+  fragt StarCLX per Ping nach, statt die Verbindung unbemerkt kappen zu lassen
+
+### Anmeldung
+- Ohne Schlüsselbund (kein gnome-keyring/KWallet) ist Anmelden und Abmelden jetzt möglich; die
+  Anmeldung gilt dann bis zum Beenden
+- Ohne Schlüsselbund steht der Hinweis darauf nur noch einmal im Protokoll statt bei jeder
+  Erneuerung der Anmeldung
+
 ## 1.1.0 – 2026-10-05
 
 ### Anmeldung an Cloud-Anlagen
