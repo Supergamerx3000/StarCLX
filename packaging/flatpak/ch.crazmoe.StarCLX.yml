@@ -1,0 +1,62 @@
+# Flatpak von StarCLX. Verpackt das fertige Programm aus dem .deb (wie es die
+# CI baut) in die GNOME-Laufzeit; gebaut wird mit ./build.sh.
+id: ch.crazmoe.StarCLX
+runtime: org.gnome.Platform
+runtime-version: "50"
+sdk: org.gnome.Sdk
+command: starclx
+finish-args:
+  # Fenster, Grafik
+  - --socket=wayland
+  - --socket=fallback-x11
+  - --share=ipc
+  - --device=dri
+  # Anlage (HTTPS, gRPC 9092, SIP/TLS, SRTP, XMPP 5222)
+  - --share=network
+  # Ton: PulseAudio und PipeWire direkt
+  - --socket=pulseaudio
+  - --filesystem=xdg-run/pipewire-0:ro
+  # Busylight über /dev/hidraw* (udev-Regel muss auf dem System liegen)
+  - --device=all
+  # Anmeldung im Schlüsselbund, Benachrichtigungen, Symbol im Infobereich
+  - --talk-name=org.freedesktop.secrets
+  - --talk-name=org.freedesktop.Notifications
+  - --talk-name=org.kde.StatusNotifierWatcher
+  # Abwesend bei Inaktivität, Bildschirmsperre
+  - --talk-name=org.gnome.Mutter.IdleMonitor
+  - --talk-name=org.gnome.ScreenSaver
+  - --talk-name=org.freedesktop.ScreenSaver
+  - --system-talk-name=org.freedesktop.login1
+  # Programme des Systems: Programm bei Anruf, GNOME-Tastenkürzel,
+  # tel:-Links als Standard. Hebt die Sandbox praktisch auf, wie beim .deb.
+  - --talk-name=org.freedesktop.Flatpak
+  # Einstellungen, Zertifikate und Protokoll mit dem .deb teilen
+  - --filesystem=xdg-config/ch.crazmoe.starface-linuxclient:create
+  - --filesystem=xdg-data/ch.crazmoe.starface-linuxclient:create
+modules:
+  # Symbol im Infobereich (Tauri lädt die Bibliothek zur Laufzeit)
+  - shared-modules/libayatana-appindicator/libayatana-appindicator-gtk3.json
+
+  - name: starclx
+    buildsystem: simple
+    sources:
+      - type: file
+        path: starclx.deb
+      - type: file
+        path: ch.crazmoe.StarCLX.desktop
+      - type: file
+        path: ch.crazmoe.StarCLX.metainfo.xml
+      - type: file
+        path: ../../apps/desktop/src-tauri/udev/60-starclx-busylight.rules
+    build-commands:
+      - ar -x starclx.deb
+      - tar -xf data.tar.*
+      - install -Dm755 usr/bin/starclx /app/bin/starclx
+      - install -Dm644 ch.crazmoe.StarCLX.desktop /app/share/applications/ch.crazmoe.StarCLX.desktop
+      - install -Dm644 ch.crazmoe.StarCLX.metainfo.xml /app/share/metainfo/ch.crazmoe.StarCLX.metainfo.xml
+      - install -Dm644 60-starclx-busylight.rules /app/share/starclx/60-starclx-busylight.rules
+      - |
+        for f in usr/share/icons/hicolor/*/apps/starclx.png; do
+          install -Dm644 "$f" "/app/${f#usr/}"
+          mv "/app/${f#usr/}" "$(dirname "/app/${f#usr/}")/ch.crazmoe.StarCLX.png"
+        done

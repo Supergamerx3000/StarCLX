@@ -3,6 +3,7 @@ name = "sf-chat"
 description = "Chat der Anlage über XMPP (Openfire, Token als Passwort)"
 version.workspace = true
 edition.workspace = true
+license.workspace = true
 
 [dependencies]
 sf-tls.workspace = true

@@ -141,6 +141,127 @@ jobs:
             target/release/bundle/appimage/*.AppImage \
             "sfctl-${VERSION}-linux-x86_64"
 
+  # Flatpak aus dem eben gebauten .deb (packaging/flatpak), bei einem
+  # Release auch als Datei im Release
+  flatpak:
+    needs: build
+    runs-on: ubuntu-24.04
+    # Werkzeuge und GNOME-Laufzeit wie beim Bau auf Flathub
+    container:
+      image: ghcr.io/flathub-infra/flatpak-github-actions:gnome-50
+      options: --privileged
+    env:
+      VERSION: ${{ needs.build.outputs.version }}
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/download-artifact@v7
+        with:
+          name: starclx-${{ needs.build.outputs.version }}-linux-x86_64
+          path: dl
+
+      - uses: actions/cache@v5
+        with:
+          path: packaging/flatpak/.flatpak-builder
+          key: flatpak-builder-${{ hashFiles('packaging/flatpak/ch.crazmoe.StarCLX.yml') }}
+
+      - name: Flatpak bauen
+        env:
+          # Im Container gibt es kein FUSE
+          FLATPAK_BUILDER_ARGS: --disable-rofiles-fuse
+        run: |
+          [ -s /etc/machine-id ] || dbus-uuidgen > /etc/machine-id
+          packaging/flatpak/build.sh dl/bundle/deb/*.deb
+          mv packaging/flatpak/starclx.flatpak "starclx_${VERSION}_x86_64.flatpak"
+
+      - name: Flatpak prüfen
+        run: |
+          flatpak build packaging/flatpak/build sh -c '
+            ldd /app/bin/starclx
+            ls /app/lib/libayatana-appindicator3.so.1
+            ! ldd /app/bin/starclx | grep "not found"'
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: starclx-${{ needs.build.outputs.version }}-flatpak
+          path: starclx_*.flatpak
+
+  # Flathub-Variante (packaging/flathub): Bau aus dem Quellcode wie auf
+  # Flathub, dazu die Dateien für das Flathub-Repo als Artefakt
+  flathub:
+    runs-on: ubuntu-24.04
+    container:
+      image: ghcr.io/flathub-infra/flatpak-github-actions:gnome-50
+      options: --privileged
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          submodules: true
+          fetch-depth: 0
+
+      - uses: actions/cache@v5
+        with:
+          path: packaging/flathub/.flatpak-builder
+          key: flathub-builder-${{ hashFiles('packaging/flathub/io.github.crazmoe.StarCLX.yml', 'Cargo.lock', 'apps/desktop/package-lock.json') }}
+          restore-keys: flathub-builder-
+
+      - name: Quelllisten erzeugen
+        run: |
+          git config --global --add safe.directory "$GITHUB_WORKSPACE"
+          packaging/flathub/prepare.sh --submission "$GITHUB_SHA"
+
+      - name: Bauen
+        working-directory: packaging/flathub
+        run: |
+          [ -s /etc/machine-id ] || dbus-uuidgen > /etc/machine-id
+          flatpak remote-add --user --if-not-exists flathub https://dl.flathub.org/repo/flathub.flatpakrepo
+          # Im Container gibt es kein FUSE
+          flatpak-builder --user --install-deps-from=flathub --force-clean --disable-rofiles-fuse --repo=repo \
+            build io.github.crazmoe.StarCLX.yml
+          flatpak build-bundle --runtime-repo=https://dl.flathub.org/repo/flathub.flatpakrepo \
+            repo starclx-flathub.flatpak io.github.crazmoe.StarCLX
+
+      - name: Prüfen
+        working-directory: packaging/flathub
+        run: |
+          flatpak build build sh -c '
+            ldd /app/bin/starclx
+            ! ldd /app/bin/starclx | grep "not found"'
+
+      # Hinweise der Flathub-Prüfung; Fehler hier verhindern den Build nicht
+      - name: Flathub-Linter
+        continue-on-error: true
+        working-directory: packaging/flathub
+        run: |
+          flatpak install --user -y --noninteractive flathub org.flatpak.Builder
+          flatpak run --command=flatpak-builder-lint org.flatpak.Builder manifest io.github.crazmoe.StarCLX.yml
+          flatpak run --command=flatpak-builder-lint org.flatpak.Builder repo repo
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: starclx-flathub
+          path: |
+            packaging/flathub/starclx-flathub.flatpak
+            packaging/flathub/submission
+
+  # Im Container fehlt gh, deshalb ein eigener Schritt für das Release
+  flatpak-release:
+    needs: [build, flatpak]
+    if: needs.build.outputs.release == '1'
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    env:
+      VERSION: ${{ needs.build.outputs.version }}
+    steps:
+      - uses: actions/download-artifact@v7
+        with:
+          name: starclx-${{ needs.build.outputs.version }}-flatpak
+      - name: Release ergänzen
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release upload "v$VERSION" "starclx_${VERSION}_x86_64.flatpak" --clobber --repo "$GITHUB_REPOSITORY"
+
   # Paketquellen für apt und dnf auf GitHub Pages (Branch gh-pages). Signiert
   # mit dem Schlüssel aus dem Secret REPO_GPG_KEY; ohne Secret wird nichts
   # veröffentlicht. Es bleiben die letzten drei Versionen.

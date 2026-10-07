@@ -1,0 +1,9 @@
+cargo-sources.json
+node-sources.json
+shared-modules/
+submission/
+.tools/
+build/
+repo/
+.flatpak-builder/
+*.flatpak

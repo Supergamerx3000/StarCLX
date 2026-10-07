@@ -1,0 +1,15 @@
+[Desktop Entry]
+Type=Application
+Name=StarCLX
+Comment=Free client for STARFACE phone systems
+Comment[de]=Freier Client für STARFACE-Telefonanlagen
+Comment[fr]=Client libre pour les systèmes téléphoniques STARFACE
+Comment[it]=Client libero per i centralini STARFACE
+Keywords=Telephone;Softphone;SIP;VoIP;PBX;STARFACE;
+Keywords[de]=Telefon;Softphone;SIP;VoIP;Telefonanlage;STARFACE;
+Exec=starclx %u
+Icon=io.github.crazmoe.StarCLX
+Terminal=false
+Categories=Network;Telephony;
+StartupWMClass=starclx
+MimeType=x-scheme-handler/starface-app;x-scheme-handler/tel;x-scheme-handler/callto;x-scheme-handler/sip;

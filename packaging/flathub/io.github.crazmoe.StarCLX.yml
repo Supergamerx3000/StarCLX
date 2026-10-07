@@ -1,0 +1,97 @@
+# StarCLX für Flathub: wird ohne Netz aus dem Quellcode gebaut. Die
+# Abhängigkeiten stehen in cargo-sources.json und node-sources.json, die
+# ./prepare.sh erzeugt (nicht im Repo). ./prepare.sh --submission <tag> baut
+# daraus die Dateien für das Flathub-Repo.
+id: io.github.crazmoe.StarCLX
+runtime: org.gnome.Platform
+runtime-version: "51"
+sdk: org.gnome.Sdk
+sdk-extensions:
+  - org.freedesktop.Sdk.Extension.rust-stable
+  - org.freedesktop.Sdk.Extension.node22
+command: starclx
+finish-args:
+  - --socket=wayland
+  - --socket=fallback-x11
+  - --share=ipc
+  - --device=dri
+  # Verbindung zur Telefonanlage (HTTPS, gRPC, SIP/TLS, SRTP, XMPP)
+  - --share=network
+  # Softphone: Lautsprecher, Mikrofon, Klingeltöne
+  - --socket=pulseaudio
+  # Kuando Busylight über /dev/hidraw*
+  - --device=all
+  # Anmeldung bleibt im Schlüsselbund
+  - --talk-name=org.freedesktop.secrets
+  - --talk-name=org.freedesktop.Notifications
+  # Symbol im Infobereich
+  - --talk-name=org.kde.StatusNotifierWatcher
+  # Chat-Status „abwesend“ bei Inaktivität und gesperrtem Bildschirm
+  # (login1 lässt Flathub nicht zu, die Sperre kommt über den Bildschirmschoner)
+  - --talk-name=org.gnome.Mutter.IdleMonitor
+  - --talk-name=org.gnome.ScreenSaver
+  - --talk-name=org.freedesktop.ScreenSaver
+modules:
+  - shared-modules/libayatana-appindicator/libayatana-appindicator-gtk3.json
+
+  # G.722 im Softphone; statisch gelinkt, nur für den Bau
+  - name: spandsp
+    buildsystem: simple
+    sources:
+      - type: git
+        url: https://github.com/freeswitch/spandsp.git
+        commit: 8f1e1646bdec99eac5fd2cd92c35563f736b9b89
+    build-commands:
+      - ./bootstrap.sh
+      - ./configure --prefix=/app --enable-static --disable-shared --with-pic
+      - make -C src -j$FLATPAK_BUILDER_N_JOBS
+      - make -C src install
+      - install -Dm644 spandsp.pc /app/lib/pkgconfig/spandsp.pc
+    cleanup:
+      - "*"
+
+  - name: starclx
+    buildsystem: simple
+    build-options:
+      append-path: /usr/lib/sdk/rust-stable/bin:/usr/lib/sdk/node22/bin
+      env:
+        CARGO_HOME: /run/build/starclx/cargo
+        CARGO_NET_OFFLINE: "true"
+        CARGO_PROFILE_RELEASE_DEBUG: line-tables-only
+        npm_config_cache: /run/build/starclx/flatpak-node/npm-cache
+        npm_config_offline: "true"
+    sources:
+      # BEGIN-SOURCE (prepare.sh --submission ersetzt das durch das Git-Tag)
+      - type: dir
+        path: ../..
+        skip:
+          - .git
+          - target
+          - apps/desktop/node_modules
+          - apps/desktop/build
+          - apps/desktop/.svelte-kit
+          - packaging/flatpak/.flatpak-builder
+          - packaging/flatpak/build
+          - packaging/flatpak/repo
+          - packaging/flatpak/shared-modules
+          - packaging/flathub/.flatpak-builder
+          - packaging/flathub/build
+          - packaging/flathub/repo
+          - packaging/flathub/shared-modules
+          - packaging/flathub/submission
+          - packaging/flathub/.tools
+      # END-SOURCE
+      - cargo-sources.json
+      - node-sources.json
+    build-commands:
+      - cd apps/desktop && npm ci --offline
+      - cd apps/desktop && npm run build
+      - cargo build --release --offline -p starclx --features tauri/custom-protocol
+      - install -Dm755 target/release/starclx /app/bin/starclx
+      - install -Dm644 packaging/flathub/io.github.crazmoe.StarCLX.desktop /app/share/applications/io.github.crazmoe.StarCLX.desktop
+      - install -Dm644 packaging/flathub/io.github.crazmoe.StarCLX.metainfo.xml /app/share/metainfo/io.github.crazmoe.StarCLX.metainfo.xml
+      - install -Dm644 apps/desktop/src-tauri/icons/32x32.png /app/share/icons/hicolor/32x32/apps/io.github.crazmoe.StarCLX.png
+      - install -Dm644 apps/desktop/src-tauri/icons/128x128.png /app/share/icons/hicolor/128x128/apps/io.github.crazmoe.StarCLX.png
+      - install -Dm644 apps/desktop/src-tauri/icons/128x128@2x.png /app/share/icons/hicolor/256x256/apps/io.github.crazmoe.StarCLX.png
+      - install -Dm644 apps/desktop/src-tauri/icons/icon.png /app/share/icons/hicolor/512x512/apps/io.github.crazmoe.StarCLX.png
+      - install -Dm644 apps/desktop/src-tauri/udev/60-starclx-busylight.rules /app/share/starclx/60-starclx-busylight.rules

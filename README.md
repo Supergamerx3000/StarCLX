@@ -68,6 +68,52 @@ unter dem Namen `starface-linuxclient` und registriert die Link-Handler `starfac
 Zwischenstände: Jeder Build auf `main` legt unter **Actions** das Artefakt
 `starclx-<version>-linux-x86_64` ab (Version `1.0.0+<Laufnummer>`).
 
+### Flatpak
+
+Jeder Build legt zusätzlich das Artefakt `starclx-<version>-flatpak` ab, Releases enthalten
+`starclx_<version>_x86_64.flatpak`. Installieren (holt die GNOME-Laufzeit von Flathub dazu):
+
+```sh
+flatpak install --user ./starclx_<version>_x86_64.flatpak
+flatpak run ch.crazmoe.StarCLX
+```
+
+Selbst bauen aus einem `.deb` (ohne Argument das neueste Release):
+`packaging/flatpak/build.sh [starclx_<version>_amd64.deb]`.
+
+Das Flatpak hat dieselben Funktionen wie das `.deb` und teilt mit ihm Einstellungen und
+bestätigte Zertifikate. Es darf dafür Programme auf dem System starten (Programm bei Anruf,
+GNOME-Tastenkürzel, `tel:`-Links als Standard), die Sandbox schützt also kaum mehr als beim `.deb`.
+Unterschiede:
+
+- **Autostart** läuft über die Desktop-Umgebung; GNOME fragt beim Einschalten einmal nach.
+- **`tel:`-Links abschalten** geht nicht in StarCLX, ein anderes Programm wählt man in den
+  Systemeinstellungen unter Standardanwendungen.
+- **Busylight** braucht die udev-Regel auf dem System, einmalig:
+  `flatpak run --command=cat ch.crazmoe.StarCLX /app/share/starclx/60-starclx-busylight.rules | sudo tee /etc/udev/rules.d/60-starclx-busylight.rules`
+- Eine eigene Firmen-CA, die nur im System hinterlegt ist, kann im Flatpak fehlen;
+  selbstsignierte Zertifikate lokaler Anlagen bestätigt man wie gewohnt in StarCLX.
+- Updates kommen nicht automatisch, sondern mit dem nächsten `.flatpak`.
+
+### Flathub
+
+`packaging/flathub` ist die Variante für Flathub (App-ID `io.github.crazmoe.StarCLX`). Sie wird
+ohne Netz aus dem Quellcode gebaut und hat weniger Rechte als das eigene Flatpak: Programme bei
+Anruf starten und GNOME-Tastenkürzel automatisch eintragen geht dort nicht (URLs bei Anruf,
+Autostart und `tel:`-Links schon). Die CI baut sie bei jedem Lauf; das Artefakt `starclx-flathub`
+enthält das Paket und unter `submission/` die Dateien für das Flathub-Repo.
+
+Einreichen (einmalig):
+
+1. Release-Tag anlegen und `packaging/flathub/prepare.sh --submission v<version>` ausführen
+   (oder `submission/` aus dem Artefakt des Release-Builds nehmen).
+2. `github.com/flathub/flathub` forken, Branch vom Branch `new-pr` anlegen, den Inhalt von
+   `submission/` hineinlegen und `git submodule add https://github.com/flathub/shared-modules.git`.
+3. Pull Request gegen `new-pr` öffnen; die Prüfer von Flathub melden sich dort.
+
+Danach liegt die App in einem eigenen Repo `github.com/flathub/io.github.crazmoe.StarCLX`; neue
+Versionen: dort Tag, Commit und die neu erzeugten `*-sources.json` per Pull Request eintragen.
+
 ### Voraussetzungen auf der Anlage
 
 - STARFACE 10 mit erreichbarem OneHub-Port 9092 und SIP/TLS
@@ -120,3 +166,7 @@ cargo run -p sfctl -- version
 cargo run -p sfctl -- phones
 cargo run -p sfctl -- call 12
 ```
+
+## Lizenz
+
+MIT, siehe [LICENSE](LICENSE).

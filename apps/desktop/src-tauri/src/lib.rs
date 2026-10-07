@@ -9,6 +9,7 @@ mod certs;
 mod chat;
 mod desktop;
 mod fkeys;
+mod flatpak;
 mod i18n;
 mod log;
 mod login;
@@ -534,7 +535,7 @@ async fn save_prefs(
     if old.handle_tel_links != prefs.handle_tel_links {
         desktop::register_schemes(&app, prefs.handle_tel_links);
     }
-    desktop::apply_autostart(prefs.autostart).map_err(|e| {
+    desktop::apply_autostart(prefs.autostart, old.autostart != prefs.autostart).map_err(|e| {
         tf(
             "Gespeichert, aber Autostart nicht eingerichtet: {e}",
             &[("e", &e)],
@@ -864,12 +865,22 @@ pub fn run() {
         // Unter Linux startet der Browser für starface-app:// einen zweiten
         // Prozess; single-instance reicht die URL an die laufende App weiter.
         // Tastenkürzel kommen als `--action …` über denselben Weg.
-        .plugin(tauri_plugin_single_instance::init(
-            |app, argv, _cwd| match desktop::action_from_args(&argv) {
-                Some(action) => desktop::run_action(app, action),
-                None => show_main_window(app),
-            },
-        ))
+        // Als Flatpak darf die App nur D-Bus-Namen unter ihrer eigenen ID
+        // belegen.
+        .plugin({
+            let builder =
+                tauri_plugin_single_instance::Builder::new().callback(|app, argv, _cwd| {
+                    match desktop::action_from_args(&argv) {
+                        Some(action) => desktop::run_action(app, action),
+                        None => show_main_window(app),
+                    }
+                });
+            match flatpak::app_id() {
+                Some(id) => builder.dbus_id(id),
+                None => builder,
+            }
+            .build()
+        })
         .plugin(tauri_plugin_deep_link::init())
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_notification::init())
@@ -906,7 +917,7 @@ pub fn run() {
             {
                 tracing::warn!(error = %e, "Tastenkürzel nicht eingetragen");
             }
-            if let Err(e) = desktop::apply_autostart(prefs.autostart) {
+            if let Err(e) = desktop::apply_autostart(prefs.autostart, false) {
                 tracing::warn!(error = %e, "Autostart nicht eingerichtet");
             }
             // starface-app:// und ggf. tel:/callto:/sip: für das laufende Binary

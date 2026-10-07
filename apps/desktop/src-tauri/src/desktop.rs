@@ -7,7 +7,6 @@
 //! die Aktion an die laufende App weiter.
 
 use std::path::PathBuf;
-use std::process::Command;
 
 use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, Emitter, Manager, Theme};
@@ -83,6 +82,9 @@ fn is_wayland() -> bool {
 
 /// Pfad zum Programm; beim AppImage das AppImage selbst, nicht der Mount
 fn program() -> String {
+    if let Some(id) = crate::flatpak::app_id() {
+        return format!("flatpak run {id}");
+    }
     std::env::var("APPIMAGE")
         .ok()
         .or_else(|| {
@@ -94,6 +96,9 @@ fn program() -> String {
 }
 
 fn command_for(action: &str) -> String {
+    if crate::flatpak::app_id().is_some() {
+        return format!("{} --action {action}", program());
+    }
     format!("\"{}\" --action {action}", program())
 }
 
@@ -184,6 +189,27 @@ pub const TEL_SCHEMES: [&str; 3] = ["tel", "callto", "sip"];
 pub fn register_schemes(app: &AppHandle, tel: bool) {
     // Wichtig für AppImage und `tauri dev`; das .deb bringt eine eigene
     // .desktop-Datei mit. Fehlt z. B. xdg-mime, startet die App trotzdem.
+    // Flatpak: die exportierte .desktop-Datei nennt die Schemata schon,
+    // hier wird StarCLX nur als Standard eingetragen. Abmelden geht dort
+    // nicht, ein anderes Programm wählt man in den Systemeinstellungen.
+    if let Some(id) = crate::flatpak::app_id() {
+        if crate::flatpak::sandboxed() {
+            return;
+        }
+        std::thread::spawn(move || {
+            let tel_schemes = if tel { &TEL_SCHEMES[..] } else { &[] };
+            for scheme in ["starface-app"].iter().chain(tel_schemes) {
+                let result = crate::flatpak::host_command("xdg-mime")
+                    .args(["default", &format!("{id}.desktop")])
+                    .arg(format!("x-scheme-handler/{scheme}"))
+                    .status();
+                if !result.is_ok_and(|s| s.success()) {
+                    tracing::warn!(scheme, "Link-Schema nicht als Standard eingetragen");
+                }
+            }
+        });
+        return;
+    }
     #[cfg(any(target_os = "linux", all(debug_assertions, windows)))]
     {
         let app = app.clone();
@@ -291,8 +317,17 @@ fn autostart_entry(program: &str) -> String {
 }
 
 /// Legt den Autostart-Eintrag an bzw. entfernt ihn. Beim Start erneut
-/// aufgerufen, damit der Pfad nach einem Update stimmt.
-pub fn apply_autostart(on: bool) -> Result<(), String> {
+/// aufgerufen, damit der Pfad nach einem Update stimmt. Als Flatpak macht
+/// das das Background-Portal; ausgeschaltet wird es dort nur bei einer
+/// Änderung gefragt, sonst käme die Rückfrage bei jedem Start.
+pub fn apply_autostart(on: bool, changed: bool) -> Result<(), String> {
+    if crate::flatpak::app_id().is_some() {
+        return if on || changed {
+            crate::flatpak::request_autostart(on)
+        } else {
+            Ok(())
+        };
+    }
     let Some(path) = autostart_file() else {
         return Ok(());
     };
@@ -317,7 +352,7 @@ const MEDIA_KEYS: &str = "org.gnome.settings-daemon.plugins.media-keys";
 const KEYBINDING_DIR: &str = "/org/gnome/settings-daemon/plugins/media-keys/custom-keybindings";
 
 fn gsettings(args: &[&str]) -> Result<String, String> {
-    let out = Command::new("gsettings")
+    let out = crate::flatpak::host_command("gsettings")
         .args(args)
         .output()
         .map_err(|e| tf("gsettings nicht ausführbar: {e}", &[("e", &e.to_string())]))?;
@@ -369,6 +404,13 @@ pub fn apply_hotkeys(hotkeys: &Hotkeys) -> Result<(), String> {
     if !is_gnome() {
         return if hotkeys.enabled {
             Err(t("Tastenkürzel lassen sich nur unter GNOME automatisch eintragen.").into())
+        } else {
+            Ok(())
+        };
+    }
+    if crate::flatpak::sandboxed() {
+        return if hotkeys.enabled {
+            Err(t("Im Flatpak von Flathub lassen sich Tastenkürzel nicht automatisch eintragen. Lege den angezeigten Befehl in den Systemeinstellungen selbst auf eine Taste.").into())
         } else {
             Ok(())
         };

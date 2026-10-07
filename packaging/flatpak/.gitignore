@@ -1,0 +1,6 @@
+starclx.deb
+starclx.flatpak
+shared-modules/
+build/
+repo/
+.flatpak-builder/
