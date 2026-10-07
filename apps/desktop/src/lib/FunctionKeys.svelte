@@ -8,15 +8,17 @@
 
   onMount(() => { loadFkeys(); });
   const columns = $derived(prefs.value?.fkey_columns ?? 3);
+  // Freie Plätze aus der Anordnung zählen nicht: die Tasten stehen dicht in
+  // ihrer Reihenfolge. Abstand schafft nur eine „Leere Taste“.
+  const shown = $derived(fkeys.order.map((_, i) => keyAt(i)).filter((k) => k !== undefined));
 </script>
 
 <div class="fk">
   {#if fkeys.error}<p class="error">{t(fkeys.error)}</p>{/if}
   {#if fkeys.notice}<p class="error">{fkeys.notice}</p>{/if}
   <div class="grid" style="grid-template-columns: repeat({columns}, minmax(0, 1fr))">
-    {#each fkeys.order as _, i}
-      {@const k = keyAt(i)}
-      {#if k}<FkeyTile key={k} onclick={() => press(k)} />{:else}<div class="gap"></div>{/if}
+    {#each shown as k}
+      <FkeyTile key={k} onclick={() => press(k)} />
     {/each}
   </div>
   {#if fkeys.loaded && !fkeys.keys.length}
@@ -27,7 +29,6 @@
 <style>
   .fk { height: 100%; overflow: auto; display: flex; flex-direction: column; gap: 0.5rem; }
   .grid { display: grid; gap: 0.5rem; max-width: 60rem; }
-  .gap { min-height: 3.2rem; }
   .muted { color: var(--muted); }
   .error { color: var(--accent); margin: 0; }
 </style>
