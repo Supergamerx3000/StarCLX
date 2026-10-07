@@ -153,7 +153,7 @@ Tag `v<Version>` von Hand bewirkt dasselbe.
 | `crates/sf-chat` | XMPP-Chat |
 | `crates/sf-busylight` | Kuando Busylight über hidraw |
 | `apps/desktop` | Desktop-App: Tauri 2, Oberfläche in Svelte 5 / TypeScript |
-| `apps/sfctl` | Kommandozeile für Tests und Skripte |
+| `apps/sfctl` | Kommandozeile für Skripte, siehe [README](apps/sfctl/README.md) |
 
 ## Entwickeln
 
@@ -169,39 +169,8 @@ cd apps/desktop && npm install && npm run tauri dev
 Texte der Oberfläche laufen über `t()` (deutscher Text als Schlüssel); Übersetzungen stehen in
 `apps/desktop/src/lib/i18n/`. `npm run i18n:check` meldet fehlende Einträge.
 
-`sfctl` gegen eine Anlage (Password-Grant, braucht das Recht „API access with Password Grant“):
-
-```sh
-export SF_SERVER=https://anlage.example.com SF_USER=… SF_PASSWORD=…
-cargo run -p sfctl -- version
-cargo run -p sfctl -- phones
-cargo run -p sfctl -- call 12
-cargo run -p sfctl -- chat contacts
-cargo run -p sfctl -- chat send "Anna" "Backup fehlgeschlagen"
-echo "Text aus einem Skript" | cargo run -p sfctl -- chat send anna -
-cargo run -p sfctl -- status --dnd on --text "Im Meeting"
-```
-
-`chat send` nimmt als Empfänger eine Jabber-ID, den Benutzernamen vor dem @ oder einen
-(eindeutigen Teil des) Namens aus `chat contacts`. `status` ohne Optionen zeigt den eigenen
-Status; `--text ""` löscht den Statustext. Bei einem Fehler endet `sfctl` mit Code 1.
-
-`sfctl say` ruft an und spielt eine Ansage ab, sobald das Gegenüber abnimmt:
-
-```sh
-sfctl say 0791234567 "Das Backup ist fehlgeschlagen"
-sfctl say 0791234567 "Server down" --confirm 1 --repeat 5   # Bestätigung mit Taste 1
-sfctl say 12 --wav ansage.wav
-```
-
-Der Text wird lokal in Sprache umgewandelt, standardmässig mit `espeak-ng` (Paket `espeak-ng`).
-Mit `--tts` bzw. `SF_TTS` lässt sich ein anderes Programm einsetzen; es bekommt den Text in
-`$TEXT` und schreibt eine WAV-Datei nach `$WAV`, z. B. mit Piper:
-`SF_TTS='printf %s "$TEXT" | piper --model de_DE-thorsten-medium.onnx --output_file "$WAV"'`.
-Mit `--confirm` hängt `sfctl` einen Hinweis auf die Taste an (abschaltbar mit `--no-hint`)
-und wiederholt die Ansage, bis die Taste kommt. Rückgabewert: 0 angenommen bzw. bestätigt,
-2 nicht angenommen, 3 nicht bestätigt, 1 Fehler. Eine Mailbox, die abnimmt, gilt ohne
-`--confirm` als angenommen.
+`sfctl` (Kommandozeile für Skripte: Chat, Status, Anruf mit Ansage) ist in
+[apps/sfctl/README.md](apps/sfctl/README.md) beschrieben.
 
 ## Lizenz
 
