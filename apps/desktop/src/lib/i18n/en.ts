@@ -419,7 +419,7 @@ const dict: Record<string, string> = {
   "Rufnummer unterdrücken": "Hide caller ID",
   "an": "on",
   "Primäres Telefon": "Primary phone",
-  "Meine Immer-Umleitungen": "My always redirects",
+  "Umleitung: Immer": "Diversion: Always",
   "Primäres Telefon auswählen": "Choose primary phone",
   "Keine Telefone": "No phones",
   "kein Ziel": "no target",

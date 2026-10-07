@@ -1,7 +1,7 @@
 <script lang="ts">
   // Menü am Profilbild, aufgebaut wie in der STARFACE-App: Bild und Name,
   // darunter Ruhe, Chat-Status, primäres Telefon, signalisierte Rufnummer
-  // und die eigenen Immer-Umleitungen; Untermenüs öffnen sich daneben.
+  // und die eigenen Umleitungen (Immer); Untermenüs öffnen sich daneben.
   import { invoke } from "@tauri-apps/api/core";
   import { listen } from "@tauri-apps/api/event";
   import { onMount } from "svelte";
@@ -122,7 +122,7 @@
   </button>
   <button class="row" class:open={sub === "redirect"} onclick={(e) => toggle("redirect", e)}>
     <span class="ic"><Icon name="redirect" size={20} /></span>
-    <span class="lbl">{t("Meine Immer-Umleitungen")}</span>
+    <span class="lbl">{t("Umleitungen")}</span>
     {#if activeRedirects}<span class="count">{activeRedirects}</span>{/if}
     <span class="more"><Icon name="chevron" size={20} /></span>
   </button>
@@ -148,7 +148,7 @@
             {#if n.group}<span class="grp"><Icon name="groups" size={16} /> {n.group}:</span>{/if}{numberLabel(n)}{#if n.selected}<span class="tick"><Icon name="check" size={16} /></span>{/if}</button>
         {/each}
       {:else if sub === "redirect"}
-        <span class="title">{t("Meine Immer-Umleitungen")}</span>
+        <span class="title">{t("Umleitung: Immer")}</span>
         {#if always.length}
           <button class="all" onclick={() => setAll(!always.every((r) => r.enabled))}>
             {always.every((r) => r.enabled) ? t("Alle deaktivieren") : t("Alle aktivieren")}

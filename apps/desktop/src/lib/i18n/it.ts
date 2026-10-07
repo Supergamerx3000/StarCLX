@@ -419,7 +419,7 @@ const dict: Record<string, string> = {
   "Rufnummer unterdrücken": "Nascondi numero",
   "an": "attivo",
   "Primäres Telefon": "Telefono principale",
-  "Meine Immer-Umleitungen": "I miei inoltri sempre",
+  "Umleitung: Immer": "Deviazione: sempre",
   "Primäres Telefon auswählen": "Scegli il telefono principale",
   "Keine Telefone": "Nessun telefono",
   "kein Ziel": "nessuna destinazione",
