@@ -29,6 +29,7 @@ mod ffi {
     pub const OP_CONNECT: c_int = 7;
     pub const OP_QUIT: c_int = 8;
     pub const OP_RESET: c_int = 9;
+    pub const OP_AUSRC: c_int = 10;
 
     pub const EV_READY: c_int = 1;
     pub const EV_ERROR: c_int = 2;
@@ -41,6 +42,8 @@ mod ffi {
     pub const EV_CALL_CLOSED: c_int = 9;
     pub const EV_CALL_MENC: c_int = 10;
     pub const EV_AUDIO_ERROR: c_int = 11;
+    pub const EV_CALL_DTMF: c_int = 12;
+    pub const EV_END_OF_FILE: c_int = 13;
 
     #[repr(C)]
     pub struct Event {
@@ -124,6 +127,15 @@ pub enum SipEvent {
     AudioError {
         info: String,
     },
+    /// Taste vom Gegenüber empfangen (RTP-Event oder SIP INFO)
+    Dtmf {
+        call_id: String,
+        key: char,
+    },
+    /// Die Audioquelle `aufile` ist am Dateiende angekommen.
+    EndOfFile {
+        call_id: String,
+    },
     Error {
         context: String,
     },
@@ -176,7 +188,7 @@ impl Config {
         c += "call_max_calls 4\n";
         for m in [
             "g711", "g722", "srtp", "auconv", "auresamp", "stun", "netroam", "pipewire", "pulse",
-            "alsa", "ausine", "aubridge",
+            "alsa", "ausine", "aubridge", "aufile",
         ] {
             c += &format!("module {m}.so\n");
         }
@@ -309,6 +321,16 @@ unsafe extern "C" fn on_event(ctx: *mut c_void, e: *const ffi::Event) {
         ffi::EV_AUDIO_ERROR => SipEvent::AudioError {
             info: opt_str(e.text),
         },
+        ffi::EV_CALL_DTMF => match opt_str(e.text).chars().next() {
+            Some(key) => SipEvent::Dtmf {
+                call_id: opt_str(e.call_id),
+                key,
+            },
+            None => return,
+        },
+        ffi::EV_END_OF_FILE => SipEvent::EndOfFile {
+            call_id: opt_str(e.call_id),
+        },
         _ => return,
     };
     let _ = ctx.events.send(event);
@@ -423,6 +445,20 @@ impl Softphone {
             return Err(Error::InvalidValue("dtmf".into()));
         }
         self.cmd(ffi::OP_DTMF, Some(call_id), Some(digits))
+    }
+
+    /// Wechselt die Audioquelle eines laufenden Anrufs, z. B. `aufile` mit
+    /// einer WAV-Datei als Gerät. Die Datei muss zur Quellrate passen
+    /// (siehe `ausrc_srate` in [`Config::extra`]).
+    pub fn set_source(&self, call_id: &str, module: &str, device: &str) -> Result<()> {
+        if module.contains(',') {
+            return Err(Error::InvalidValue("module".into()));
+        }
+        self.cmd(
+            ffi::OP_AUSRC,
+            Some(call_id),
+            Some(&format!("{module},{device}")),
+        )
     }
 
     /// Baut nach Standby oder Netzwechsel die SIP-Verbindungen neu auf und

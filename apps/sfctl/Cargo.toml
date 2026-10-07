@@ -1,6 +1,6 @@
 [package]
 name = "sfctl"
-description = "Kommandozeile für STARFACE: Status, Profil, Wählen"
+description = "Kommandozeile für STARFACE: Status, Profil, Wählen, Chat"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
@@ -9,6 +9,7 @@ license.workspace = true
 sf-auth.workspace = true
 sf-onehub.workspace = true
 sf-sip = { path = "../../crates/sf-sip" }
+sf-chat = { path = "../../crates/sf-chat" }
 anyhow.workspace = true
 tokio = { workspace = true, features = ["signal", "time"] }
 url.workspace = true

@@ -153,7 +153,7 @@ Tag `v<Version>` von Hand bewirkt dasselbe.
 | `crates/sf-chat` | XMPP-Chat |
 | `crates/sf-busylight` | Kuando Busylight über hidraw |
 | `apps/desktop` | Desktop-App: Tauri 2, Oberfläche in Svelte 5 / TypeScript |
-| `apps/sfctl` | Kommandozeile für Tests und Skripte |
+| `apps/sfctl` | Kommandozeile für Skripte, siehe [README](apps/sfctl/README.md) |
 
 ## Entwickeln
 
@@ -169,14 +169,8 @@ cd apps/desktop && npm install && npm run tauri dev
 Texte der Oberfläche laufen über `t()` (deutscher Text als Schlüssel); Übersetzungen stehen in
 `apps/desktop/src/lib/i18n/`. `npm run i18n:check` meldet fehlende Einträge.
 
-`sfctl` gegen eine Anlage (Password-Grant, braucht das Recht „API access with Password Grant“):
-
-```sh
-export SF_SERVER=https://anlage.example.com SF_USER=… SF_PASSWORD=…
-cargo run -p sfctl -- version
-cargo run -p sfctl -- phones
-cargo run -p sfctl -- call 12
-```
+`sfctl` (Kommandozeile für Skripte: Chat, Status, Anruf mit Ansage) ist in
+[apps/sfctl/README.md](apps/sfctl/README.md) beschrieben.
 
 ## Lizenz
 

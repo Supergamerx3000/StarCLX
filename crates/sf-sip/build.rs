@@ -3,9 +3,10 @@
 
 use std::path::{Path, PathBuf};
 
-/// In libbaresip einkompilierte Module. g722 braucht spandsp.
+/// In libbaresip einkompilierte Module. g722 braucht spandsp; aufile spielt
+/// WAV-Dateien als Quelle ab (Ansagen von `sfctl say`).
 const MODULES: &str =
-    "g711;g722;srtp;auconv;auresamp;pipewire;pulse;alsa;stun;netroam;ausine;aubridge";
+    "g711;g722;srtp;auconv;auresamp;pipewire;pulse;alsa;stun;netroam;ausine;aubridge;aufile";
 
 /// Systembibliotheken per pkg-config (Namen der .pc-Dateien).
 const SYSTEM_LIBS: &[&str] = &["openssl", "zlib", "libpipewire-0.3", "libpulse", "alsa"];
