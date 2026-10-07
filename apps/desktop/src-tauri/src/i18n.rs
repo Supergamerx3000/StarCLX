@@ -12,6 +12,31 @@ static CURRENT: AtomicUsize = AtomicUsize::new(0);
 
 /// Deutsch → Englisch, Französisch, Italienisch
 const TEXTS: &[(&str, [&str; 3])] = &[
+    // Module
+    (
+        "Modul nicht gefunden oder nicht freigegeben",
+        [
+            "Module not found or not shared with you",
+            "Module introuvable ou non partagé",
+            "Modulo non trovato o non condiviso",
+        ],
+    ),
+    (
+        "Dieses Modul darf nicht geschaltet werden",
+        [
+            "This module may not be switched",
+            "Ce module ne peut pas être commuté",
+            "Questo modulo non può essere commutato",
+        ],
+    ),
+    (
+        "Keine Berechtigung, Module zu schalten",
+        [
+            "No permission to switch modules",
+            "Pas d’autorisation pour commuter les modules",
+            "Nessuna autorizzazione per commutare i moduli",
+        ],
+    ),
     // Protokoll
     (
         "Protokoll speichern",

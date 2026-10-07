@@ -28,6 +28,7 @@ tracing-subscriber.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 url.workspace = true
+base64 = "0.22"
 tokio = { workspace = true, features = ["sync", "time"] }
 tauri = { version = "2", features = ["tray-icon"] }
 tauri-plugin-opener = "2"

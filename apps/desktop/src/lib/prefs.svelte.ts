@@ -27,6 +27,11 @@ export type Prefs = {
   away_on_lock: boolean;
   away_text: string;
   offline_text: string;
+  /** Selbst gewählter Chat-Status: "available", "away" oder "dnd" */
+  chat_availability: string;
+  chat_text: string;
+  /** Gespeicherte eigene Status */
+  chat_presets: { availability: string; text: string }[];
   theme: "system" | "dark" | "light";
   language: string;
   start_minimized: boolean;
