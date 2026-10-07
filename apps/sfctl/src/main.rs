@@ -1,7 +1,11 @@
 //! `sfctl`: Kommandozeile für die STARFACE, auf demselben Kern wie die
 //! Desktop-App. Dient vorerst als Entwicklungs- und Testwerkzeug.
 
+mod wav;
+
 use std::io::Read;
+use std::path::PathBuf;
+use std::process::ExitCode;
 use std::time::{Duration, Instant};
 
 use anyhow::{Context, Result, bail};
@@ -64,6 +68,50 @@ enum Command {
         #[arg(long, env = "SF_SIP_DEVICE_ID", default_value = sf_onehub::SIP_DEVICE_ID)]
         sip_device_id: String,
     },
+    /// Anrufen und eine Ansage abspielen (Text oder WAV-Datei), optional mit
+    /// Bestätigung per Taste.
+    ///
+    /// Rückgabewert: 0 angenommen (und bestätigt, falls verlangt),
+    /// 2 nicht angenommen, 3 nicht bestätigt, 1 Fehler.
+    Say {
+        /// Rufnummer, die angerufen wird
+        number: String,
+        /// Ansagetext; `-` liest ihn von der Standardeingabe. Mit `--wav`
+        /// nicht nötig.
+        #[arg(required_unless_present = "wav")]
+        text: Option<String>,
+        /// Statt Sprachausgabe diese WAV-Datei (16-bit-PCM) abspielen
+        #[arg(long, conflicts_with = "text")]
+        wav: Option<PathBuf>,
+        /// Bestätigung mit dieser Taste verlangen (0–9, * oder #)
+        #[arg(long, value_parser = parse_key, value_name = "TASTE")]
+        confirm: Option<char>,
+        /// So oft abspielen; mit `--confirm` endet es früher, sobald die
+        /// Taste gedrückt wird
+        #[arg(long, default_value_t = 3)]
+        repeat: u32,
+        /// Pause zwischen den Wiederholungen in Sekunden
+        #[arg(long, default_value_t = 1.0)]
+        pause: f64,
+        /// Nach der letzten Ansage so lange auf die Taste warten (Sekunden)
+        #[arg(long, default_value_t = 10)]
+        confirm_wait: u64,
+        /// So lange klingeln lassen (Sekunden)
+        #[arg(long, default_value_t = 45)]
+        ring_timeout: u64,
+        /// Befehl für die Sprachausgabe, läuft über `sh -c`. Er bekommt den
+        /// Text in `$TEXT` und schreibt eine WAV-Datei nach `$WAV`.
+        #[arg(long, env = "SF_TTS", default_value = DEFAULT_TTS)]
+        tts: String,
+        /// Bei `--confirm` keinen Hinweis auf die Taste an den Text anhängen
+        #[arg(long)]
+        no_hint: bool,
+        /// TLS-Zertifikat der Anlage für SIP nicht prüfen
+        #[arg(long)]
+        insecure_sip: bool,
+        #[arg(long, env = "SF_SIP_DEVICE_ID", default_value = sf_onehub::SIP_DEVICE_ID)]
+        sip_device_id: String,
+    },
     /// Chat-Nachricht senden oder Kontakte auflisten
     #[command(subcommand)]
     Chat(ChatCommand),
@@ -92,6 +140,15 @@ enum ChatCommand {
     Contacts,
 }
 
+const DEFAULT_TTS: &str = r#"espeak-ng -v de -s 150 -w "$WAV" "$TEXT""#;
+
+fn parse_key(s: &str) -> Result<char, String> {
+    match s.chars().collect::<Vec<_>>().as_slice() {
+        [c] if c.is_ascii_digit() || *c == '*' || *c == '#' => Ok(*c),
+        _ => Err("eine Taste 0–9, * oder # erwartet".into()),
+    }
+}
+
 fn parse_on_off(s: &str) -> Result<bool, String> {
     match s {
         "on" | "an" | "ein" | "1" | "true" => Ok(true),
@@ -101,7 +158,7 @@ fn parse_on_off(s: &str) -> Result<bool, String> {
 }
 
 #[tokio::main]
-async fn main() -> Result<()> {
+async fn main() -> Result<ExitCode> {
     let cli = Cli::parse();
     let host = url::Url::parse(&cli.server)
         .context("SF_SERVER muss eine URL sein, z. B. https://pbx.example.com")?
@@ -175,8 +232,37 @@ async fn main() -> Result<()> {
         }
         Command::Chat(cmd) => chat(&hub, &host, cmd).await?,
         Command::Status { dnd, text } => status(&hub, dnd, text).await?,
+        Command::Say {
+            number,
+            text,
+            wav,
+            confirm,
+            repeat,
+            pause,
+            confirm_wait,
+            ring_timeout,
+            tts,
+            no_hint,
+            insecure_sip,
+            sip_device_id,
+        } => {
+            let opts = SayOpts {
+                number,
+                confirm,
+                repeat: repeat.max(1),
+                pause: Duration::from_secs_f64(pause.max(0.0)),
+                confirm_wait: Duration::from_secs(confirm_wait),
+                ring_timeout: Duration::from_secs(ring_timeout),
+                insecure_sip,
+                sip_device_id,
+            };
+            let audio = announcement(text, wav, &tts, confirm.filter(|_| !no_hint))?;
+            let outcome = say(&hub, &host, &audio.path, opts).await?;
+            eprintln!("{}", outcome.describe());
+            return Ok(ExitCode::from(outcome.code()));
+        }
     }
-    Ok(())
+    Ok(ExitCode::SUCCESS)
 }
 
 async fn own_user_id(hub: &OneHub) -> Result<String> {
@@ -360,6 +446,290 @@ async fn print_status(hub: &OneHub) -> Result<()> {
     Ok(())
 }
 
+/// Temporäre Datei, die beim Drop gelöscht wird
+struct TempFile {
+    path: PathBuf,
+}
+
+impl TempFile {
+    fn new(name: &str) -> Self {
+        Self {
+            path: std::env::temp_dir().join(format!("sfctl-{}-{name}", std::process::id())),
+        }
+    }
+}
+
+impl Drop for TempFile {
+    fn drop(&mut self) {
+        let _ = std::fs::remove_file(&self.path);
+    }
+}
+
+fn key_name(key: char) -> String {
+    match key {
+        '*' => "Stern".into(),
+        '#' => "Raute".into(),
+        c => c.to_string(),
+    }
+}
+
+/// Bereitet die Ansage als WAV mit 16 kHz mono vor: aus einer Datei oder
+/// per Sprachausgabe aus dem Text.
+fn announcement(
+    text: Option<String>,
+    wav: Option<PathBuf>,
+    tts: &str,
+    hint: Option<char>,
+) -> Result<TempFile> {
+    let source = match (wav, text) {
+        (Some(path), _) => {
+            std::fs::read(&path).with_context(|| format!("{} lesen", path.display()))?
+        }
+        (None, Some(text)) => {
+            let mut text = if text == "-" {
+                let mut s = String::new();
+                std::io::stdin()
+                    .read_to_string(&mut s)
+                    .context("Standardeingabe lesen")?;
+                s
+            } else {
+                text
+            };
+            text = text.trim().to_owned();
+            if text.is_empty() {
+                bail!("leerer Ansagetext");
+            }
+            if let Some(key) = hint {
+                text = format!(
+                    "{text}. Bitte bestätigen Sie mit der Taste {}.",
+                    key_name(key)
+                );
+            }
+            let raw = TempFile::new("tts.wav");
+            let status = std::process::Command::new("sh")
+                .arg("-c")
+                .arg(tts)
+                .env("TEXT", &text)
+                .env("WAV", &raw.path)
+                .stdin(std::process::Stdio::null())
+                .status()
+                .with_context(|| format!("Sprachausgabe starten: {tts}"))?;
+            if !status.success() {
+                bail!("Sprachausgabe fehlgeschlagen ({status}): {tts}");
+            }
+            std::fs::read(&raw.path).context("Sprachausgabe hat keine WAV-Datei geschrieben")?
+        }
+        (None, None) => bail!("Text oder --wav angeben"),
+    };
+    let out = TempFile::new("ansage.wav");
+    std::fs::write(&out.path, wav::to_16k_mono(&source)?).context("Ansage schreiben")?;
+    Ok(out)
+}
+
+struct SayOpts {
+    number: String,
+    confirm: Option<char>,
+    repeat: u32,
+    pause: Duration,
+    confirm_wait: Duration,
+    ring_timeout: Duration,
+    insecure_sip: bool,
+    sip_device_id: String,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum SayOutcome {
+    /// Angenommen, Ansage gespielt (ohne Bestätigung verlangt)
+    Played,
+    Confirmed(char),
+    NotAnswered,
+    NotConfirmed,
+}
+
+impl SayOutcome {
+    fn code(self) -> u8 {
+        match self {
+            Self::Played | Self::Confirmed(_) => 0,
+            Self::NotAnswered => 2,
+            Self::NotConfirmed => 3,
+        }
+    }
+
+    fn describe(self) -> String {
+        match self {
+            Self::Played => "angenommen, Ansage abgespielt".into(),
+            Self::Confirmed(k) => format!("bestätigt mit Taste {k}"),
+            Self::NotAnswered => "nicht angenommen".into(),
+            Self::NotConfirmed => "angenommen, aber nicht bestätigt".into(),
+        }
+    }
+}
+
+/// Ruhige Quelle, solange keine Ansage läuft; stumm geschaltet sendet sie
+/// Stille, hält aber den Medienstrom am Laufen.
+const IDLE_SOURCE: (&str, &str) = ("ausine", "440");
+
+/// Ruft über die Anlage an: Die Anlage klingelt zuerst am Softphone, das
+/// stumm annimmt; sobald das Gegenüber abnimmt, läuft die Ansage.
+async fn say(hub: &OneHub, host: &str, wav: &std::path::Path, opts: SayOpts) -> Result<SayOutcome> {
+    use v1::call::call_event_response::CallEvent as E;
+    use v1::types::CallState;
+
+    let wav = wav.to_str().context("Pfad der Ansage ist kein UTF-8")?;
+    let config = sf_sip::Config {
+        verify_server: !opts.insecure_sip,
+        audio_source: format!("{},{}", IDLE_SOURCE.0, IDLE_SOURCE.1),
+        // Nichts lokal abspielen; auch ohne Audiogerät (Server, Cron) lauffähig.
+        audio_player: "aufile,/dev/null".into(),
+        // Feste Quellrate, damit die Ansage-WAV ohne Umrechnung passt.
+        extra: format!("ausrc_srate {}\nausrc_channels 1\n", wav::RATE),
+        ..Default::default()
+    };
+    let sp = start_softphone(hub, host, &opts.sip_device_id, &config, false).await?;
+    let (phone, mut sip) = (sp.phone, sp.events);
+    let Some(phone_id) = sp.phone_id else {
+        bail!(
+            "App-Telefon SIP/{} nicht in `sfctl phones` gefunden; kein Anruf gestartet",
+            sp.sip_user
+        );
+    };
+    let mut events = call_events(hub);
+
+    let req = v1::call::PlaceCallRequest {
+        number: opts.number.clone(),
+        requested_call_id: None,
+        phone_id: Some(v1::types::PhoneId { id: phone_id }),
+    };
+    let placed = hub
+        .call()
+        .place_call(req)
+        .await?
+        .into_inner()
+        .call_id
+        .map(|c| c.id)
+        .context("PlaceCall ohne Anruf-ID")?;
+    let placed_at = Instant::now();
+    eprintln!("wähle {} …", opts.number);
+
+    let ring_deadline = Instant::now() + opts.ring_timeout;
+    let mut sip_call: Option<String> = None;
+    let mut connected = false;
+    let mut plays = 0u32;
+    let mut playing = false;
+    // Nächster Zeitpunkt, zu dem etwas zu tun ist: Ansage starten oder
+    // (nach der letzten) das Warten auf die Taste beenden.
+    let mut next_step: Option<Instant> = None;
+
+    let outcome = loop {
+        let waiting_for_answer = (!connected).then_some(ring_deadline);
+        tokio::select! {
+            _ = tokio::signal::ctrl_c() => bail!("abgebrochen"),
+            _ = sleep_until(waiting_for_answer) => break SayOutcome::NotAnswered,
+            _ = sleep_until(next_step) => {
+                next_step = None;
+                let Some(call) = &sip_call else { continue };
+                if plays >= opts.repeat {
+                    // Wartezeit für die Taste ist um.
+                    break SayOutcome::NotConfirmed;
+                }
+                phone.set_source(call, "aufile", wav)?;
+                phone.set_mute(call, false)?;
+                playing = true;
+                plays += 1;
+                eprintln!("Ansage {plays}/{}", opts.repeat);
+            }
+            Some(ev) = events.recv() => {
+                let answered = match ev {
+                    Some(E::CallStateChanged(e)) => {
+                        e.call_id.is_some_and(|c| c.id == placed)
+                            && e.call_state == CallState::Connected as i32
+                    }
+                    Some(E::CallCreated(e)) => e.calls.iter().any(|c| {
+                        c.call_id.as_ref().is_some_and(|c| c.id == placed)
+                            && c.call_state == CallState::Connected as i32
+                    }),
+                    Some(E::CallDisconnected(e)) if e.call_id.as_ref().is_some_and(|c| c.id == placed) => {
+                        break if connected { finished(opts.confirm) } else { SayOutcome::NotAnswered };
+                    }
+                    _ => false,
+                };
+                if answered && !connected {
+                    connected = true;
+                    eprintln!("angenommen");
+                    // Kurz warten, damit der Anfang nicht verschluckt wird.
+                    next_step = Some(Instant::now() + Duration::from_millis(700));
+                }
+            }
+            ev = sip.recv() => {
+                let Some(ev) = ev else { bail!("Softphone beendet") };
+                match ev {
+                    sf_sip::SipEvent::Incoming { call, auto_answer } => {
+                        let ours = placed_at.elapsed() < PLACE_CALL_WINDOW;
+                        if sip_call.is_none() && (auto_answer || ours) {
+                            phone.answer(&call.call_id)?;
+                            phone.set_mute(&call.call_id, true)?;
+                            sip_call = Some(call.call_id);
+                        }
+                    }
+                    sf_sip::SipEvent::Closed { call_id, .. } if sip_call.as_ref() == Some(&call_id) => {
+                        break if connected { finished(opts.confirm) } else { SayOutcome::NotAnswered };
+                    }
+                    sf_sip::SipEvent::EndOfFile { call_id } if playing && sip_call.as_ref() == Some(&call_id) => {
+                        playing = false;
+                        phone.set_mute(&call_id, true)?;
+                        phone.set_source(&call_id, IDLE_SOURCE.0, IDLE_SOURCE.1)?;
+                        if plays < opts.repeat {
+                            next_step = Some(Instant::now() + opts.pause);
+                        } else if opts.confirm.is_none() {
+                            break SayOutcome::Played;
+                        } else {
+                            next_step = Some(Instant::now() + opts.confirm_wait);
+                        }
+                    }
+                    sf_sip::SipEvent::Dtmf { call_id, key }
+                        if connected && sip_call.as_ref() == Some(&call_id) && opts.confirm == Some(key) =>
+                    {
+                        break SayOutcome::Confirmed(key);
+                    }
+                    sf_sip::SipEvent::Dtmf { key, .. } => eprintln!("Taste {key}"),
+                    _ => {}
+                }
+            }
+        }
+    };
+
+    if let Some(call) = &sip_call {
+        let _ = phone.hangup(Some(call));
+        // Dem Auflegen etwas Zeit geben, bevor baresip beendet wird.
+        let _ = tokio::time::timeout(Duration::from_secs(2), async {
+            while let Some(ev) = sip.recv().await {
+                if matches!(ev, sf_sip::SipEvent::Closed { .. }) {
+                    break;
+                }
+            }
+        })
+        .await;
+    } else {
+        // Klingelt noch am Softphone oder beim Gegenüber: Anruf zurückziehen.
+        let _ = hub
+            .call()
+            .hangup_call(v1::call::HangupCallRequest {
+                call_id: Some(v1::types::CallId { id: placed }),
+            })
+            .await;
+    }
+    drop(phone);
+    Ok(outcome)
+}
+
+/// Ergebnis, wenn das Gegenüber auflegt, bevor alles gespielt ist
+fn finished(confirm: Option<char>) -> SayOutcome {
+    match confirm {
+        Some(_) => SayOutcome::NotConfirmed,
+        None => SayOutcome::Played,
+    }
+}
+
 /// Zeitfenster nach `PlaceCall`, in dem ein eingehender Anruf als Rückruf
 /// der Anlage gilt und automatisch angenommen wird.
 const PLACE_CALL_WINDOW: Duration = Duration::from_secs(20);
@@ -372,43 +742,39 @@ struct SoftphoneOpts {
     sip_device_id: String,
 }
 
-async fn softphone(hub: &OneHub, host: &str, opts: SoftphoneOpts) -> Result<()> {
-    let SoftphoneOpts {
-        number,
-        answer_all,
-        seconds,
-        insecure_sip,
-        sip_device_id,
-    } = opts;
-    let deadline = seconds.map(|s| Instant::now() + Duration::from_secs(s));
+struct StartedSoftphone {
+    phone: sf_sip::Softphone,
+    events: tokio::sync::mpsc::UnboundedReceiver<sf_sip::SipEvent>,
+    /// Telefon-ID des App-Telefons für `PlaceCall`
+    phone_id: Option<String>,
+    sip_user: String,
+}
 
+/// Meldet das App-Telefon an der Anlage an und wartet auf die Registrierung.
+async fn start_softphone(
+    hub: &OneHub,
+    host: &str,
+    sip_device_id: &str,
+    config: &sf_sip::Config,
+    verbose: bool,
+) -> Result<StartedSoftphone> {
     let creds = hub
-        .register_sip_device(&sip_device_id, env!("CARGO_PKG_VERSION"))
+        .register_sip_device(sip_device_id, env!("CARGO_PKG_VERSION"))
         .await
         .context("RegisterSipDevice")?;
     let phone_id = hub.phone_id_for_sip_user(&creds.user).await?;
-    println!(
-        "SIP-Benutzer {} (Realm {}, Port {}), Telefon-ID {}",
-        creds.user,
-        creds.realm,
-        creds.port,
-        phone_id.as_deref().unwrap_or("unbekannt")
-    );
-    // Ohne Telefon-ID würde PlaceCall das Primärtelefon nehmen, also nicht
-    // dieses Softphone.
-    if number.is_some() && phone_id.is_none() {
-        bail!(
-            "App-Telefon SIP/{} nicht in `sfctl phones` gefunden; kein Anruf gestartet",
-            creds.user
+    if verbose {
+        println!(
+            "SIP-Benutzer {} (Realm {}, Port {}), Telefon-ID {}",
+            creds.user,
+            creds.realm,
+            creds.port,
+            phone_id.as_deref().unwrap_or("unbekannt")
         );
     }
 
-    let config = sf_sip::Config {
-        verify_server: !insecure_sip,
-        ..Default::default()
-    };
     let software = concat!("starclx/", env!("CARGO_PKG_VERSION"));
-    let (phone, mut sip) = sf_sip::Softphone::start(&config, software)?;
+    let (phone, mut sip) = sf_sip::Softphone::start(config, software)?;
     phone.add_account(&sf_sip::Account {
         user: creds.user.clone(),
         password: creds.password.clone(),
@@ -420,7 +786,9 @@ async fn softphone(hub: &OneHub, host: &str, opts: SoftphoneOpts) -> Result<()> 
 
     let registered = tokio::time::timeout(Duration::from_secs(15), async {
         while let Some(ev) = sip.recv().await {
-            println!("SIP: {ev:?}");
+            if verbose {
+                println!("SIP: {ev:?}");
+            }
             match ev {
                 sf_sip::SipEvent::Registered { .. } => return Ok(()),
                 sf_sip::SipEvent::RegisterFailed { reason, .. } => bail!("Registrierung: {reason}"),
@@ -431,10 +799,21 @@ async fn softphone(hub: &OneHub, host: &str, opts: SoftphoneOpts) -> Result<()> 
     })
     .await;
     registered.context("keine SIP-Registrierung innerhalb von 15 s")??;
+    Ok(StartedSoftphone {
+        phone,
+        events: sip,
+        phone_id,
+        sip_user: creds.user,
+    })
+}
 
-    // Der Ereignisstrom liefert seine Antwort-Header erst mit dem ersten
-    // Ereignis; deshalb nebenher lesen und nicht darauf warten.
-    let (events_tx, mut events) = tokio::sync::mpsc::unbounded_channel();
+type CallEvent = Option<v1::call::call_event_response::CallEvent>;
+
+/// Anruf-Ereignisse der Anlage. Der Ereignisstrom liefert seine
+/// Antwort-Header erst mit dem ersten Ereignis; deshalb nebenher lesen und
+/// nicht darauf warten.
+fn call_events(hub: &OneHub) -> tokio::sync::mpsc::UnboundedReceiver<CallEvent> {
+    let (events_tx, events) = tokio::sync::mpsc::unbounded_channel();
     let events_hub = hub.clone();
     tokio::spawn(async move {
         let result = async {
@@ -455,6 +834,34 @@ async fn softphone(hub: &OneHub, host: &str, opts: SoftphoneOpts) -> Result<()> 
             eprintln!("Anruf-Ereignisse der Anlage: {e}");
         }
     });
+    events
+}
+
+async fn softphone(hub: &OneHub, host: &str, opts: SoftphoneOpts) -> Result<()> {
+    let SoftphoneOpts {
+        number,
+        answer_all,
+        seconds,
+        insecure_sip,
+        sip_device_id,
+    } = opts;
+    let deadline = seconds.map(|s| Instant::now() + Duration::from_secs(s));
+
+    let config = sf_sip::Config {
+        verify_server: !insecure_sip,
+        ..Default::default()
+    };
+    let sp = start_softphone(hub, host, &sip_device_id, &config, true).await?;
+    let (phone, mut sip, phone_id) = (sp.phone, sp.events, sp.phone_id);
+    // Ohne Telefon-ID würde PlaceCall das Primärtelefon nehmen, also nicht
+    // dieses Softphone.
+    if number.is_some() && phone_id.is_none() {
+        bail!(
+            "App-Telefon SIP/{} nicht in `sfctl phones` gefunden; kein Anruf gestartet",
+            sp.sip_user
+        );
+    }
+    let mut events = call_events(hub);
 
     let mut placed_at = None;
     if let Some(number) = number {

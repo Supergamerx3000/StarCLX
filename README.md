@@ -186,6 +186,23 @@ cargo run -p sfctl -- status --dnd on --text "Im Meeting"
 (eindeutigen Teil des) Namens aus `chat contacts`. `status` ohne Optionen zeigt den eigenen
 Status; `--text ""` löscht den Statustext. Bei einem Fehler endet `sfctl` mit Code 1.
 
+`sfctl say` ruft an und spielt eine Ansage ab, sobald das Gegenüber abnimmt:
+
+```sh
+sfctl say 0791234567 "Das Backup ist fehlgeschlagen"
+sfctl say 0791234567 "Server down" --confirm 1 --repeat 5   # Bestätigung mit Taste 1
+sfctl say 12 --wav ansage.wav
+```
+
+Der Text wird lokal in Sprache umgewandelt, standardmässig mit `espeak-ng` (Paket `espeak-ng`).
+Mit `--tts` bzw. `SF_TTS` lässt sich ein anderes Programm einsetzen; es bekommt den Text in
+`$TEXT` und schreibt eine WAV-Datei nach `$WAV`, z. B. mit Piper:
+`SF_TTS='printf %s "$TEXT" | piper --model de_DE-thorsten-medium.onnx --output_file "$WAV"'`.
+Mit `--confirm` hängt `sfctl` einen Hinweis auf die Taste an (abschaltbar mit `--no-hint`)
+und wiederholt die Ansage, bis die Taste kommt. Rückgabewert: 0 angenommen bzw. bestätigt,
+2 nicht angenommen, 3 nicht bestätigt, 1 Fehler. Eine Mailbox, die abnimmt, gilt ohne
+`--confirm` als angenommen.
+
 ## Lizenz
 
 MIT, siehe [LICENSE](LICENSE).

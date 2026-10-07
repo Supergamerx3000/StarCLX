@@ -23,6 +23,7 @@ enum sfsip_op {
 	SFSIP_OP_CONNECT,
 	SFSIP_OP_QUIT,
 	SFSIP_OP_RESET,
+	SFSIP_OP_AUSRC,
 };
 
 /* Stabile Ereigniscodes für Rust (unabhängig von enum bevent_ev) */
@@ -38,6 +39,8 @@ enum {
 	SFSIP_EV_CALL_CLOSED,
 	SFSIP_EV_CALL_MENC,
 	SFSIP_EV_AUDIO_ERROR,
+	SFSIP_EV_CALL_DTMF,
+	SFSIP_EV_END_OF_FILE,
 };
 
 struct sfsip_event {
@@ -111,6 +114,8 @@ static void bevent_handler(enum bevent_ev ev, struct bevent *event, void *arg)
 	case BEVENT_CALL_CLOSED:      code = SFSIP_EV_CALL_CLOSED;      break;
 	case BEVENT_CALL_MENC:        code = SFSIP_EV_CALL_MENC;        break;
 	case BEVENT_AUDIO_ERROR:      code = SFSIP_EV_AUDIO_ERROR;      break;
+	case BEVENT_CALL_DTMF_START:  code = SFSIP_EV_CALL_DTMF;        break;
+	case BEVENT_END_OF_FILE:      code = SFSIP_EV_END_OF_FILE;      break;
 	default:
 		return;
 	}
@@ -191,6 +196,18 @@ static void mqueue_handler(int id, void *data, void *arg)
 				err = call_send_digit(call, *p);
 			if (!err)
 				err = call_send_digit(call, KEYCODE_REL);
+		}
+		break;
+
+	case SFSIP_OP_AUSRC:
+		/* b: "modul,gerät", z. B. "aufile,/tmp/ansage.wav" */
+		ua = find_ua_for_call(c->a, false, &call);
+		if (ua && c->b) {
+			char *dev = strchr(c->b, ',');
+
+			if (dev)
+				*dev++ = '\0';
+			err = audio_set_source(call_audio(call), c->b, dev);
 		}
 		break;
 
