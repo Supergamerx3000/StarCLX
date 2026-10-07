@@ -53,9 +53,7 @@ async fn resume(app: &AppHandle) {
     if !fresh {
         tracing::warn!("Token nach dem Aufwachen noch nicht erneuert");
     }
-    if let Some(phone) = state.phone.lock().await.as_ref() {
-        phone.resume();
-    }
+    crate::plugins::call::resume(app).await;
     let _ = app.emit("resumed", ());
     // Umleitungen und Erreichbarkeit neu laden
     let _ = app.emit("reach-changed", ());

@@ -1,10 +1,10 @@
 <script lang="ts">
   // Kontakt anlegen oder bearbeiten. Die Felder gibt die Anlage vor.
   import { invoke } from "@tauri-apps/api/core";
-  import Icon from "./Icon.svelte";
+  import Icon from "../../Icon.svelte";
   import type { Folder } from "./contacts";
   import { contactEdit, PHONE_KEYS, type ContactField } from "./contactform.svelte";
-  import { t } from "./i18n.svelte";
+  import { t } from "../../i18n.svelte";
 
   let fields = $state<ContactField[]>([]);
   let folders = $state<Folder[]>([]);

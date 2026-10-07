@@ -1,8 +1,8 @@
 <script lang="ts">
   import CallCard from "./CallCard.svelte";
-  import Icon from "./Icon.svelte";
+  import Icon from "../../Icon.svelte";
   import { isRingingIn, phone } from "./phone.svelte";
-  import { t } from "./i18n.svelte";
+  import { t } from "../../i18n.svelte";
 
   let open = $state(false);
   const calls = $derived(phone.status.calls);

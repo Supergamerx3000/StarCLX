@@ -8,8 +8,8 @@
   import ChatBubble from "./ChatBubble.svelte";
   import Icon from "./Icon.svelte";
   import OwnStatus from "./OwnStatus.svelte";
-  import { avatarOf, fkeys, loadFkeys, loadSignaling, ownChat, type Redirect, type SignalingNumber } from "./fkeys.svelte";
-  import { phone } from "./phone.svelte";
+  import { avatarOf, fkeys, loadFkeys, loadSignaling, ownChat, type Redirect, type SignalingNumber } from "./plugins/fkeys/fkeys.svelte";
+  import { phone } from "./plugins/call/phone.svelte";
   import { prefs } from "./prefs.svelte";
   import { t } from "./i18n.svelte";
 

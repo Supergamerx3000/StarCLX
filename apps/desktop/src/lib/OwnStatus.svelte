@@ -6,7 +6,7 @@
   import { invoke } from "@tauri-apps/api/core";
   import ChatBubble from "./ChatBubble.svelte";
   import Icon from "./Icon.svelte";
-  import { ownChat } from "./fkeys.svelte";
+  import { ownChat } from "./plugins/fkeys/fkeys.svelte";
   import { prefs } from "./prefs.svelte";
   import { t } from "./i18n.svelte";
 

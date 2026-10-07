@@ -1,18 +1,21 @@
-//! URL oder Programm bei Anruf (wie „URL/Programm bei Anruf“ im
-//! Windows-Client). Die Oberfläche meldet, wann ein Anruf klingelt,
-//! angenommen wird oder abgeht; hier werden die passenden Regeln ausgeführt.
+//! Plugin URL oder Programm bei Anruf (wie „URL/Programm bei Anruf“ im
+//! Windows-Client). Erkennt auf dem Bus, wann ein Anruf klingelt,
+//! angenommen wird oder abgeht, und führt die passenden Regeln aus.
 //!
 //! Die Rufnummer kommt aus dem Netz. Sie wird deshalb auf Ziffern, `+`, `*`
 //! und `#` reduziert, in URLs kodiert und bei Programmen erst nach dem
 //! Zerlegen der Befehlszeile in einzelne Argumente eingesetzt; eine Shell
 //! ist nie beteiligt.
 
+use std::collections::{HashMap, HashSet};
 use std::process::Stdio;
 
 use serde::{Deserialize, Serialize};
-use tauri::AppHandle;
+use sf_core::phone::{CallPhase, CallView};
+use tauri::{AppHandle, Emitter};
 use tauri_plugin_opener::OpenerExt;
 
+use crate::bus::{self, Event};
 use crate::i18n::{t, tf};
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -272,22 +275,48 @@ pub fn call_action_run(app: AppHandle, target: String, number: String) -> Result
     )
 }
 
+pub fn start(app: &AppHandle) {
+    // Bereits ausgelöste Ereignisse je Anruf-ID
+    let mut fired: HashMap<String, HashSet<&'static str>> = HashMap::new();
+    bus::listen(app, "callactions", move |app, event| {
+        let Event::Calls { calls } = event else {
+            return;
+        };
+        fired.retain(|id, _| calls.iter().any(|c| &c.id == id));
+        for c in &calls {
+            let Some(trigger) = trigger_of(c) else {
+                continue;
+            };
+            if !fired.entry(c.id.clone()).or_default().insert(trigger) {
+                continue;
+            }
+            if let Err(e) = fire(app, trigger, &c.remote_number, c.internal) {
+                let _ = app.emit("phone-error", e);
+            }
+        }
+    });
+}
+
+/// "ringing", "answered" oder "outgoing", sofern der Anruf gerade so steht
+fn trigger_of(c: &CallView) -> Option<&'static str> {
+    match (c.incoming, c.phase) {
+        (true, CallPhase::Ringing) => Some("ringing"),
+        (true, CallPhase::Connected) => Some("answered"),
+        (false, CallPhase::Setup | CallPhase::Ringback | CallPhase::Connected) => Some("outgoing"),
+        _ => None,
+    }
+}
+
 /// Alle aktiven Regeln für `trigger` ausführen, deren Filter passt.
-#[tauri::command]
-pub fn call_actions_fire(
-    app: AppHandle,
-    trigger: String,
-    number: String,
-    internal: bool,
-) -> Result<(), String> {
-    let prefs = crate::settings::load(&app).prefs;
+fn fire(app: &AppHandle, trigger: &str, number: &str, internal: bool) -> Result<(), String> {
+    let prefs = crate::settings::load(app).prefs;
     let country = prefs.default_country_code.trim().trim_start_matches('+');
     let errors: Vec<String> = prefs
         .call_actions
         .iter()
         .filter(|r| r.enabled && r.trigger == trigger && !r.target.trim().is_empty())
-        .filter(|r| matches(r, &number, internal, country))
-        .filter_map(|r| run(&app, &r.target, &number, country).err())
+        .filter(|r| matches(r, number, internal, country))
+        .filter_map(|r| run(app, &r.target, number, country).err())
         .collect();
     if errors.is_empty() {
         Ok(())

@@ -4,9 +4,9 @@
   // Telefonfarbe, Ruhe oben links, Chat-Status oben rechts, Umleitung unten
   // links, darunter der Statustext.
   import { account, avatarOf, blfUser, callDrag, chatText, keyState, keyTitle, typeInfo, type FunctionKey } from "./fkeys.svelte";
-  import ChatBubble from "./ChatBubble.svelte";
-  import Icon from "./Icon.svelte";
-  import { t } from "./i18n.svelte";
+  import ChatBubble from "../../ChatBubble.svelte";
+  import Icon from "../../Icon.svelte";
+  import { t } from "../../i18n.svelte";
 
   let { key, onclick, disabled = false, editor = false }: { key: FunctionKey; onclick?: () => void; disabled?: boolean; editor?: boolean } = $props();
 

@@ -1,13 +1,13 @@
 <script lang="ts">
-  import { portal } from "./portal";
+  import { portal } from "../../portal";
   // Funktionstasten-Editor wie im Windows-Client: links das Raster, rechts
   // die Tastentypen. Änderungen gehen sofort an die Anlage.
   import { invoke } from "@tauri-apps/api/core";
   import { onMount } from "svelte";
   import FkeyTile from "./FkeyTile.svelte";
-  import Icon from "./Icon.svelte";
+  import Icon from "../../Icon.svelte";
   import { types, blank, fkeys, keyAt, loadFkeys, placeAt, saveOrder, typeInfo, type FunctionKey, type SignalingNumber } from "./fkeys.svelte";
-  import { t } from "./i18n.svelte";
+  import { t } from "../../i18n.svelte";
 
   let { columns = $bindable(3) }: { columns: number } = $props();
 

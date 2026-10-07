@@ -155,7 +155,9 @@ pub fn start(app: &AppHandle) {
                     away = now;
                     AWAY.store(away, std::sync::atomic::Ordering::Relaxed);
                     let app = app.clone();
-                    tauri::async_runtime::spawn(async move { crate::chat::apply_own(&app).await });
+                    tauri::async_runtime::spawn(async move {
+                        crate::plugins::chat::apply_own(&app).await
+                    });
                 }
             }
         });

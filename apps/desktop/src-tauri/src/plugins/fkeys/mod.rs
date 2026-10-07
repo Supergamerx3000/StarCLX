@@ -10,6 +10,7 @@ use sf_core::module::{Module, Modules};
 use tauri::{AppHandle, Emitter, Manager, State};
 use tokio::sync::{Mutex, mpsc};
 
+use crate::plugins::call::softphone_id;
 use crate::{AppState, hub};
 
 #[derive(Default)]
@@ -26,7 +27,7 @@ pub struct FkeyState {
 }
 
 /// Beim Abmelden die Präsenz beenden.
-pub async fn stop(app: &AppHandle) {
+pub async fn session_ended(app: &AppHandle) {
     let state = app.state::<FkeyState>();
     state.presence.lock().await.take();
     state.states.lock().unwrap().clear();
@@ -128,7 +129,7 @@ pub async fn fkeys_load(
         tauri::async_runtime::spawn(async move {
             while let Some(states) = rx.recv().await {
                 if let Some(own) = states.get(&me) {
-                    crate::chat::sync_own(&app, own);
+                    crate::plugins::chat::sync_own(&app, own);
                 }
                 *app.state::<FkeyState>().states.lock().unwrap() = states.clone();
                 let _ = app.emit("fkey-presence", states);
@@ -369,23 +370,15 @@ pub async fn fkey_group_toggle(
     Ok(on)
 }
 
-async fn softphone(state: &AppState) -> Option<String> {
-    state
-        .phone
-        .lock()
-        .await
-        .as_ref()
-        .map(|p| p.phone_id().to_owned())
-}
-
 /// Ohne `call_id` wird das auf `number` geparkte Gespräch zurückgeholt.
 #[tauri::command]
 pub async fn fkey_park(
+    app: AppHandle,
     state: State<'_, AppState>,
     call_id: Option<String>,
     number: String,
 ) -> Result<(), String> {
-    let phone = softphone(&state).await;
+    let phone = softphone_id(&app).await;
     sf_core::fkeys::park(
         &hub(&state).await?,
         call_id.as_deref(),
@@ -398,8 +391,12 @@ pub async fn fkey_park(
 
 /// Holt den Anruf heran, der beim überwachten User klingelt.
 #[tauri::command]
-pub async fn fkey_grab(state: State<'_, AppState>, user_id: String) -> Result<(), String> {
-    let phone = softphone(&state).await;
+pub async fn fkey_grab(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    user_id: String,
+) -> Result<(), String> {
+    let phone = softphone_id(&app).await;
     sf_core::fkeys::grab(&hub(&state).await?, &user_id, phone.as_deref())
         .await
         .map_err(|e| e.to_string())

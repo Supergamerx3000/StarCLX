@@ -3,8 +3,8 @@
   import { onMount } from "svelte";
   import FkeyTile from "./FkeyTile.svelte";
   import { fkeys, keyAt, loadFkeys, press, typeInfo } from "./fkeys.svelte";
-  import { prefs } from "./prefs.svelte";
-  import { t } from "./i18n.svelte";
+  import { prefs } from "../../prefs.svelte";
+  import { t } from "../../i18n.svelte";
 
   onMount(() => { loadFkeys(); });
   const columns = $derived(prefs.value?.fkey_columns ?? 3);

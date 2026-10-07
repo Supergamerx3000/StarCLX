@@ -27,7 +27,7 @@ pub struct ChatStatus {
 }
 
 /// Startet den Chat für die Sitzung (im Hintergrund, Fehler nur als Status).
-pub fn start(app: &AppHandle, hub: sf_onehub::OneHub, host: String, user_id: String) {
+pub fn session_started(app: &AppHandle, hub: sf_onehub::OneHub, host: String, user_id: String) {
     let app = app.clone();
     tauri::async_runtime::spawn(async move {
         set_status(&app, |s| {
@@ -219,7 +219,7 @@ pub fn chat_delete_preset(
 }
 
 /// Beendet den Chat (Abmelden) und hinterlässt den Statustext.
-pub async fn stop(app: &AppHandle) {
+pub async fn session_ended(app: &AppHandle) {
     let chat = app.state::<ChatState>().chat.lock().await.take();
     if let Some(chat) = chat {
         chat.shutdown(&crate::settings::load(app).prefs.offline_text)

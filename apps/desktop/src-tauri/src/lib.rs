@@ -3,33 +3,28 @@
 //! dem Schlüsselbund, ein Tray-Symbol und das Softphone.
 
 mod audio;
-mod busylight;
-mod callactions;
+mod bus;
 mod certs;
-mod chat;
 mod desktop;
-mod fkeys;
 mod flatpak;
 mod i18n;
 mod log;
 mod login;
+mod plugins;
 mod presence;
-mod reach;
 mod settings;
-mod voicemail;
 mod wake;
 
+use bus::Event;
 use i18n::{t, tf};
+use plugins::{busylight, chat, fkeys, reach, voicemail};
 use serde::Serialize;
 use settings::Prefs;
-use sf_core::journal::{Journal, JournalEvent};
-use sf_core::phone::{CallPhase, Phone, PhoneEvent};
 use sf_core::{Session, SessionEvent};
 use tauri::menu::{Menu, MenuItem};
 use tauri::tray::TrayIconBuilder;
 use tauri::{AppHandle, Emitter, Manager, State, WindowEvent};
 use tauri_plugin_deep_link::DeepLinkExt;
-use tauri_plugin_notification::NotificationExt;
 use tauri_plugin_opener::OpenerExt;
 use tokio::sync::{Mutex, mpsc};
 
@@ -44,24 +39,9 @@ pub(crate) struct AppState {
     pending: Mutex<Option<PendingLogin>>,
     session: Mutex<Option<Session>>,
     events: mpsc::UnboundedSender<SessionEvent>,
-    pub(crate) phone: Mutex<Option<Phone>>,
-    /// Letzter Stand fürs Neuladen der Oberfläche
-    phone_status: std::sync::Mutex<PhoneStatus>,
-    journal: Mutex<Option<Journal>>,
     /// Rufnummer aus einem tel:-Link, bis die Oberfläche sie abholt; leer
     /// heisst: Link ohne Nummer
     dial_request: std::sync::Mutex<Option<String>>,
-}
-
-#[derive(Clone, Default, Serialize)]
-struct PhoneStatus {
-    /// "off", "starting", "ready" oder "error"
-    state: String,
-    detail: String,
-    calls: Vec<sf_core::phone::CallView>,
-    muted: bool,
-    /// Rückruf bei Besetzt: "available", "active" oder ""
-    callback: String,
 }
 
 #[derive(Clone, Serialize)]
@@ -133,215 +113,22 @@ fn set_tray_tooltip(app: &AppHandle, session: Option<&Session>) {
 
 async fn set_session(app: &AppHandle, session: Option<Session>) {
     set_tray_tooltip(app, session.as_ref());
-    let state = app.state::<AppState>();
-    // Erst das alte Softphone beenden, dann ggf. ein neues starten.
-    state.phone.lock().await.take();
-    audio::update_ringer(app, None);
-    busylight::set_mode(app, busylight::Mode::Off);
-    let host = session.as_ref().and_then(|s| {
-        url::Url::parse(&s.info().server)
-            .ok()
-            .and_then(|u| u.host_str().map(str::to_owned))
+    // Erst alles von der alten Sitzung beenden, dann ggf. neu starten.
+    plugins::session_ended(app).await;
+    let login = session.as_ref().and_then(|s| {
+        let host = url::Url::parse(&s.info().server)
+            .ok()?
+            .host_str()?
+            .to_owned();
+        Some(plugins::Login {
+            hub: s.hub().clone(),
+            host,
+            user_id: s.info().user_id.clone(),
+        })
     });
-    let hub = session.as_ref().map(|s| s.hub().clone());
-    let user_id = session.as_ref().map(|s| s.info().user_id.clone());
-    *state.session.lock().await = session;
-    *state.journal.lock().await = hub.clone().map(|hub| start_journal(app, hub));
-    reach::restart(app, hub.clone()).await;
-    voicemail::restart(app, hub.clone()).await;
-    fkeys::stop(app).await;
-    chat::stop(app).await;
-    if let (Some(hub), Some(host), Some(user_id)) = (&hub, &host, user_id) {
-        chat::start(app, hub.clone(), host.clone(), user_id);
-    }
-    if hub.is_none() {
-        let _ = app.emit("journal", Vec::<sf_core::journal::Entry>::new());
-    }
-    match (hub, host) {
-        (Some(hub), Some(host)) => {
-            let app = app.clone();
-            tauri::async_runtime::spawn(async move { start_phone(app, hub, host).await });
-        }
-        _ => update_phone_status(app, |s| *s = PhoneStatus::default()),
-    }
-}
-
-fn start_journal(app: &AppHandle, hub: sf_onehub::OneHub) -> Journal {
-    let (tx, mut rx) = mpsc::unbounded_channel();
-    let journal = Journal::start(hub, tx);
-    let app = app.clone();
-    tauri::async_runtime::spawn(async move {
-        while let Some(ev) = rx.recv().await {
-            match ev {
-                JournalEvent::Entries { entries } => {
-                    let _ = app.emit("journal", entries);
-                }
-                JournalEvent::Missed { entry } => notify_missed(&app, &entry),
-                JournalEvent::Error { message } => {
-                    let _ = app.emit("journal-error", message);
-                }
-            }
-        }
-    });
-    journal
-}
-
-fn notify_missed(app: &AppHandle, entry: &sf_core::journal::Entry) {
-    let prefs = settings::load(app).prefs;
-    let group = !entry.group.is_empty();
-    if !(if group {
-        prefs.notify_missed_group
-    } else {
-        prefs.notify_missed
-    }) {
-        return;
-    }
-    let who = match (entry.name.trim(), entry.number.trim()) {
-        ("", "") => t("Unbekannt").to_owned(),
-        ("", n) | (n, "") => n.to_owned(),
-        (name, n) => format!("{name} ({n})"),
-    };
-    let body = if group {
-        tf(
-            "{who} über Gruppe {group}",
-            &[("who", &who), ("group", &entry.group)],
-        )
-    } else {
-        who
-    };
-    if let Err(e) = app
-        .notification()
-        .builder()
-        .title(t("Verpasster Anruf"))
-        .body(body)
-        .show()
-    {
-        tracing::warn!(error = %e, "Benachrichtigung nicht angezeigt");
-    }
-}
-
-fn update_phone_status(app: &AppHandle, f: impl FnOnce(&mut PhoneStatus)) {
-    let status = {
-        let state = app.state::<AppState>();
-        let mut status = state.phone_status.lock().unwrap();
-        f(&mut status);
-        if status.state.is_empty() {
-            status.state = "off".into();
-        }
-        status.clone()
-    };
-    let _ = app.emit("phone", status);
-}
-
-async fn start_phone(app: AppHandle, hub: sf_onehub::OneHub, host: String) {
-    update_phone_status(&app, |s| {
-        *s = PhoneStatus {
-            state: "starting".into(),
-            ..Default::default()
-        }
-    });
-    let prefs = settings::load(&app).prefs;
-    if !prefs.softphone {
-        update_phone_status(&app, |s| {
-            *s = PhoneStatus {
-                state: "off".into(),
-                detail: t("Softphone in den Einstellungen ausgeschaltet").into(),
-                ..Default::default()
-            }
-        });
-        return;
-    }
-    let (tx, mut rx) = mpsc::unbounded_channel();
-    let mut config = audio::softphone_config(&prefs).await;
-    // Cloud-Anlagen nutzen für SIP ein Zertifikat der privaten „STARFACE CA“
-    // (auf die IP ausgestellt), das kein System kennt; baresip kann es nicht
-    // einzeln bestätigen. Wie bei bestätigten Zertifikaten nicht prüfen.
-    let cloud = app
-        .state::<AppState>()
-        .session
-        .lock()
-        .await
-        .as_ref()
-        .is_some_and(|s| s.info().cloud);
-    if cloud || certs::is_confirmed(&host).await {
-        config.verify_server = false;
-    }
-    match Phone::start(hub.clone(), &host, &config, env!("CARGO_PKG_VERSION"), tx).await {
-        Ok(phone) => {
-            let state = app.state::<AppState>();
-            if state.session.lock().await.is_none() {
-                return; // inzwischen abgemeldet
-            }
-            if prefs.primary_on_login {
-                make_primary(&hub, phone.phone_id()).await;
-            }
-            *state.phone.lock().await = Some(phone);
-            update_phone_status(&app, |s| s.state = "ready".into());
-            busylight::set_mode(&app, busylight::Mode::Idle);
-        }
-        Err(e) => {
-            tracing::warn!(error = %e, "Softphone nicht gestartet");
-            let detail = match &e {
-                sf_core::phone::PhoneError::NoProvisioningRight(_) => t(
-                    "Dem Benutzer fehlt in der Anlage das Recht für App-Telefone (uci_autoprovisioning). Der Administrator kann es unter Benutzer → Rechte freischalten.",
-                )
-                .to_owned(),
-                _ => e.to_string(),
-            };
-            update_phone_status(&app, |s| {
-                s.state = "error".into();
-                s.detail = detail;
-            });
-            return;
-        }
-    }
-    while let Some(ev) = rx.recv().await {
-        match ev {
-            PhoneEvent::Registered { ok, detail } => update_phone_status(&app, |s| {
-                s.state = if ok { "ready" } else { "error" }.into();
-                s.detail = detail;
-            }),
-            PhoneEvent::Calls {
-                calls,
-                muted,
-                callback,
-            } => {
-                let ringing = calls
-                    .iter()
-                    .any(|c| c.incoming && c.phase == CallPhase::Ringing);
-                let was_ringing = app
-                    .state::<AppState>()
-                    .phone_status
-                    .lock()
-                    .unwrap()
-                    .calls
-                    .iter()
-                    .any(|c| c.incoming && c.phase == CallPhase::Ringing);
-                let ring_internal = calls
-                    .iter()
-                    .find(|c| c.incoming && c.phase == CallPhase::Ringing)
-                    .map(|c| c.internal);
-                audio::update_ringer(&app, ring_internal);
-                busylight::set_mode(&app, busylight::Mode::from_calls(&calls));
-                update_phone_status(&app, |s| {
-                    s.calls = calls;
-                    s.muted = muted;
-                    s.callback = callback.into();
-                });
-                if ringing && !was_ringing && settings::load(&app).prefs.bring_to_front {
-                    show_main_window(&app);
-                }
-            }
-            PhoneEvent::Error { message } => {
-                let _ = app.emit("phone-error", message);
-            }
-        }
-    }
-}
-
-async fn make_primary(hub: &sf_onehub::OneHub, phone_id: &str) {
-    if let Err(e) = sf_core::account::set_primary_phone(hub, phone_id).await {
-        tracing::warn!(error = %e, "Softphone nicht als primäres Telefon gesetzt");
+    *app.state::<AppState>().session.lock().await = session;
+    if let Some(login) = login {
+        plugins::session_started(app, login).await;
     }
 }
 
@@ -412,121 +199,6 @@ async fn start_login(
 }
 
 #[tauri::command]
-fn phone_status(state: State<'_, AppState>) -> PhoneStatus {
-    let mut status = state.phone_status.lock().unwrap().clone();
-    if status.state.is_empty() {
-        status.state = "off".into();
-    }
-    status
-}
-
-#[tauri::command]
-async fn phone_dial(state: State<'_, AppState>, number: String) -> Result<(), String> {
-    let number = clean_number(&number);
-    if number.is_empty() {
-        return Err(t("Keine Nummer").into());
-    }
-    with_phone(&state, async |p| p.dial(&number).await).await
-}
-
-#[tauri::command]
-async fn phone_answer(
-    app: AppHandle,
-    state: State<'_, AppState>,
-    call_id: String,
-) -> Result<(), String> {
-    let primary = settings::load(&app).prefs.primary_on_answer;
-    with_phone(&state, async |p| {
-        p.answer(&call_id)?;
-        if primary {
-            let hub = state.session.lock().await.as_ref().map(|s| s.hub().clone());
-            if let Some(hub) = hub {
-                make_primary(&hub, p.phone_id()).await;
-            }
-        }
-        Ok(())
-    })
-    .await
-}
-
-#[tauri::command]
-async fn phone_hangup(state: State<'_, AppState>, call_id: String) -> Result<(), String> {
-    with_phone(&state, async |p| p.hangup(&call_id).await).await
-}
-
-#[tauri::command]
-async fn phone_hold(state: State<'_, AppState>, call_id: String, hold: bool) -> Result<(), String> {
-    with_phone(&state, async |p| p.hold(&call_id, hold).await).await
-}
-
-/// Rückruf bei Besetzt aktivieren bzw. abbrechen
-#[tauri::command]
-async fn phone_callback(state: State<'_, AppState>) -> Result<(), String> {
-    with_phone(&state, async |p| p.toggle_callback().await.map(|_| ())).await
-}
-
-#[tauri::command]
-async fn phone_mute(state: State<'_, AppState>, muted: bool) -> Result<(), String> {
-    with_phone(&state, async |p| p.set_mute(muted)).await
-}
-
-#[tauri::command]
-async fn phone_dtmf(
-    state: State<'_, AppState>,
-    call_id: String,
-    digits: String,
-) -> Result<(), String> {
-    with_phone(&state, async |p| p.send_dtmf(&call_id, &digits).await).await
-}
-
-/// Weitere Funktionen des Call Managers.
-#[tauri::command]
-async fn phone_action(
-    state: State<'_, AppState>,
-    action: String,
-    call_id: String,
-    number: Option<String>,
-) -> Result<(), String> {
-    // Bei "conference" enthält `number` die weiteren Anruf-IDs, kommagetrennt.
-    let raw = number.unwrap_or_default();
-    let number = clean_number(&raw);
-    with_phone(&state, async |p| match action.as_str() {
-        "forward" => p.forward(&call_id, &number).await,
-        "voicemail" => p.to_voicemail(&call_id).await,
-        "record" => p.record(&call_id).await,
-        "switch_phone" => p.switch_phone(&call_id).await,
-        "consult" => p.consult(&call_id, &number).await,
-        "transfer_consultation" => p.transfer_consultation(&call_id).await,
-        "conference" => {
-            let mut ids = vec![call_id.clone()];
-            ids.extend(
-                raw.split(',')
-                    .filter(|id| !id.is_empty())
-                    .map(str::to_owned),
-            );
-            p.conference(&ids).await
-        }
-        _ => Ok(()),
-    })
-    .await
-}
-
-fn clean_number(n: &str) -> String {
-    n.chars()
-        .filter(|c| !c.is_whitespace() && !matches!(c, '-' | '/' | '(' | ')'))
-        .collect()
-}
-
-async fn with_phone(
-    state: &AppState,
-    f: impl AsyncFnOnce(&Phone) -> sf_core::phone::PhoneResult<()>,
-) -> Result<(), String> {
-    let phone = state.phone.lock().await;
-    let phone = phone.as_ref().ok_or(t("Softphone ist nicht bereit"))?;
-    f(phone).await.map_err(|e| e.to_string())
-}
-
-#[tauri::command]
 fn get_prefs(app: AppHandle) -> Prefs {
     settings::load(&app).prefs
 }
@@ -551,7 +223,7 @@ async fn save_prefs(
         relabel(&app, state.session.lock().await.as_ref());
     }
     log::set_verbose(prefs.verbose_log);
-    busylight::refresh(&app);
+    bus::publish(&app, Event::PrefsSaved);
     desktop::apply_window(&app, &prefs);
     if old.handle_tel_links != prefs.handle_tel_links {
         desktop::register_schemes(&app, prefs.handle_tel_links);
@@ -570,31 +242,7 @@ async fn save_prefs(
             )
         })?;
     }
-    if !old.softphone_changed(&prefs) {
-        return Ok(());
-    }
-    if !state.phone_status.lock().unwrap().calls.is_empty() {
-        return Err(t("Gespeichert. Das Softphone übernimmt die Änderung nach dem Gespräch beim nächsten Start.").into());
-    }
-    restart_phone(&app).await;
-    Ok(())
-}
-
-async fn restart_phone(app: &AppHandle) {
-    let state = app.state::<AppState>();
-    state.phone.lock().await.take();
-    let session = state.session.lock().await;
-    let Some(session) = session.as_ref() else {
-        return;
-    };
-    let hub = session.hub().clone();
-    let host = url::Url::parse(&session.info().server)
-        .ok()
-        .and_then(|u| u.host_str().map(str::to_owned));
-    if let Some(host) = host {
-        let app = app.clone();
-        tauri::async_runtime::spawn(async move { start_phone(app, hub, host).await });
-    }
+    plugins::call::apply_prefs(&app, &old, &prefs).await
 }
 
 pub(crate) async fn hub(state: &AppState) -> Result<sf_onehub::OneHub, String> {
@@ -637,123 +285,6 @@ async fn set_signaling_number(state: State<'_, AppState>, id: String) -> Result<
     sf_core::account::set_signaling_number(&hub(&state).await?, &id)
         .await
         .map_err(|e| e.to_string())
-}
-
-#[tauri::command]
-async fn contacts_search(
-    state: State<'_, AppState>,
-    term: String,
-) -> Result<Vec<sf_core::directory::ContactView>, String> {
-    if term.trim().chars().count() < 2 {
-        return Ok(Vec::new());
-    }
-    sf_core::directory::search(&hub(&state).await?, &term, 8)
-        .await
-        .map_err(|e| e.to_string())
-}
-
-#[tauri::command]
-async fn contacts_folders(
-    state: State<'_, AppState>,
-) -> Result<Vec<sf_core::directory::Folder>, String> {
-    let (hub, server) = state
-        .session
-        .lock()
-        .await
-        .as_ref()
-        .map(|s| (s.hub().clone(), s.info().server.clone()))
-        .ok_or("Nicht angemeldet")?;
-    sf_core::directory::folders(&hub, &server)
-        .await
-        .map_err(|e| e.to_string())
-}
-
-#[tauri::command]
-async fn contacts_list(
-    state: State<'_, AppState>,
-    folder: String,
-    term: String,
-    offset: i32,
-) -> Result<sf_core::directory::Page, String> {
-    sf_core::directory::list(&hub(&state).await?, &folder, &term, offset, 50)
-        .await
-        .map_err(|e| e.to_string())
-}
-
-/// Formular für einen neuen (`id` leer) oder bestehenden Kontakt
-#[tauri::command]
-async fn contact_form(
-    state: State<'_, AppState>,
-    id: String,
-) -> Result<Vec<sf_core::contact_form::Field>, String> {
-    let hub = hub(&state).await?;
-    if id.is_empty() {
-        sf_core::contact_form::empty(&hub).await
-    } else {
-        sf_core::contact_form::load(&hub, &id).await
-    }
-    .map_err(|e| e.to_string())
-}
-
-/// Speichert einen Kontakt: neu in `folder`, sonst Änderung an `id`
-#[tauri::command]
-async fn contact_save(
-    state: State<'_, AppState>,
-    id: String,
-    folder: String,
-    fields: Vec<sf_core::contact_form::Field>,
-) -> Result<(), String> {
-    if sf_core::contact_form::missing_name(&fields) {
-        return Err(t("Bitte Nachname oder Firma ausfüllen.").into());
-    }
-    let hub = hub(&state).await?;
-    if id.is_empty() {
-        sf_core::contact_form::create(&hub, &folder, &fields).await
-    } else {
-        sf_core::contact_form::update(&hub, &id, &fields).await
-    }
-    .map_err(|e| e.to_string())
-}
-
-#[tauri::command]
-async fn contact_delete(state: State<'_, AppState>, id: String) -> Result<(), String> {
-    sf_core::contact_form::delete(&hub(&state).await?, &id)
-        .await
-        .map_err(|e| e.to_string())
-}
-
-#[tauri::command]
-async fn journal_entries(
-    state: State<'_, AppState>,
-) -> Result<Vec<sf_core::journal::Entry>, String> {
-    Ok(state
-        .journal
-        .lock()
-        .await
-        .as_ref()
-        .map(Journal::entries)
-        .unwrap_or_default())
-}
-
-/// Rufliste bearbeiten: "delete", "called_back", "not_called_back" oder
-/// "comment" (mit `text`).
-#[tauri::command]
-async fn journal_action(
-    state: State<'_, AppState>,
-    action: String,
-    id: String,
-    text: Option<String>,
-) -> Result<(), String> {
-    let journal = state.journal.lock().await;
-    let journal = journal.as_ref().ok_or(t("Nicht angemeldet"))?;
-    match action.as_str() {
-        "delete" => journal.delete(&id).await,
-        "called_back" => journal.set_called_back(&id, true).await,
-        "not_called_back" => journal.set_called_back(&id, false).await,
-        "comment" => journal.set_comment(&id, &text.unwrap_or_default()).await,
-        _ => return Err(tf("Unbekannte Aktion {action}", &[("action", &action)])),
-    }
-    .map_err(|e| e.to_string())
 }
 
 #[tauri::command]
@@ -927,18 +458,19 @@ pub fn run() {
         .manage(fkeys::FkeyState::default())
         .manage(voicemail::VoicemailState::default())
         .manage(audio::AudioState::default())
+        .manage(bus::Bus::default())
+        .manage(plugins::call::CallState::default())
+        .manage(plugins::journal::JournalState::default())
         .manage(busylight::BusylightState::default())
         .manage(AppState {
             pending: Mutex::default(),
             session: Mutex::default(),
             events: events_tx,
-            phone: Mutex::default(),
-            phone_status: std::sync::Mutex::default(),
-            journal: Mutex::default(),
             dial_request: std::sync::Mutex::default(),
         })
         .setup(move |app| {
             log::open(app.handle());
+            plugins::start(app.handle());
             certs::init(app.handle());
             presence::start(app.handle());
             wake::start(app.handle());
@@ -1026,29 +558,29 @@ pub fn run() {
             certs::trust_certificate,
             start_login,
             logout,
-            phone_status,
-            phone_dial,
-            phone_answer,
-            phone_hangup,
-            phone_hold,
-            phone_mute,
-            phone_callback,
-            phone_dtmf,
-            phone_action,
+            plugins::call::phone_status,
+            plugins::call::phone_dial,
+            plugins::call::phone_answer,
+            plugins::call::phone_hangup,
+            plugins::call::phone_hold,
+            plugins::call::phone_mute,
+            plugins::call::phone_callback,
+            plugins::call::phone_dtmf,
+            plugins::call::phone_action,
             get_prefs,
             save_prefs,
             signaling_numbers,
             set_signaling_number,
             phones,
             set_primary_phone,
-            contacts_search,
-            contacts_folders,
-            contacts_list,
-            contact_form,
-            contact_save,
-            contact_delete,
-            journal_entries,
-            journal_action,
+            plugins::contacts::contacts_search,
+            plugins::contacts::contacts_folders,
+            plugins::contacts::contacts_list,
+            plugins::contacts::contact_form,
+            plugins::contacts::contact_save,
+            plugins::contacts::contact_delete,
+            plugins::journal::journal_entries,
+            plugins::journal::journal_action,
             chat::chat_status,
             chat::chat_set_own,
             chat::chat_delete_preset,
@@ -1058,8 +590,7 @@ pub fn run() {
             chat::default_download_dir,
             desktop::desktop_info,
             take_dial_request,
-            callactions::call_action_run,
-            callactions::call_actions_fire,
+            plugins::callactions::call_action_run,
             reach::redirects,
             reach::redirect_enable,
             reach::redirect_update,

@@ -14,8 +14,15 @@ pub struct ReachState {
     watcher: Mutex<Option<Watcher>>,
 }
 
-/// Beim An- und Abmelden aufrufen.
-pub async fn restart(app: &AppHandle, hub: Option<sf_onehub::OneHub>) {
+pub async fn session_ended(app: &AppHandle) {
+    restart(app, None).await;
+}
+
+pub async fn session_started(app: &AppHandle, hub: sf_onehub::OneHub) {
+    restart(app, Some(hub)).await;
+}
+
+async fn restart(app: &AppHandle, hub: Option<sf_onehub::OneHub>) {
     let state = app.state::<ReachState>();
     let mut watcher = state.watcher.lock().await;
     *watcher = hub.map(|hub| {
@@ -104,13 +111,13 @@ pub async fn mailboxes(state: State<'_, AppState>) -> Result<Vec<Mailbox>, Strin
 
 /// Die Anlage ruft das Softphone an und verbindet mit dem Menü der Box.
 #[tauri::command]
-pub async fn mailbox_record(state: State<'_, AppState>, mailbox: String) -> Result<(), String> {
-    let phone_id = state
-        .phone
-        .lock()
+pub async fn mailbox_record(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    mailbox: String,
+) -> Result<(), String> {
+    let phone_id = crate::plugins::call::softphone_id(&app)
         .await
-        .as_ref()
-        .map(|p| p.phone_id().to_owned())
         .ok_or(t("Das Softphone ist nicht aktiv."))?;
     redirect::call_mailbox(&hub(&state).await?, &mailbox, &phone_id)
         .await

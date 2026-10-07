@@ -1,8 +1,8 @@
 <script lang="ts">
   import { invoke } from "@tauri-apps/api/core";
   import Icon from "./Icon.svelte";
-  import { phone, run } from "./phone.svelte";
-  import type { Contact } from "./contacts";
+  import { phone, run } from "./plugins/call/phone.svelte";
+  import type { Contact } from "./plugins/contacts/contacts";
   import { t } from "./i18n.svelte";
 
   let text = $state("");
