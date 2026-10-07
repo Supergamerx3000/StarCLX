@@ -93,11 +93,20 @@ Ohne `--confirm` gilt auch eine Mailbox, die abnimmt, als angenommen.
 
 Standard ist `espeak-ng` (`sudo apt install espeak-ng`). Mit `--tts` oder `SF_TTS` lässt sich
 ein anderes Programm einsetzen. Der Befehl läuft über `sh -c`, bekommt den Text in `$TEXT` und
-schreibt eine WAV-Datei (16-bit-PCM) nach `$WAV`. Piper klingt deutlich natürlicher:
+schreibt eine WAV-Datei (16-bit-PCM) nach `$WAV`.
+
+[Piper](https://github.com/OHF-Voice/piper1-gpl) klingt deutlich natürlicher und läuft
+ebenfalls offline:
 
 ```sh
-export SF_TTS='printf %s "$TEXT" | piper --model de_DE-thorsten-medium.onnx --output_file "$WAV"'
+pipx install piper-tts                     # oder in einer venv: pip install piper-tts
+mkdir -p ~/.local/share/piper && cd ~/.local/share/piper
+python3 -m piper.download_voices de_DE-thorsten-high   # mit pipx: ~/.local/share/pipx/venvs/piper-tts/bin/python
+export SF_TTS='printf %s "$TEXT" | piper -m "$HOME/.local/share/piper/de_DE-thorsten-high.onnx" -f "$WAV"'
 ```
+
+Deutsche Stimmen sind u. a. `de_DE-thorsten-high` (männlich), `de_DE-kerstin-low` und
+`de_DE-ramona-low` (weiblich); Hörproben unter https://rhasspy.github.io/piper-samples/.
 
 ## Beispiele für Skripte
 
