@@ -1,5 +1,5 @@
-//! Kuando Busylight: grün wenn frei, rot im Gespräch, blinkend (mit Ton)
-//! bei eingehendem Anruf, aus wenn abgemeldet.
+//! Plugin Kuando Busylight: grün wenn frei, rot im Gespräch, blinkend (mit
+//! Ton) bei eingehendem Anruf, aus wenn abgemeldet.
 
 use std::sync::Mutex;
 
@@ -8,10 +8,11 @@ use sf_busylight::{Busylight, Light, Rgb};
 use sf_core::phone::{CallPhase, CallView};
 use tauri::{AppHandle, Manager};
 
+use crate::bus::{self, Event};
 use crate::settings::{self, Prefs};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
-pub enum Mode {
+enum Mode {
     #[default]
     Off,
     Idle,
@@ -20,7 +21,7 @@ pub enum Mode {
 }
 
 impl Mode {
-    pub fn from_calls(calls: &[CallView]) -> Self {
+    fn from_calls(calls: &[CallView]) -> Self {
         if calls
             .iter()
             .any(|c| c.incoming && c.phase == CallPhase::Ringing)
@@ -64,8 +65,17 @@ fn tone(prefs: &Prefs) -> Option<(String, u8)> {
         .then(|| (prefs.busylight_sound.clone(), prefs.busylight_volume))
 }
 
+pub fn start(app: &AppHandle) {
+    bus::listen(app, "busylight", |app, event| match event {
+        Event::PhoneStopped => set_mode(app, Mode::Off),
+        Event::PhoneReady => set_mode(app, Mode::Idle),
+        Event::Calls { calls } => set_mode(app, Mode::from_calls(&calls)),
+        Event::PrefsSaved => refresh(app),
+    });
+}
+
 /// Merkt sich den Zustand und überträgt ihn aufs Licht, wenn eingeschaltet.
-pub fn set_mode(app: &AppHandle, mode: Mode) {
+fn set_mode(app: &AppHandle, mode: Mode) {
     let state = app.state::<BusylightState>();
     let mut inner = state.inner.lock().unwrap();
     inner.mode = mode;
@@ -75,7 +85,7 @@ pub fn set_mode(app: &AppHandle, mode: Mode) {
 }
 
 /// Nach geänderten Einstellungen neu anwenden
-pub fn refresh(app: &AppHandle) {
+fn refresh(app: &AppHandle) {
     let state = app.state::<BusylightState>();
     let mut inner = state.inner.lock().unwrap();
     apply(app, &mut inner);

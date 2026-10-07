@@ -48,7 +48,7 @@ export type Prefs = {
 /** Kachel im freien Arbeitsbereich: Lage in Rasterzellen (12 Spalten) */
 export type Tile = { id: string; x: number; y: number; w: number; h: number; visible: boolean };
 
-/** URL oder Programm bei Anruf (siehe callactions.rs) */
+/** URL oder Programm bei Anruf (Plugin src-tauri/src/plugins/callactions) */
 export type CallAction = {
   enabled: boolean;
   trigger: "ringing" | "answered" | "outgoing";

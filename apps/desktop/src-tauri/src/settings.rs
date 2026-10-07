@@ -69,7 +69,7 @@ pub struct Prefs {
     /// tel:-, callto:- und sip:-Links mit StarCLX öffnen
     pub handle_tel_links: bool,
     /// URL oder Programm bei Anruf
-    pub call_actions: Vec<crate::callactions::CallAction>,
+    pub call_actions: Vec<crate::plugins::callactions::CallAction>,
     /// Landesvorwahl ohne "+" für die Umrechnung nationaler Nummern
     pub default_country_code: String,
     /// Beim Minimieren nur noch im Tray anzeigen

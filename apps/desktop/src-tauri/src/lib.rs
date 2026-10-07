@@ -3,8 +3,7 @@
 //! dem Schlüsselbund, ein Tray-Symbol und das Softphone.
 
 mod audio;
-mod busylight;
-mod callactions;
+mod bus;
 mod certs;
 mod chat;
 mod desktop;
@@ -13,13 +12,16 @@ mod flatpak;
 mod i18n;
 mod log;
 mod login;
+mod plugins;
 mod presence;
 mod reach;
 mod settings;
 mod voicemail;
 mod wake;
 
+use bus::Event;
 use i18n::{t, tf};
+use plugins::busylight;
 use serde::Serialize;
 use settings::Prefs;
 use sf_core::journal::{Journal, JournalEvent};
@@ -132,7 +134,7 @@ async fn set_session(app: &AppHandle, session: Option<Session>) {
     // Erst das alte Softphone beenden, dann ggf. ein neues starten.
     state.phone.lock().await.take();
     audio::update_ringer(app, None);
-    busylight::set_mode(app, busylight::Mode::Off);
+    bus::publish(app, Event::PhoneStopped);
     let host = session.as_ref().and_then(|s| {
         url::Url::parse(&s.info().server)
             .ok()
@@ -272,7 +274,7 @@ async fn start_phone(app: AppHandle, hub: sf_onehub::OneHub, host: String) {
             }
             *state.phone.lock().await = Some(phone);
             update_phone_status(&app, |s| s.state = "ready".into());
-            busylight::set_mode(&app, busylight::Mode::Idle);
+            bus::publish(&app, Event::PhoneReady);
         }
         Err(e) => {
             tracing::warn!(error = %e, "Softphone nicht gestartet");
@@ -313,7 +315,12 @@ async fn start_phone(app: AppHandle, hub: sf_onehub::OneHub, host: String) {
                     .find(|c| c.incoming && c.phase == CallPhase::Ringing)
                     .map(|c| c.internal);
                 audio::update_ringer(&app, ring_internal);
-                busylight::set_mode(&app, busylight::Mode::from_calls(&calls));
+                bus::publish(
+                    &app,
+                    Event::Calls {
+                        calls: calls.clone(),
+                    },
+                );
                 update_phone_status(&app, |s| {
                     s.calls = calls;
                     s.muted = muted;
@@ -530,7 +537,7 @@ async fn save_prefs(
         relabel(&app, state.session.lock().await.as_ref());
     }
     log::set_verbose(prefs.verbose_log);
-    busylight::refresh(&app);
+    bus::publish(&app, Event::PrefsSaved);
     desktop::apply_window(&app, &prefs);
     if old.handle_tel_links != prefs.handle_tel_links {
         desktop::register_schemes(&app, prefs.handle_tel_links);
@@ -890,6 +897,7 @@ pub fn run() {
         .manage(fkeys::FkeyState::default())
         .manage(voicemail::VoicemailState::default())
         .manage(audio::AudioState::default())
+        .manage(bus::Bus::default())
         .manage(busylight::BusylightState::default())
         .manage(AppState {
             pending: Mutex::default(),
@@ -902,6 +910,7 @@ pub fn run() {
         })
         .setup(move |app| {
             log::open(app.handle());
+            plugins::start(app.handle());
             certs::init(app.handle());
             presence::start(app.handle());
             wake::start(app.handle());
@@ -1016,8 +1025,7 @@ pub fn run() {
             chat::default_download_dir,
             desktop::desktop_info,
             take_dial_request,
-            callactions::call_action_run,
-            callactions::call_actions_fire,
+            plugins::callactions::call_action_run,
             reach::redirects,
             reach::redirect_enable,
             reach::redirect_update,

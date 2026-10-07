@@ -17,7 +17,6 @@
   import Icon, { type IconName } from "$lib/Icon.svelte";
   import Settings from "$lib/Settings.svelte";
   import { initPhone, phone, run, isRingingIn } from "$lib/phone.svelte";
-  import { initCallActions } from "$lib/callactions.svelte";
   import { loadPrefs, prefs, savePrefs, type Tile } from "$lib/prefs.svelte";
   import Workspace, { tilesOf } from "$lib/Workspace.svelte";
   import { t } from "$lib/i18n.svelte";
@@ -44,7 +43,6 @@
       listen("resumed", () => { if (session) loadVoicemails(); }),
     ];
     initPhone();
-    initCallActions();
     takeDialRequest();
     initChat();
     initVoicemail();
