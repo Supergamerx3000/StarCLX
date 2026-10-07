@@ -146,8 +146,10 @@ jobs:
   flatpak:
     needs: build
     runs-on: ubuntu-24.04
-    permissions:
-      contents: write
+    # Werkzeuge und GNOME-Laufzeit wie beim Bau auf Flathub
+    container:
+      image: ghcr.io/flathub-infra/flatpak-github-actions:gnome-50
+      options: --privileged
     env:
       VERSION: ${{ needs.build.outputs.version }}
     steps:
@@ -157,11 +159,6 @@ jobs:
         with:
           name: starclx-${{ needs.build.outputs.version }}-linux-x86_64
           path: dl
-
-      - name: Werkzeuge
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y flatpak flatpak-builder dbus-daemon
 
       - uses: actions/cache@v5
         with:
@@ -175,8 +172,7 @@ jobs:
 
       - name: Flatpak prüfen
         run: |
-          flatpak install --user -y --noninteractive "./starclx_${VERSION}_x86_64.flatpak"
-          dbus-run-session -- flatpak run --command=sh ch.crazmoe.StarCLX -c '
+          flatpak build packaging/flatpak/build sh -c '
             ldd /app/bin/starclx
             ls /app/lib/libayatana-appindicator3.so.1
             ! ldd /app/bin/starclx | grep "not found"'
@@ -186,11 +182,23 @@ jobs:
           name: starclx-${{ needs.build.outputs.version }}-flatpak
           path: starclx_*.flatpak
 
+  # Im Container fehlt gh, deshalb ein eigener Schritt für das Release
+  flatpak-release:
+    needs: [build, flatpak]
+    if: needs.build.outputs.release == '1'
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    env:
+      VERSION: ${{ needs.build.outputs.version }}
+    steps:
+      - uses: actions/download-artifact@v7
+        with:
+          name: starclx-${{ needs.build.outputs.version }}-flatpak
       - name: Release ergänzen
-        if: needs.build.outputs.release == '1'
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh release upload "v$VERSION" "starclx_${VERSION}_x86_64.flatpak" --clobber
+        run: gh release upload "v$VERSION" "starclx_${VERSION}_x86_64.flatpak" --clobber --repo "$GITHUB_REPOSITORY"
 
   # Paketquellen für apt und dnf auf GitHub Pages (Branch gh-pages). Signiert
   # mit dem Schlüssel aus dem Secret REPO_GPG_KEY; ohne Secret wird nichts
