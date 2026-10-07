@@ -419,7 +419,7 @@ const dict: Record<string, string> = {
   "Rufnummer unterdrücken": "Masquer le numéro",
   "an": "activé",
   "Primäres Telefon": "Téléphone principal",
-  "Meine Immer-Umleitungen": "Mes renvois permanents",
+  "Umleitung: Immer": "Renvoi : toujours",
   "Primäres Telefon auswählen": "Choisir le téléphone principal",
   "Keine Telefone": "Aucun téléphone",
   "kein Ziel": "aucune cible",
