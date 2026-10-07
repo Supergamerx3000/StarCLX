@@ -170,7 +170,7 @@ jobs:
           # Im Container gibt es kein FUSE
           FLATPAK_BUILDER_ARGS: --disable-rofiles-fuse
         run: |
-          dbus-uuidgen --ensure
+          [ -s /etc/machine-id ] || dbus-uuidgen > /etc/machine-id
           packaging/flatpak/build.sh dl/bundle/deb/*.deb
           mv packaging/flatpak/starclx.flatpak "starclx_${VERSION}_x86_64.flatpak"
 
@@ -213,7 +213,7 @@ jobs:
       - name: Bauen
         working-directory: packaging/flathub
         run: |
-          dbus-uuidgen --ensure
+          [ -s /etc/machine-id ] || dbus-uuidgen > /etc/machine-id
           flatpak remote-add --user --if-not-exists flathub https://dl.flathub.org/repo/flathub.flatpakrepo
           # Im Container gibt es kein FUSE
           flatpak-builder --user --install-deps-from=flathub --force-clean --disable-rofiles-fuse --repo=repo \
