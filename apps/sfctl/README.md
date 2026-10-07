@@ -95,18 +95,46 @@ Standard ist `espeak-ng` (`sudo apt install espeak-ng`). Mit `--tts` oder `SF_TT
 ein anderes Programm einsetzen. Der Befehl läuft über `sh -c`, bekommt den Text in `$TEXT` und
 schreibt eine WAV-Datei (16-bit-PCM) nach `$WAV`.
 
-[Piper](https://github.com/OHF-Voice/piper1-gpl) klingt deutlich natürlicher und läuft
-ebenfalls offline:
+#### Piper einrichten
+
+[Piper](https://github.com/OHF-Voice/piper1-gpl) klingt deutlich natürlicher und läuft wie
+espeak-ng offline und kostenlos. Einmalig auf dem Rechner, auf dem `sfctl` läuft:
 
 ```sh
-pipx install piper-tts                     # oder in einer venv: pip install piper-tts
+# Piper in eine eigene Python-Umgebung installieren
+python3 -m venv ~/.local/piper
+~/.local/piper/bin/pip install piper-tts
+
+# Stimme herunterladen (legt .onnx und .onnx.json ab)
 mkdir -p ~/.local/share/piper && cd ~/.local/share/piper
-python3 -m piper.download_voices de_DE-thorsten-high   # mit pipx: ~/.local/share/pipx/venvs/piper-tts/bin/python
-export SF_TTS='printf %s "$TEXT" | piper -m "$HOME/.local/share/piper/de_DE-thorsten-high.onnx" -f "$WAV"'
+~/.local/piper/bin/python -m piper.download_voices de_DE-thorsten-high
+
+# Probe: schreibt test.wav
+printf %s "Dies ist ein Test" | ~/.local/piper/bin/piper \
+    -m ~/.local/share/piper/de_DE-thorsten-high.onnx -f test.wav
 ```
 
 Deutsche Stimmen sind u. a. `de_DE-thorsten-high` (männlich), `de_DE-kerstin-low` und
 `de_DE-ramona-low` (weiblich); Hörproben unter https://rhasspy.github.io/piper-samples/.
+
+#### sfctl mit Piper
+
+`SF_TTS` setzen, am besten in `~/.profile` oder im Skript selbst:
+
+```sh
+export SF_TTS='printf %s "$TEXT" | "$HOME/.local/piper/bin/piper" -m "$HOME/.local/share/piper/de_DE-thorsten-high.onnx" -f "$WAV"'
+
+sfctl say --confirm 1 0791234567 "Der Server im Keller meldet eine Störung"
+```
+
+Oder nur für einen Aufruf:
+
+```sh
+SF_TTS='printf %s "$TEXT" | "$HOME/.local/piper/bin/piper" -m "$HOME/.local/share/piper/de_DE-thorsten-high.onnx" -f "$WAV"' \
+    sfctl say 12 "Dies ist ein Test"
+```
+
+Die einfachen Anführungszeichen sind wichtig: `$TEXT` und `$WAV` setzt erst `sfctl` ein.
 
 ## Beispiele für Skripte
 
