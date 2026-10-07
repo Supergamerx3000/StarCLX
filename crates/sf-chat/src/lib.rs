@@ -18,7 +18,7 @@ mod xml;
 use std::collections::BTreeMap;
 use std::path::PathBuf;
 use std::sync::Arc;
-use std::time::{Duration, SystemTime, UNIX_EPOCH};
+use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 use futures::StreamExt;
 use serde::Serialize;
@@ -33,6 +33,8 @@ use tokio_xmpp::parsers::presence::{Presence, Show, Type as PresenceType};
 use tokio_xmpp::stanzastream::{Connection, Event, StanzaStream, StreamEvent};
 use tokio_xmpp::xmlstream::{StreamHeader, Timeouts};
 use tokio_xmpp::{Stanza, client_login};
+
+use sf_backoff::Backoff;
 
 pub use history::History;
 
@@ -260,24 +262,42 @@ async fn login(
 
 /// Baut für den `StanzaStream` Verbindungen auf, jedes Mal mit dem aktuellen
 /// Token. Fehlschläge werden gemeldet und mit wachsendem Abstand wiederholt.
+/// Der Abstand gilt über Neuverbindungen hinweg: Bricht eine eben aufgebaute
+/// Verbindung gleich wieder ab, wartet der nächste Versuch länger.
 fn connector(
     jid: BareJid,
     host: String,
     token: TokenFn,
     events: mpsc::UnboundedSender<ChatEvent>,
 ) -> Box<dyn FnMut(Option<String>, oneshot::Sender<Connection>) + Send + 'static> {
+    let pacing = Arc::new(std::sync::Mutex::new(Pacing {
+        backoff: Backoff::new(Duration::from_secs(2), MAX_BACKOFF),
+        connected_at: None,
+    }));
     Box::new(move |_, slot| {
         let (jid, host, token, events) = (jid.clone(), host.clone(), token.clone(), events.clone());
+        let pacing = pacing.clone();
         tokio::spawn(async move {
-            let mut backoff = Duration::from_secs(2);
+            let ran = pacing
+                .lock()
+                .unwrap()
+                .connected_at
+                .take()
+                .map(|t| t.elapsed());
+            if let Some(ran) = ran {
+                let wait = pacing.lock().unwrap().backoff.next(ran, None);
+                tokio::time::sleep(wait).await;
+            }
             loop {
                 match login(&jid, &host, token()).await {
                     Ok(conn) => {
+                        pacing.lock().unwrap().connected_at = Some(Instant::now());
                         let _ = slot.send(conn);
                         return;
                     }
                     Err(e) => {
-                        tracing::warn!(error = %e, ?backoff, "Chat-Anmeldung fehlgeschlagen");
+                        let wait = pacing.lock().unwrap().backoff.next(Duration::ZERO, None);
+                        tracing::warn!(error = %e, ?wait, "Chat-Anmeldung fehlgeschlagen");
                         let _ = events.send(ChatEvent::State {
                             online: false,
                             detail: format!("Anmeldung fehlgeschlagen: {e}"),
@@ -285,13 +305,18 @@ fn connector(
                         if slot.is_closed() {
                             return;
                         }
-                        tokio::time::sleep(backoff).await;
-                        backoff = (backoff * 2).min(MAX_BACKOFF);
+                        tokio::time::sleep(wait).await;
                     }
                 }
             }
         });
     })
+}
+
+struct Pacing {
+    backoff: Backoff,
+    /// Zeitpunkt der letzten gelungenen Anmeldung
+    connected_at: Option<Instant>,
 }
 
 async fn run(
@@ -378,7 +403,9 @@ async fn run(
                 },
             }
         }
-        tokio::time::sleep(MAX_BACKOFF).await;
+        // Zufallsanteil, damit nicht alle Clients gleichzeitig neu beginnen
+        let wait = Backoff::new(MAX_BACKOFF, MAX_BACKOFF).next(Duration::ZERO, None);
+        tokio::time::sleep(wait).await;
     }
 }
 

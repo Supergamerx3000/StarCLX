@@ -13,6 +13,7 @@ use tonic::service::Interceptor;
 use tonic::transport::{Channel, ClientTlsConfig, Endpoint};
 use tonic::{Request, Status};
 
+pub use sf_backoff;
 pub use sf_proto;
 
 pub const DEFAULT_PORT: u16 = 9092;
@@ -82,6 +83,25 @@ impl Error {
             Error::Status(s) if s.code() == tonic::Code::PermissionDenied => Some(s.message()),
             _ => None,
         }
+    }
+
+    /// Wartezeit, wenn die Anlage wegen eines Rate-Limits abweist
+    /// (gRPC `ResourceExhausted` oder HTTP 429), sonst `None`.
+    pub fn retry_after(&self) -> Option<Duration> {
+        let Error::Status(s) = self else { return None };
+        let limited = match s.code() {
+            tonic::Code::ResourceExhausted => true,
+            // tonic meldet ein HTTP 429 eines Proxys als `Unavailable`
+            tonic::Code::Unavailable => s.message().contains("429"),
+            _ => false,
+        };
+        limited.then(|| {
+            sf_backoff::parse_retry_after(
+                s.metadata()
+                    .get("retry-after")
+                    .and_then(|v| v.to_str().ok()),
+            )
+        })
     }
 }
 
@@ -286,7 +306,24 @@ impl OneHub {
 
 #[cfg(test)]
 mod tests {
-    use super::phone_matches_sip_user;
+    use super::*;
+
+    #[test]
+    fn rate_limit_is_recognised() {
+        let mut s = Status::resource_exhausted("zu viele Anfragen");
+        s.metadata_mut()
+            .insert("retry-after", MetadataValue::from_static("7"));
+        assert_eq!(Error::Status(s).retry_after(), Some(Duration::from_secs(7)));
+        let s = Status::unavailable("HTTP 429 Too Many Requests");
+        assert_eq!(
+            Error::Status(s).retry_after(),
+            Some(sf_backoff::LIMITED_DEFAULT)
+        );
+        assert_eq!(
+            Error::Status(Status::unavailable("Verbindung weg")).retry_after(),
+            None
+        );
+    }
 
     #[test]
     fn app_phone_name_carries_sip_prefix() {

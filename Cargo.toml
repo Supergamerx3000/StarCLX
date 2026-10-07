@@ -15,6 +15,7 @@ sf-auth = { path = "crates/sf-auth" }
 sf-onehub = { path = "crates/sf-onehub" }
 sf-core = { path = "crates/sf-core" }
 sf-tls = { path = "crates/sf-tls" }
+sf-backoff = { path = "crates/sf-backoff" }
 anyhow = "1"
 thiserror = "2"
 tokio = { version = "1", features = ["macros", "rt-multi-thread"] }

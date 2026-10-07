@@ -85,17 +85,14 @@ pub struct Groups(JoinHandle<()>);
 
 impl Groups {
     pub fn start(hub: OneHub, updates: mpsc::UnboundedSender<Vec<Membership>>) -> Self {
-        Self(tokio::spawn(async move {
-            let mut backoff = Duration::from_secs(1);
-            loop {
-                match watch(&hub, &updates).await {
-                    Ok(()) => backoff = Duration::from_secs(1),
-                    Err(e) => tracing::warn!(error = %e, "Gruppen-Ereignisse unterbrochen"),
-                }
-                tokio::time::sleep(backoff).await;
-                backoff = (backoff * 2).min(MAX_BACKOFF);
-            }
-        }))
+        Self(tokio::spawn(crate::reconnect::forever(
+            "Gruppen-Ereignisse",
+            MAX_BACKOFF,
+            move || {
+                let (hub, updates) = (hub.clone(), updates.clone());
+                async move { watch(&hub, &updates).await }
+            },
+        )))
     }
 }
 

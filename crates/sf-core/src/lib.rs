@@ -11,6 +11,7 @@ pub mod fkeys;
 pub mod group;
 pub mod journal;
 pub mod phone;
+pub mod reconnect;
 pub mod redirect;
 pub mod voicemail;
 
@@ -18,6 +19,7 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::Duration;
 
 use sf_auth::Tokens;
+use sf_onehub::sf_backoff::Backoff;
 use sf_onehub::{OneHub, TokenHandle};
 use tokio::sync::{mpsc, oneshot};
 use tokio::task::JoinHandle;
@@ -262,7 +264,7 @@ async fn refresh_loop(
     check_interval: Duration,
     mut wake: mpsc::UnboundedReceiver<oneshot::Sender<()>>,
 ) {
-    let mut backoff = Duration::from_secs(5);
+    let mut backoff = Backoff::new(Duration::from_secs(5), MAX_BACKOFF);
     // Warten auf eine erzwungene Erneuerung (Session::resume)
     let mut waiting: Vec<oneshot::Sender<()>> = Vec::new();
     loop {
@@ -302,7 +304,7 @@ async fn refresh_loop(
                     None => fresh.refresh_token = Some(refresh_token),
                 }
                 tokens = fresh;
-                backoff = Duration::from_secs(5);
+                backoff.reset();
                 tracing::debug!("Access-Token erneuert");
                 for w in waiting.drain(..) {
                     let _ = w.send(());
@@ -316,9 +318,13 @@ async fn refresh_loop(
                 return;
             }
             Err(e) => {
-                tracing::warn!(error = %e, ?backoff, "Token-Erneuerung fehlgeschlagen, neuer Versuch");
-                tokio::time::sleep(backoff).await;
-                backoff = (backoff * 2).min(MAX_BACKOFF);
+                let hint = match e {
+                    sf_auth::Error::Limited { retry_after } => Some(retry_after),
+                    _ => None,
+                };
+                let wait = backoff.next(Duration::ZERO, hint);
+                tracing::warn!(error = %e, ?wait, "Token-Erneuerung fehlgeschlagen, neuer Versuch");
+                tokio::time::sleep(wait).await;
             }
         }
     }
@@ -364,8 +370,13 @@ mod tests {
                     let (st, body) = replies.next().unwrap_or((500, "{}"));
                     (st, body.to_owned())
                 };
+                let extra = if status == 429 {
+                    "retry-after: 1\r\n"
+                } else {
+                    ""
+                };
                 let resp = format!(
-                    "HTTP/1.1 {status} X\r\ncontent-type: application/json\r\ncontent-length: {}\r\nconnection: close\r\n\r\n{body}",
+                    "HTTP/1.1 {status} X\r\ncontent-type: application/json\r\n{extra}content-length: {}\r\nconnection: close\r\n\r\n{body}",
                     body.len()
                 );
                 sock.write_all(resp.as_bytes()).await.unwrap();
@@ -461,5 +472,41 @@ mod tests {
         assert_eq!(handle.get(), "at-1");
         // Nach der Ablehnung ist das Token aus dem Schlüsselbund entfernt.
         assert_eq!(sf_auth::secret::load_refresh_token(&server).unwrap(), None);
+    }
+
+    #[tokio::test]
+    async fn rate_limit_does_not_log_out() {
+        keyring_core::set_default_store(keyring_core::mock::Store::new().unwrap());
+        // Auch mit OAuth-Fehlertext im Körper ist ein 429 keine Absage.
+        let (server, seen) = fake_oauth(vec![
+            (429, r#"{"error":"too_many_requests"}"#),
+            (
+                200,
+                r#"{"access_token":"at-1","refresh_token":"rt-1","expires_in":300}"#,
+            ),
+        ])
+        .await;
+        let auth = std::sync::Arc::new(sf_auth::Client::discover(&server).await.unwrap());
+        let handle = TokenHandle::new("at-0");
+        let (tx, mut rx) = mpsc::unbounded_channel();
+        let task = tokio::spawn(refresh_loop(
+            server,
+            auth,
+            expiring("rt-1"),
+            handle.clone(),
+            tx,
+            Duration::from_millis(10),
+            mpsc::unbounded_channel().1,
+        ));
+        tokio::time::timeout(Duration::from_secs(15), async {
+            while handle.get() != "at-1" {
+                tokio::time::sleep(Duration::from_millis(50)).await;
+            }
+        })
+        .await
+        .expect("Token nach dem Rate-Limit erneuert");
+        assert!(rx.try_recv().is_err(), "keine Abmeldung");
+        assert_eq!(seen.lock().unwrap().len(), 2);
+        task.abort();
     }
 }

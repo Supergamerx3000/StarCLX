@@ -4837,6 +4837,7 @@ dependencies = [
  "reqwest",
  "serde",
  "serde_json",
+ "sf-backoff",
  "sf-tls",
  "sha2 0.11.0",
  "thiserror 2.0.21",
@@ -4844,6 +4845,10 @@ dependencies = [
  "url",
  "zbus-secret-service-keyring-store",
 ]
+
+[[package]]
+name = "sf-backoff"
+version = "1.2.1"
 
 [[package]]
 name = "sf-busylight"
@@ -4861,6 +4866,7 @@ dependencies = [
  "sasl",
  "serde",
  "serde_json",
+ "sf-backoff",
  "sf-tls",
  "thiserror 2.0.21",
  "tokio",
@@ -4892,6 +4898,7 @@ dependencies = [
 name = "sf-onehub"
 version = "1.2.1"
 dependencies = [
+ "sf-backoff",
  "sf-proto",
  "sf-tls",
  "thiserror 2.0.21",
