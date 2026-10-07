@@ -8,14 +8,16 @@
 #   flatpak install --user ./starclx.flatpak
 # Braucht flatpak, flatpak-builder und git.
 set -eu
+deb=""
+[ $# -ge 1 ] && deb=$(realpath "$1")
 cd "$(dirname "$0")"
 
 for tool in flatpak flatpak-builder git; do
   command -v "$tool" >/dev/null || { echo "$tool fehlt (z. B. sudo apt install flatpak flatpak-builder git)" >&2; exit 1; }
 done
 
-if [ $# -ge 1 ]; then
-  cp "$1" starclx.deb
+if [ -n "$deb" ]; then
+  cp "$deb" starclx.deb
 else
   url=$(curl -fsSL https://api.github.com/repos/crazmoe/StarCLX/releases/latest \
     | grep -o '"browser_download_url": *"[^"]*_amd64\.deb"' | cut -d'"' -f4 | head -n1)
