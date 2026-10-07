@@ -267,9 +267,10 @@ jobs:
           gh release upload "v$VERSION" "starclx_${VERSION}_x86_64.flatpak" --clobber --repo "$GITHUB_REPOSITORY"
           gh release edit "v$VERSION" --draft=false --latest --repo "$GITHUB_REPOSITORY"
 
-  # Paketquellen für apt und dnf auf GitHub Pages (Branch gh-pages). Signiert
-  # mit dem Schlüssel aus dem Secret REPO_GPG_KEY; ohne Secret wird nichts
-  # veröffentlicht. Es bleiben die letzten drei Versionen.
+  # Paketquellen für apt, dnf und Flatpak auf GitHub Pages (Branch gh-pages).
+  # Signiert mit dem Schlüssel aus dem Secret REPO_GPG_KEY; ohne Secret wird
+  # nichts veröffentlicht. Es bleiben die letzten drei Versionen (Flatpak: die
+  # neueste).
   repo:
     needs: [build, flatpak-release]
     if: needs.build.outputs.release == '1'
@@ -301,7 +302,7 @@ jobs:
           REPO_GPG_KEY: ${{ secrets.REPO_GPG_KEY }}
         run: |
           sudo apt-get update
-          sudo apt-get install -y apt-utils createrepo-c rpm
+          sudo apt-get install -y apt-utils createrepo-c rpm flatpak ostree
           echo "$REPO_GPG_KEY" | gpg --batch --import
           FPR=$(gpg --list-secret-keys --with-colons | awk -F: '/^fpr/{print $10; exit}')
           echo "FPR=$FPR" >> "$GITHUB_ENV"
@@ -328,6 +329,25 @@ jobs:
             ls "$d" | sort -V | head -n -"$KEEP" | while read -r f; do rm -f "$d/$f"; done
           done
           ls -R site/deb/pool site/rpm
+
+      - uses: actions/download-artifact@v7
+        if: steps.key.outputs.ok == '1'
+        with:
+          name: starclx-${{ needs.build.outputs.version }}-flatpak
+          path: flatpak-dl
+
+      # OSTree-Repo unter flatpak/repo; jede Version ersetzt die vorige, alte
+      # Objekte werden aufgeräumt
+      - name: Flatpak-Quelle
+        if: steps.key.outputs.ok == '1'
+        working-directory: site
+        run: |
+          R=flatpak/repo
+          mkdir -p flatpak
+          [ -f "$R/config" ] || ostree init --mode=archive-z2 --repo="$R"
+          flatpak build-import-bundle --gpg-sign="$FPR" "$R" ../flatpak-dl/starclx_${VERSION}_x86_64.flatpak
+          flatpak build-update-repo --gpg-sign="$FPR" --generate-static-deltas --prune --prune-depth=1 \
+            --title=StarCLX "$R"
 
       - name: apt-Quelle
         if: steps.key.outputs.ok == '1'
@@ -374,6 +394,26 @@ jobs:
           gpgkey=$BASE/starclx.asc
           REPO
           sed -i 's/^ *//' starclx.repo
+          KEY=$(gpg --export "$FPR" | base64 -w0)
+          cat > flatpak/starclx.flatpakrepo <<REPO
+          [Flatpak Repo]
+          Title=StarCLX
+          Url=$BASE/flatpak/repo/
+          Homepage=https://github.com/$GITHUB_REPOSITORY
+          GPGKey=$KEY
+          REPO
+          cat > flatpak/starclx.flatpakref <<REF
+          [Flatpak Ref]
+          Name=ch.crazmoe.StarCLX
+          Branch=master
+          Title=StarCLX
+          Url=$BASE/flatpak/repo/
+          SuggestRemoteName=starclx
+          RuntimeRepo=https://dl.flathub.org/repo/flathub.flatpakrepo
+          IsRuntime=false
+          GPGKey=$KEY
+          REF
+          sed -i 's/^ *//' flatpak/starclx.flatpakrepo flatpak/starclx.flatpakref
           cat > index.html <<HTML
           <!doctype html><meta charset="utf-8"><title>StarCLX Paketquellen</title>
           <h1>StarCLX Paketquellen</h1>
@@ -384,6 +424,8 @@ jobs:
           <h2>Fedora / openSUSE</h2>
           <pre>sudo curl -fsSL -o /etc/yum.repos.d/starclx.repo $BASE/starclx.repo
           sudo dnf install starclx</pre>
+          <h2>Flatpak</h2>
+          <pre>flatpak install --user $BASE/flatpak/starclx.flatpakref</pre>
           HTML
           touch .nojekyll
 

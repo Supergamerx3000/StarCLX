@@ -49,7 +49,14 @@ sudo curl -fsSL -o /etc/yum.repos.d/starclx.repo https://crazmoe.github.io/StarC
 sudo dnf install starclx
 ```
 
-Die Quellen sind signiert; neue Versionen kommen mit dem normalen System-Update.
+Flatpak (holt die GNOME-Laufzeit von Flathub dazu):
+
+```sh
+flatpak install --user https://crazmoe.github.io/StarCLX/flatpak/starclx.flatpakref
+```
+
+Die Quellen sind signiert; neue Versionen kommen mit dem normalen System-Update bzw.
+`flatpak update`.
 
 ### Einzelne Pakete
 
@@ -70,8 +77,9 @@ Zwischenstände: Jeder Build auf `main` legt unter **Actions** das Artefakt
 
 ### Flatpak
 
+Am einfachsten über die Paketquelle (siehe oben), dann kommen Updates mit `flatpak update`.
 Jeder Build legt zusätzlich das Artefakt `starclx-<version>-flatpak` ab, Releases enthalten
-`starclx_<version>_x86_64.flatpak`. Installieren (holt die GNOME-Laufzeit von Flathub dazu):
+`starclx_<version>_x86_64.flatpak`. Einzeln installieren (holt die GNOME-Laufzeit von Flathub dazu):
 
 ```sh
 flatpak install --user ./starclx_<version>_x86_64.flatpak
@@ -93,7 +101,8 @@ Unterschiede:
   `flatpak run --command=cat ch.crazmoe.StarCLX /app/share/starclx/60-starclx-busylight.rules | sudo tee /etc/udev/rules.d/60-starclx-busylight.rules`
 - Eine eigene Firmen-CA, die nur im System hinterlegt ist, kann im Flatpak fehlen;
   selbstsignierte Zertifikate lokaler Anlagen bestätigt man wie gewohnt in StarCLX.
-- Updates kommen nicht automatisch, sondern mit dem nächsten `.flatpak`.
+- Als einzelne Datei installiert kommen Updates nicht automatisch, sondern mit dem nächsten
+  `.flatpak`; über die Paketquelle mit `flatpak update`.
 
 ### Flathub
 
@@ -102,6 +111,9 @@ ohne Netz aus dem Quellcode gebaut und hat weniger Rechte als das eigene Flatpak
 Anruf starten und GNOME-Tastenkürzel automatisch eintragen geht dort nicht (URLs bei Anruf,
 Autostart und `tel:`-Links schon). Die CI baut sie bei jedem Lauf; das Artefakt `starclx-flathub`
 enthält das Paket und unter `submission/` die Dateien für das Flathub-Repo.
+
+Zurzeit nicht eingereicht: Flathub nimmt keine Manifeste an, die mit KI erstellt wurden, und
+verlangt eine längere Projektgeschichte ([Anforderungen](https://docs.flathub.org/docs/for-app-authors/requirements)).
 
 Einreichen (einmalig):
 

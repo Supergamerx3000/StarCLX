@@ -1,5 +1,12 @@
 # Änderungen
 
+## 1.2.1 – 2026-10-07
+
+### Flatpak
+- Eigene Flatpak-Quelle: `flatpak install --user https://crazmoe.github.io/StarCLX/flatpak/starclx.flatpakref`,
+  danach kommen Updates mit `flatpak update`
+- Die .flatpak-Datei hängt jetzt am Release
+
 ## 1.2.0 – 2026-10-07
 
 ### Flatpak und Flathub
