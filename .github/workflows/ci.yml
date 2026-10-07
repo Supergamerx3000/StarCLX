@@ -213,8 +213,10 @@ jobs:
       - name: Bauen
         working-directory: packaging/flathub
         run: |
+          dbus-uuidgen --ensure
           flatpak remote-add --user --if-not-exists flathub https://dl.flathub.org/repo/flathub.flatpakrepo
-          flatpak-builder --user --install-deps-from=flathub --force-clean --repo=repo \
+          # Im Container gibt es kein FUSE
+          flatpak-builder --user --install-deps-from=flathub --force-clean --disable-rofiles-fuse --repo=repo \
             build io.github.crazmoe.StarCLX.yml
           flatpak build-bundle --runtime-repo=https://dl.flathub.org/repo/flathub.flatpakrepo \
             repo starclx-flathub.flatpak io.github.crazmoe.StarCLX
