@@ -6,6 +6,7 @@ edition.workspace = true
 license.workspace = true
 
 [dependencies]
+sf-backoff.workspace = true
 sf-tls.workspace = true
 tokio-rustls = { version = "0.26", default-features = false }
 sasl = { version = "0.5", default-features = false }

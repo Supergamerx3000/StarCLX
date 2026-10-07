@@ -395,17 +395,14 @@ impl Presence {
         users: Vec<String>,
         updates: mpsc::UnboundedSender<HashMap<String, UserState>>,
     ) -> Self {
-        Self(tokio::spawn(async move {
-            let mut backoff = Duration::from_secs(1);
-            loop {
-                match watch(&hub, &users, &updates).await {
-                    Ok(()) => backoff = Duration::from_secs(1),
-                    Err(e) => tracing::warn!(error = %e, "Präsenz unterbrochen"),
-                }
-                tokio::time::sleep(backoff).await;
-                backoff = (backoff * 2).min(MAX_BACKOFF);
-            }
-        }))
+        Self(tokio::spawn(crate::reconnect::forever(
+            "Präsenz",
+            MAX_BACKOFF,
+            move || {
+                let (hub, users, updates) = (hub.clone(), users.clone(), updates.clone());
+                async move { watch(&hub, &users, &updates).await }
+            },
+        )))
     }
 }
 

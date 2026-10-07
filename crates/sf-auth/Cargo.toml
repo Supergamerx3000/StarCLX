@@ -6,6 +6,7 @@ edition.workspace = true
 license.workspace = true
 
 [dependencies]
+sf-backoff.workspace = true
 reqwest.workspace = true
 sf-tls.workspace = true
 serde.workspace = true

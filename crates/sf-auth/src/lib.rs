@@ -33,6 +33,12 @@ pub enum Error {
     Http(#[from] reqwest::Error),
     #[error("Anlage lehnt ab: {error} {description}")]
     Rejected { error: String, description: String },
+    /// Rate-Limit der Anlage (HTTP 429); kein Grund, sich abzumelden.
+    #[error("Anlage bittet zu warten (Rate-Limit), {}s", retry_after.as_secs())]
+    Limited { retry_after: std::time::Duration },
+    /// Störung der Anlage (HTTP 5xx); kein Grund, sich abzumelden.
+    #[error("Anlage gestört: HTTP {0}")]
+    Server(u16),
     #[error("Schlüsselbund: {0}")]
     Secret(#[from] keyring_core::Error),
     #[error("Zufallsgenerator nicht verfügbar: {0}")]
@@ -312,7 +318,22 @@ impl Client {
             .form(&form)
             .send()
             .await?;
-        if !resp.status().is_success() {
+        let status = resp.status();
+        // Nur eine echte Absage (4xx mit OAuth-Fehler) beendet die Sitzung;
+        // Rate-Limit und Störungen der Anlage sind vorübergehend.
+        if status == reqwest::StatusCode::TOO_MANY_REQUESTS {
+            let retry_after = resp
+                .headers()
+                .get(reqwest::header::RETRY_AFTER)
+                .and_then(|v| v.to_str().ok());
+            return Err(Error::Limited {
+                retry_after: sf_backoff::parse_retry_after(retry_after),
+            });
+        }
+        if status.is_server_error() {
+            return Err(Error::Server(status.as_u16()));
+        }
+        if !status.is_success() {
             let body: ErrorBody = resp.json().await?;
             return Err(Error::Rejected {
                 error: body.error,
