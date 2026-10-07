@@ -1,5 +1,31 @@
 # Änderungen
 
+## 1.3.0 – 2026-10-07
+
+### Funktionstasten wie in der STARFACE-App
+- Besetztlampenfeld mit Benutzerbild (sonst Initialen), Telefonzustand als Fläche (grün frei, rot
+  im Gespräch, grau ohne Telefon oder bei Ruhe), Ruhe, Chat-Status, Umleitung und Statustext;
+  auch Gruppen bekommen ihren Zustand
+- Ruhe, Modul aktivieren, Umleitungen, Rufnummer anzeigen und Gruppe An-/Abmelden als Schalter;
+  Umleitungen „teilaktiv“, wenn nur manche an sind
+- Neu: Modul aktivieren, Rückruf bei Besetzt und „Anonym“ (Rufnummer unterdrücken); die aktive
+  Rufnummer abschalten unterdrückt sie, Anonym abschalten zeigt wieder die Durchwahl
+- Direktwahl wie ein Kontakt; Tasten nur für Tischtelefone werden ausgeblendet
+- Die Tasten bekamen vorher keine Zustände, weil die Präsenz auf einen Stream wartete, den die
+  Anlage erst nach dem Abo öffnet
+
+### Eigener Status und Menü am Profilbild
+- Menü wie in der STARFACE-App: Bitte nicht stören, Chat-Status, primäres Telefon,
+  signalisierte Rufnummer und Immer-Umleitungen
+- Chat-Status Verfügbar, Abwesend, Bitte nicht stören und gespeicherte eigene Status mit Symbol
+  und Text; was in einem anderen Client gesetzt wird, übernimmt StarCLX
+- Rufnummer, Telefone, Bild und Rechte werden live nachgezogen, auch wenn sie anderswo geändert
+  werden
+
+### Oberfläche
+- Schrift Inter wird mitgeliefert (vorher je nach Distribution z. B. DejaVu Sans), etwas
+  kompakter
+
 ## 1.2.1 – 2026-10-07
 
 ### Flatpak
