@@ -176,7 +176,15 @@ export SF_SERVER=https://anlage.example.com SF_USER=… SF_PASSWORD=…
 cargo run -p sfctl -- version
 cargo run -p sfctl -- phones
 cargo run -p sfctl -- call 12
+cargo run -p sfctl -- chat contacts
+cargo run -p sfctl -- chat send "Anna" "Backup fehlgeschlagen"
+echo "Text aus einem Skript" | cargo run -p sfctl -- chat send anna -
+cargo run -p sfctl -- status --dnd on --text "Im Meeting"
 ```
+
+`chat send` nimmt als Empfänger eine Jabber-ID, den Benutzernamen vor dem @ oder einen
+(eindeutigen Teil des) Namens aus `chat contacts`. `status` ohne Optionen zeigt den eigenen
+Status; `--text ""` löscht den Statustext. Bei einem Fehler endet `sfctl` mit Code 1.
 
 ## Lizenz
 

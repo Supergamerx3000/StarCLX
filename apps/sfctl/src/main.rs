@@ -1,6 +1,7 @@
 //! `sfctl`: Kommandozeile für die STARFACE, auf demselben Kern wie die
 //! Desktop-App. Dient vorerst als Entwicklungs- und Testwerkzeug.
 
+use std::io::Read;
 use std::time::{Duration, Instant};
 
 use anyhow::{Context, Result, bail};
@@ -63,6 +64,40 @@ enum Command {
         #[arg(long, env = "SF_SIP_DEVICE_ID", default_value = sf_onehub::SIP_DEVICE_ID)]
         sip_device_id: String,
     },
+    /// Chat-Nachricht senden oder Kontakte auflisten
+    #[command(subcommand)]
+    Chat(ChatCommand),
+    /// Eigenen Status anzeigen; mit Optionen setzen
+    Status {
+        /// Nicht stören ein- oder ausschalten
+        #[arg(long, value_parser = parse_on_off, value_name = "on|off")]
+        dnd: Option<bool>,
+        /// Statustext setzen; leerer Text löscht ihn
+        #[arg(long)]
+        text: Option<String>,
+    },
+}
+
+#[derive(Subcommand)]
+enum ChatCommand {
+    /// Nachricht senden
+    Send {
+        /// Empfänger: Jabber-ID, Benutzername (Teil vor dem @) oder Name
+        /// aus `sfctl chat contacts`
+        to: String,
+        /// Nachricht; `-` liest sie von der Standardeingabe
+        text: String,
+    },
+    /// Chat-Kontakte mit Status auflisten
+    Contacts,
+}
+
+fn parse_on_off(s: &str) -> Result<bool, String> {
+    match s {
+        "on" | "an" | "ein" | "1" | "true" => Ok(true),
+        "off" | "aus" | "0" | "false" => Ok(false),
+        _ => Err("on oder off erwartet".into()),
+    }
 }
 
 #[tokio::main]
@@ -138,7 +173,190 @@ async fn main() -> Result<()> {
             };
             softphone(&hub, &host, opts).await?
         }
+        Command::Chat(cmd) => chat(&hub, &host, cmd).await?,
+        Command::Status { dnd, text } => status(&hub, dnd, text).await?,
     }
+    Ok(())
+}
+
+async fn own_user_id(hub: &OneHub) -> Result<String> {
+    let user = hub.me().get_user(()).await?.into_inner().user;
+    user.and_then(|u| u.user_id)
+        .map(|id| id.id)
+        .context("Anlage liefert keine eigene Benutzer-ID")
+}
+
+/// So lange wird nach der ersten Kontaktliste noch auf Nachzügler gewartet;
+/// Präsenzen anderer können die Liste vor der vollständigen Antwort melden.
+const ROSTER_SETTLE: Duration = Duration::from_millis(800);
+
+async fn chat(hub: &OneHub, host: &str, cmd: ChatCommand) -> Result<()> {
+    let jid = hub.chat_jid(&own_user_id(hub).await?).await?;
+    if jid.is_empty() {
+        bail!("kein Chat-Konto auf der Anlage");
+    }
+    let token = hub.token().clone();
+    let (tx, mut events) = tokio::sync::mpsc::unbounded_channel();
+    let chat = sf_chat::Chat::start(&jid, host, move || token.get(), None, tx)?;
+
+    // Warten, bis die Verbindung steht und die Kontaktliste da ist.
+    let mut contacts: Option<Vec<sf_chat::Contact>> = None;
+    let mut last_error = String::new();
+    let deadline = tokio::time::Instant::now() + Duration::from_secs(20);
+    loop {
+        let wait = match contacts {
+            Some(_) => ROSTER_SETTLE,
+            None => deadline.saturating_duration_since(tokio::time::Instant::now()),
+        };
+        match tokio::time::timeout(wait, events.recv()).await {
+            Ok(Some(sf_chat::ChatEvent::Roster { contacts: c })) => contacts = Some(c),
+            Ok(Some(sf_chat::ChatEvent::State {
+                online: false,
+                detail,
+            })) => last_error = detail,
+            Ok(Some(_)) => {}
+            Ok(None) => bail!("Chat beendet"),
+            Err(_) if contacts.is_some() => break,
+            Err(_) if last_error.is_empty() => bail!("keine Chat-Verbindung innerhalb von 20 s"),
+            Err(_) => bail!("keine Chat-Verbindung: {last_error}"),
+        }
+    }
+    let contacts = contacts.unwrap_or_default();
+
+    match cmd {
+        ChatCommand::Contacts => {
+            for c in &contacts {
+                let status = if c.status.is_empty() {
+                    String::new()
+                } else {
+                    format!("  „{}“", c.status)
+                };
+                println!("{:<8} {:<30} {}{status}", c.show, c.name, c.jid);
+            }
+        }
+        ChatCommand::Send { to, text } => {
+            let body = if text == "-" {
+                let mut s = String::new();
+                std::io::stdin()
+                    .read_to_string(&mut s)
+                    .context("Standardeingabe lesen")?;
+                s.trim_end().to_owned()
+            } else {
+                text
+            };
+            if body.trim().is_empty() {
+                bail!("leere Nachricht");
+            }
+            let peer = find_contact(&contacts, &to)?;
+            chat.send(&peer, &body);
+            println!("gesendet an {peer}");
+        }
+    }
+    chat.shutdown("").await;
+    Ok(())
+}
+
+/// Sucht den Empfänger in der Kontaktliste: zuerst die genaue Jabber-ID,
+/// dann den Benutzernamen vor dem @, dann den Namen (genau, sonst als
+/// eindeutiger Teil). Eine nicht gelistete Jabber-ID wird so übernommen.
+fn find_contact(contacts: &[sf_chat::Contact], to: &str) -> Result<String> {
+    let want = to.trim().to_lowercase();
+    let node = |c: &sf_chat::Contact| c.jid.split('@').next().unwrap_or_default().to_lowercase();
+    let tiers: [&dyn Fn(&sf_chat::Contact) -> bool; 4] = [
+        &|c| c.jid.to_lowercase() == want,
+        &|c| node(c) == want,
+        &|c| c.name.to_lowercase() == want,
+        &|c| c.name.to_lowercase().contains(&want),
+    ];
+    for matches in tiers {
+        let found: Vec<_> = contacts.iter().filter(|c| matches(c)).collect();
+        match found.as_slice() {
+            [] => continue,
+            [c] => return Ok(c.jid.clone()),
+            many => {
+                let names: Vec<_> = many
+                    .iter()
+                    .map(|c| format!("{} <{}>", c.name, c.jid))
+                    .collect();
+                bail!("„{to}“ ist nicht eindeutig: {}", names.join(", "));
+            }
+        }
+    }
+    if want.contains('@') {
+        return Ok(to.trim().to_owned());
+    }
+    bail!("Kontakt „{to}“ nicht gefunden (siehe `sfctl chat contacts`)")
+}
+
+async fn status(hub: &OneHub, dnd: Option<bool>, text: Option<String>) -> Result<()> {
+    if let Some(enabled) = dnd {
+        hub.me()
+            .set_do_not_disturb(v1::me::SetDoNotDisturbRequest { enabled })
+            .await
+            .context("Nicht stören setzen")?;
+    }
+    if let Some(message) = text {
+        hub.me()
+            .set_chat_presence_message(v1::me::SetChatPresenceMessageRequest { message })
+            .await
+            .context("Statustext setzen")?;
+    }
+    print_status(hub).await
+}
+
+async fn print_status(hub: &OneHub) -> Result<()> {
+    use v1::presence::presence_state::PresenceState as S;
+    let user_id = own_user_id(hub).await?;
+    let ids = || v1::presence::UserIdList {
+        user_ids: vec![v1::types::UserId {
+            id: user_id.clone(),
+        }],
+    };
+    let states = hub
+        .presence()
+        .subscribe_presence_states(v1::presence::SubscribePresenceStatesRequest {
+            presence_ids: Some(
+                v1::presence::subscribe_presence_states_request::PresenceIds::UserIdList(ids()),
+            ),
+            return_presence_states: true,
+        })
+        .await?
+        .into_inner()
+        .presence_states;
+    let _ = hub
+        .presence()
+        .unsubscribe_presence_states(v1::presence::UnsubscribePresenceStatesRequest {
+            presence_ids: Some(
+                v1::presence::unsubscribe_presence_states_request::PresenceIds::UserIdList(ids()),
+            ),
+        })
+        .await;
+    let Some(u) = states.into_iter().find_map(|s| match s.presence_state {
+        Some(S::UserPresenceState(u)) => Some(u),
+        _ => None,
+    }) else {
+        bail!("Anlage liefert keinen Status");
+    };
+    let chat = v1::presence::ChatState::try_from(u.chat_state)
+        .map(|s| {
+            s.as_str_name()
+                .trim_start_matches("CHAT_STATE_")
+                .to_lowercase()
+        })
+        .unwrap_or_default();
+    let phone = v1::presence::TelephonyState::try_from(u.telephony_state)
+        .map(|s| {
+            s.as_str_name()
+                .trim_start_matches("TELEPHONY_STATE_")
+                .to_lowercase()
+        })
+        .unwrap_or_default();
+    let on_off = |b: bool| if b { "an" } else { "aus" };
+    println!("Chat:        {chat}");
+    println!("Statustext:  {}", u.chat_state_message);
+    println!("Nicht stören: {}", on_off(u.dnd_enabled));
+    println!("Umleitung:   {}", on_off(u.redirect_enabled));
+    println!("Telefon:     {phone}");
     Ok(())
 }
 
@@ -293,5 +511,36 @@ async fn sleep_until(deadline: Option<Instant>) {
     match deadline {
         Some(d) => tokio::time::sleep_until(d.into()).await,
         None => std::future::pending().await,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn contact(jid: &str, name: &str) -> sf_chat::Contact {
+        sf_chat::Contact {
+            jid: jid.into(),
+            name: name.into(),
+            show: "online".into(),
+            status: String::new(),
+        }
+    }
+
+    #[test]
+    fn finds_contact() {
+        let list = [
+            contact("anna@pbx", "Anna Muster"),
+            contact("annabelle@pbx", "Annabelle Beispiel"),
+            contact("bob@pbx", "Bob Test"),
+        ];
+        assert_eq!(find_contact(&list, "bob@pbx").unwrap(), "bob@pbx");
+        assert_eq!(find_contact(&list, "Anna").unwrap(), "anna@pbx");
+        assert_eq!(find_contact(&list, "anna muster").unwrap(), "anna@pbx");
+        assert_eq!(find_contact(&list, "test").unwrap(), "bob@pbx");
+        assert!(find_contact(&list, "beis").is_ok());
+        assert!(find_contact(&list, "e").is_err());
+        assert_eq!(find_contact(&list, "neu@pbx").unwrap(), "neu@pbx");
+        assert!(find_contact(&list, "niemand").is_err());
     }
 }
