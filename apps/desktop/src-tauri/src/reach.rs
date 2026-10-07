@@ -104,13 +104,13 @@ pub async fn mailboxes(state: State<'_, AppState>) -> Result<Vec<Mailbox>, Strin
 
 /// Die Anlage ruft das Softphone an und verbindet mit dem Menü der Box.
 #[tauri::command]
-pub async fn mailbox_record(state: State<'_, AppState>, mailbox: String) -> Result<(), String> {
-    let phone_id = state
-        .phone
-        .lock()
+pub async fn mailbox_record(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    mailbox: String,
+) -> Result<(), String> {
+    let phone_id = crate::plugins::call::softphone_id(&app)
         .await
-        .as_ref()
-        .map(|p| p.phone_id().to_owned())
         .ok_or(t("Das Softphone ist nicht aktiv."))?;
     redirect::call_mailbox(&hub(&state).await?, &mailbox, &phone_id)
         .await

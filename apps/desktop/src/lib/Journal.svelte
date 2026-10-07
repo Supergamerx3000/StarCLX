@@ -3,7 +3,7 @@
   import { listen } from "@tauri-apps/api/event";
   import { onMount } from "svelte";
   import Icon from "./Icon.svelte";
-  import { phone, run } from "./phone.svelte";
+  import { phone, run } from "./plugins/call/phone.svelte";
   import { contactEdit, newContact } from "./contactform.svelte";
   import ShareNote from "./ShareNote.svelte";
   import { searchable } from "./numbers";

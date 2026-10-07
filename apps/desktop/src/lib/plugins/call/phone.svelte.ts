@@ -1,7 +1,7 @@
 // Gemeinsamer Stand des Telefons für alle Komponenten.
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
-import { t } from "./i18n.svelte";
+import { t } from "../../i18n.svelte";
 
 export type Phase = "setup" | "ringing" | "ringback" | "connected" | "held" | "other";
 export type Call = {

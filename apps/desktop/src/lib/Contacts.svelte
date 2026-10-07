@@ -3,7 +3,7 @@
   import { invoke } from "@tauri-apps/api/core";
   import { onMount } from "svelte";
   import Icon from "./Icon.svelte";
-  import { phone, run } from "./phone.svelte";
+  import { phone, run } from "./plugins/call/phone.svelte";
   import { initials, type Contact, type Folder } from "./contacts";
   import { contactEdit, editContact, newContact } from "./contactform.svelte";
   import { t } from "./i18n.svelte";

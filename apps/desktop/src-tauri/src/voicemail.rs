@@ -119,13 +119,13 @@ pub async fn voicemail_delete(state: State<'_, AppState>, id: String) -> Result<
 
 /// Die Anlage ruft das Softphone an und spielt die Nachricht vor.
 #[tauri::command]
-pub async fn voicemail_via_phone(state: State<'_, AppState>, id: String) -> Result<(), String> {
-    let phone_id = state
-        .phone
-        .lock()
+pub async fn voicemail_via_phone(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    id: String,
+) -> Result<(), String> {
+    let phone_id = crate::plugins::call::softphone_id(&app)
         .await
-        .as_ref()
-        .map(|p| p.phone_id().to_owned())
         .ok_or(t("Das Softphone ist nicht aktiv."))?;
     voicemail::play_via_phone(&hub(&state).await?, &id, &phone_id)
         .await

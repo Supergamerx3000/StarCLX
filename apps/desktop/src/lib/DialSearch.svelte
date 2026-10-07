@@ -1,7 +1,7 @@
 <script lang="ts">
   import { invoke } from "@tauri-apps/api/core";
   import Icon from "./Icon.svelte";
-  import { phone, run } from "./phone.svelte";
+  import { phone, run } from "./plugins/call/phone.svelte";
   import type { Contact } from "./contacts";
   import { t } from "./i18n.svelte";
 

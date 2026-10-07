@@ -6,7 +6,7 @@
   import { chat, nameOf, openConversation, type ChatContact } from "./chat.svelte";
   import { initials } from "./contacts";
   import { numberParts } from "./numbers";
-  import { phone, run } from "./phone.svelte";
+  import { phone, run } from "./plugins/call/phone.svelte";
   import { locale, t } from "./i18n.svelte";
 
   let term = $state("");

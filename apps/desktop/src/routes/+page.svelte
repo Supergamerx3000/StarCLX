@@ -5,7 +5,7 @@
   import { invoke } from "@tauri-apps/api/core";
   import { listen } from "@tauri-apps/api/event";
   import { onMount } from "svelte";
-  import CallManager from "$lib/CallManager.svelte";
+  import CallManager from "$lib/plugins/call/CallManager.svelte";
   import Contacts from "$lib/Contacts.svelte";
   import DialSearch from "$lib/DialSearch.svelte";
   import Journal from "$lib/Journal.svelte";
@@ -16,7 +16,7 @@
   import { initChat, unreadTotal } from "$lib/chat.svelte";
   import Icon, { type IconName } from "$lib/Icon.svelte";
   import Settings from "$lib/Settings.svelte";
-  import { initPhone, phone, run, isRingingIn } from "$lib/phone.svelte";
+  import { initPhone, phone, run, isRingingIn } from "$lib/plugins/call/phone.svelte";
   import { loadPrefs, prefs, savePrefs, type Tile } from "$lib/prefs.svelte";
   import Workspace, { tilesOf } from "$lib/Workspace.svelte";
   import { t } from "$lib/i18n.svelte";

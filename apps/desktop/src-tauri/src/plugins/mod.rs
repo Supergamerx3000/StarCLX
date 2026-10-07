@@ -7,10 +7,12 @@
 use tauri::AppHandle;
 
 pub mod busylight;
+pub mod call;
 pub mod callactions;
 
 /// Alle Plugins einhängen, bevor der Kern etwas meldet
 pub fn start(app: &AppHandle) {
     busylight::start(app);
+    call::start(app);
     callactions::start(app);
 }
