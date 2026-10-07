@@ -41,7 +41,7 @@ async fn call_between_two_local_accounts_with_srtp() {
         sip_listen: Some(format!("{ip}:{port}")),
         verify_server: false,
         ca_file: None,
-        extra: String::new(),
+        extra: "ausrc_srate 16000\nausrc_channels 1\n".into(),
     };
     let (phone, mut rx) = Softphone::start(&config, "sf-sip-test").unwrap();
 
@@ -88,8 +88,27 @@ async fn call_between_two_local_accounts_with_srtp() {
         }
     }
 
+    // Ansage aus einer WAV-Datei: meldet das Dateiende.
+    let wav = std::env::temp_dir().join(format!("sf-sip-test-{}.wav", std::process::id()));
+    std::fs::write(&wav, silent_wav(16000, 300)).unwrap();
+    phone
+        .set_source(&call.call_id, "aufile", wav.to_str().unwrap())
+        .unwrap();
+    next(&mut rx, "Dateiende", |e| {
+        matches!(e, SipEvent::EndOfFile { .. })
+    })
+    .await;
+    let _ = std::fs::remove_file(&wav);
+
     phone.set_mute(&call.call_id, true).unwrap();
     phone.send_dtmf(&call.call_id, "12#").unwrap();
+    // Die Gegenseite (im selben Prozess) empfängt die Tasten.
+    let SipEvent::Dtmf { key, .. } =
+        next(&mut rx, "Taste", |e| matches!(e, SipEvent::Dtmf { .. })).await
+    else {
+        unreachable!()
+    };
+    assert_eq!(key, '1');
     phone.hangup(Some(&call.call_id)).unwrap();
     next(&mut rx, "Auflegen", |e| {
         matches!(e, SipEvent::Closed { .. })
@@ -100,4 +119,24 @@ async fn call_between_two_local_accounts_with_srtp() {
     // Nach dem Beenden lässt sich baresip erneut starten.
     let (again, _rx) = Softphone::start(&config, "sf-sip-test").unwrap();
     drop(again);
+}
+
+/// WAV-Datei mit Stille: 16 bit, mono
+fn silent_wav(rate: u32, millis: u32) -> Vec<u8> {
+    let data_len = rate * millis / 1000 * 2;
+    let mut w = Vec::new();
+    w.extend_from_slice(b"RIFF");
+    w.extend_from_slice(&(36 + data_len).to_le_bytes());
+    w.extend_from_slice(b"WAVEfmt ");
+    w.extend_from_slice(&16u32.to_le_bytes());
+    w.extend_from_slice(&1u16.to_le_bytes());
+    w.extend_from_slice(&1u16.to_le_bytes());
+    w.extend_from_slice(&rate.to_le_bytes());
+    w.extend_from_slice(&(rate * 2).to_le_bytes());
+    w.extend_from_slice(&2u16.to_le_bytes());
+    w.extend_from_slice(&16u16.to_le_bytes());
+    w.extend_from_slice(b"data");
+    w.extend_from_slice(&data_len.to_le_bytes());
+    w.resize(w.len() + data_len as usize, 0);
+    w
 }
