@@ -16,12 +16,15 @@
   import { initChat, unreadTotal } from "$lib/plugins/chat/chat.svelte";
   import Icon, { type IconName } from "$lib/Icon.svelte";
   import Settings from "$lib/Settings.svelte";
+  import MeMenu from "$lib/MeMenu.svelte";
+  import { avatarOf, ownChat } from "$lib/plugins/fkeys/fkeys.svelte";
+  import ChatBubble from "$lib/ChatBubble.svelte";
   import { initPhone, phone, run, isRingingIn } from "$lib/plugins/call/phone.svelte";
   import { loadPrefs, prefs, savePrefs, type Tile } from "$lib/prefs.svelte";
   import Workspace, { tilesOf } from "$lib/Workspace.svelte";
   import { t } from "$lib/i18n.svelte";
 
-  type SessionInfo = { server: string; server_version: string; display_name: string };
+  type SessionInfo = { server: string; server_version: string; display_name: string; user_id: string };
   type UntrustedCert = { host: string; port: number; fingerprint: string; reason: string };
 
   let server = $state("");
@@ -220,22 +223,13 @@
     <header class="top">
       <div class="menuwrap">
         <button class="me" title="{session.display_name} · {stateText[phone.status.state]}" onclick={() => (menuOpen = !menuOpen)} aria-expanded={menuOpen}>
-          {initials(session.display_name)}
+          {#if session.user_id && avatarOf(session.user_id)}<img class="pic" src={avatarOf(session.user_id)} alt="" />{:else}{initials(session.display_name)}{/if}
           <span class="reg {phone.status.state}"></span>
+          <span class="mychat"><ChatBubble state={ownChat(session.user_id).availability} /></span>
         </button>
         {#if menuOpen}
           <button class="scrim" aria-label={t("Menü schliessen")} onclick={() => (menuOpen = false)}></button>
-          <div class="menu">
-            <div class="who">
-              <strong>{session.display_name}</strong>
-              <span class="muted">STARFACE {session.server_version}</span>
-              <span class="muted">{session.server}</span>
-              <span class="state"><span class="reg {phone.status.state}"></span>{stateText[phone.status.state]}</span>
-              {#if phone.status.state === "error" && phone.status.detail}<span class="notice">{t(phone.status.detail)}</span>{/if}
-            </div>
-            <button class="item" onclick={() => { menuOpen = false; settingsOpen = true; }}><Icon name="settings" size={20} /> {t("Einstellungen")}</button>
-            <button class="item" onclick={logout}><Icon name="logout" size={20} /> {t("Abmelden")}</button>
-          </div>
+          <MeMenu {session} onsettings={() => { menuOpen = false; settingsOpen = true; }} onlogout={logout} />
         {/if}
       </div>
       <DialSearch />
@@ -355,7 +349,10 @@
     background: linear-gradient(135deg, #3a7bd5, #00a37a); border: 3px solid var(--green);
   }
   .reg { display: inline-block; width: 0.7rem; height: 0.7rem; border-radius: 50%; background: #777; }
-  .me .reg { position: absolute; right: -2px; top: -2px; border: 2px solid var(--bar); }
+  /* Wie in der STARFACE-App: Status-Sprechblase oben rechts; der Punkt unten rechts zeigt das Softphone */
+  .me .reg { position: absolute; right: -1px; bottom: -1px; width: 0.6rem; height: 0.6rem; border: 2px solid var(--bar); }
+  .me .pic { width: 100%; height: 100%; border-radius: 50%; object-fit: cover; }
+  .me .mychat { position: absolute; right: -0.4rem; top: -0.25rem; width: 1.2rem; height: 1.1rem; }
   .reg.ready { background: var(--green); }
   .reg.starting { background: var(--accent); }
   .reg.error { background: var(--red); }
@@ -366,15 +363,6 @@
   .brand.big { font-size: 1.6rem; margin-bottom: 1.5rem; }
 
   .scrim { position: fixed; inset: 0; z-index: 14; background: transparent; border: none; padding: 0; cursor: default; }
-  .menu {
-    position: absolute; left: 0; top: calc(100% + 0.4rem); z-index: 15; min-width: 17rem;
-    background: var(--panel); border: 1px solid var(--line); border-radius: 8px; box-shadow: 0 8px 24px #000a;
-    display: flex; flex-direction: column; padding: 0.4rem;
-  }
-  .menu .who { display: flex; flex-direction: column; gap: 0.15rem; padding: 0.5rem 0.6rem 0.7rem; border-bottom: 1px solid var(--line); margin-bottom: 0.3rem; font-size: 0.9rem; }
-  .menu .who strong { font-size: 1rem; }
-  .item { display: flex; align-items: center; gap: 0.7rem; background: none; border: none; text-align: left; padding: 0.55rem 0.6rem; }
-  .item:hover { background: var(--panel-2); }
   .tabs { display: flex; gap: 0.2rem; padding: 0 0.6rem; background: var(--bar); border-top: 1px solid var(--bar-2); }
   .tab { display: flex; align-items: center; gap: 0.45rem; background: none; border: none; border-bottom: 3px solid transparent; border-radius: 0; padding: 0.55rem 0.9rem; color: var(--muted); }
   .unread { background: var(--accent); color: #111; border-radius: 999px; padding: 0 0.45rem; font-size: 0.78rem; font-weight: 700; }

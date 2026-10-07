@@ -3,6 +3,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { action, phone, run, type Call } from "../call/phone.svelte";
 import { t } from "../../i18n.svelte";
+import { prefs } from "../../prefs.svelte";
 
 export type FunctionKey = {
   functionKeyType: string;
@@ -27,14 +28,17 @@ export type FunctionKey = {
   dtmf: string | null;
   genericURL: string | null;
 };
-export type Account = { account_id: number; user_ids: string[]; name: string; number: string };
+/** Konto im Besetztlampenfeld; bei einer Gruppe enthält user_ids die Gruppen-ID */
+export type Account = { account_id: number; user_ids: string[]; name: string; number: string; group: boolean };
 type Keys = { set_id: string; set_name: string; account_id: string; keys: FunctionKey[]; order: string[]; accounts: Account[]; me: string };
-type UserState = { telephony: string; dnd: boolean };
+/** Präsenz eines Users; chat: "available", "away", "dnd", "offline" oder "" (kein Chat) */
+export type UserState = { telephony: string; dnd: boolean; chat: string; chat_message: string; redirect: boolean };
 export type Redirect = {
   id: string; kind: string; called_number: string; called_number_id: string; group: boolean; enabled: boolean;
   target: { number: string | null; mailbox: string | null }; mailboxes: { id: string; name: string }[];
 };
-export type SignalingNumber = { id: string; number: string; suppressed: boolean; read_only: boolean; selected: boolean };
+export type Module = { id: string; name: string; active: boolean; read_only: boolean };
+export type SignalingNumber = { id: string; number: string; suppressed: boolean; read_only: boolean; selected: boolean; group: string };
 
 /** Gruppe in der Typenliste; "desk" = nur auf Tischtelefonen */
 type Group = "fav" | "fn" | "desk";
@@ -44,13 +48,13 @@ export const types = (): { type: string; label: string; group: Group; usable: bo
   { type: "QUICKDIAL", label: t("Direktwahl"), group: "fav", usable: true },
   { type: "GROUPLOGIN", label: t("Gruppe An-/Abmelden"), group: "fn", usable: true },
   { type: "DONOTDISTURB", label: t("Ruhe"), group: "fn", usable: true },
-  { type: "COMPLETIONOFCALLSTOBUSYSUBSCRIBER", label: t("Rückruf bei Besetzt"), group: "fn", usable: false },
+  { type: "COMPLETIONOFCALLSTOBUSYSUBSCRIBER", label: t("Rückruf bei Besetzt"), group: "fn", usable: true },
   { type: "SIGNALNUMBER", label: t("Rufnummer anzeigen"), group: "fn", usable: true },
   { type: "FORWARD", label: t("Umleitung (Art)"), group: "fn", usable: true },
   { type: "FORWARDNUMBER", label: t("Umleitung (Rufnummer)"), group: "fn", usable: true },
   { type: "FORWARDTOTARGET", label: t("Umleitung auf Ziel"), group: "fn", usable: true },
   { type: "PARKANDORBIT", label: t("Parken"), group: "fn", usable: true },
-  { type: "MODULEACTIVATION", label: t("Modul aktivieren"), group: "fn", usable: false },
+  { type: "MODULEACTIVATION", label: t("Modul aktivieren"), group: "fn", usable: true },
   { type: "ADDRESSBOOK", label: t("Telefonmenü Adressbuch"), group: "desk", usable: false },
   { type: "PHONECALLLIST", label: t("Telefonmenü Rufliste"), group: "desk", usable: false },
   { type: "PHONEGENERICURL", label: t("Telefonbasierte URL"), group: "desk", usable: false },
@@ -70,8 +74,14 @@ export const fkeys = $state({
   parked: {} as Record<string, boolean>,
   accounts: [] as Account[],
   presence: {} as Record<string, UserState>,
+  /** Benutzerbilder als data:-URL; null = keins, undefined = noch nicht geladen */
+  avatars: {} as Record<string, string | null>,
   redirects: [] as Redirect[],
+  /** Wählbare signalisierte Rufnummern, für „Rufnummer anzeigen“ */
+  signaling: [] as SignalingNumber[],
   groups: [] as Membership[],
+  /** Module der Anlage für „Modul aktivieren“ */
+  modules: [] as Module[],
   me: "",
   error: "",
   notice: "",
@@ -102,6 +112,12 @@ export async function loadFkeys() {
     started = true;
     listen<Record<string, UserState>>("fkey-presence", (e) => (fkeys.presence = e.payload));
     listen<Membership[]>("fkey-groups", (e) => (fkeys.groups = e.payload));
+    listen<Module[]>("fkey-modules", (e) => (fkeys.modules = e.payload));
+    // Anderswo umgestellt (z. B. in der STARFACE-App)
+    listen("me-signaling", () => loadSignaling());
+    listen("me-avatar", () => { delete fkeys.avatars[fkeys.me]; });
+    // Rechte geändert: Tasten und Zustände neu laden, wie die STARFACE-App
+    listen("me-permission", () => loadFkeys());
     listen("reach-changed", () => loadRedirects());
     // Nach dem Standby neu laden (Token, Präsenz und Tasten frisch holen)
     listen("resumed", () => loadFkeys());
@@ -121,6 +137,7 @@ export async function loadFkeys() {
     fkeys.loaded = true;
     fkeys.presence = await invoke<Record<string, UserState>>("fkey_presence");
     fkeys.groups = await invoke<Membership[]>("fkey_groups");
+    fkeys.modules = await invoke<Module[]>("fkey_modules");
     retryMs = RETRY_MS;
   } catch (e) {
     // Bisherige Tasten bleiben stehen; nur der Fehler wird angezeigt.
@@ -129,7 +146,18 @@ export async function loadFkeys() {
     retryMs = Math.min(retryMs * 3, 30_000);
   }
   loadRedirects();
+  loadSignaling();
 }
+
+/** Signalisierte Rufnummern neu holen (Zustand der Rufnummer-Tasten) */
+export async function loadSignaling() {
+  fkeys.signaling = await invoke<SignalingNumber[]>("signaling_numbers").catch(() => fkeys.signaling);
+}
+
+/** Nummer einer „Rufnummer anzeigen“-Taste; ohne Nummer (0) = unterdrücken */
+const numberOf = (k: FunctionKey) =>
+  !k.displayNumberId ? fkeys.signaling.find((x) => x.suppressed) : fkeys.signaling.find((x) => x.id === String(k.displayNumberId));
+
 
 async function loadRedirects() {
   try {
@@ -179,6 +207,43 @@ const stateOf = (a: Account | undefined) => {
   for (const id of a?.user_ids ?? []) if (fkeys.presence[id]) return fkeys.presence[id];
 };
 
+/** User hinter einer BLF-Taste: OneHub-ID und Präsenz */
+export function blfUser(k: FunctionKey): { id: string; group: boolean; state: UserState | undefined } | undefined {
+  const a = account(k);
+  const id = a?.user_ids.find((u) => fkeys.presence[u]) ?? a?.user_ids[0];
+  return id ? { id, group: a?.group ?? false, state: fkeys.presence[id] } : undefined;
+}
+
+const loadingAvatars = new Set<string>();
+/** Benutzerbild; lädt es beim ersten Zugriff nach (null = keins) */
+export function avatarOf(userId: string): string | null {
+  const url = fkeys.avatars[userId];
+  if (url !== undefined) return url;
+  if (!loadingAvatars.has(userId)) {
+    loadingAvatars.add(userId);
+    invoke<string | null>("fkey_avatar", { userId })
+      .then((u) => (fkeys.avatars[userId] = u))
+      .catch(() => (fkeys.avatars[userId] = null))
+      .finally(() => loadingAvatars.delete(userId));
+  }
+  return null;
+}
+
+/** Eigener Chat-Status: wie ihn die Anlage meldet (auch von anderen Clients
+ *  gesetzt), sonst die letzte eigene Wahl */
+export function ownChat(userId: string): { availability: string; text: string } {
+  const s = fkeys.presence[userId];
+  if (s?.chat && s.chat !== "offline") return { availability: s.chat, text: s.chat_message };
+  return { availability: prefs.value?.chat_availability || "available", text: prefs.value?.chat_text ?? "" };
+}
+
+/** Statuszeile wie in der STARFACE-App: eigener Text, sonst der Chat-Zustand */
+export function chatText(s: UserState | undefined): string {
+  if (!s?.chat) return "";
+  if (s.chat_message) return s.chat_message;
+  return ({ available: t("Verfügbar"), away: t("Abwesend"), dnd: t("Bitte nicht stören"), offline: t("Offline") } as Record<string, string>)[s.chat] ?? "";
+}
+
 const ownDnd = () => fkeys.presence[fkeys.me]?.dnd ?? false;
 
 /** Umleitungen, die eine Taste schaltet */
@@ -195,24 +260,45 @@ export function redirectsOf(k: FunctionKey): Redirect[] {
   }
 }
 
-/** Zustand für die Farbe: "on", "busy", "ringing", "free", "off" oder "" */
+/** Zustand für die Farbe: "on", "partial", "busy", "ringing", "dnd", "free", "off", "none" oder "" */
 export function keyState(k: FunctionKey): string {
   switch (k.functionKeyType) {
     case "BUSYLAMPFIELD": {
       const s = stateOf(account(k));
       if (!s) return "";
-      return s.telephony === "ringing" ? "ringing" : s.telephony === "active" ? "busy" : s.telephony === "unavailable" ? "off" : "free";
+      // Gespräch geht vor Ruhe, damit man sieht, dass telefoniert wird
+      if (s.telephony === "ringing") return "ringing";
+      if (s.telephony === "active") return "busy";
+      if (s.dnd) return "dnd";
+      return s.telephony === "unavailable" ? "off" : "free";
     }
     case "DONOTDISTURB":
       return ownDnd() ? "on" : "";
+    case "MODULEACTIVATION": {
+      // an = alle aktiv; ohne passendes Modul (z. B. kein Recht) "none"
+      const list = fkeys.modules.filter((m) => k.activateModuleIds.includes(m.id));
+      return !list.length ? "none" : list.every((m) => m.active) ? "on" : "";
+    }
     case "GROUPLOGIN": {
+      // Schalter wie in der STARFACE-App: an = in einer der Gruppen angemeldet
       const list = groupsOf(k);
-      return !list.length ? "" : list.some((g) => g.logged_on) ? "free" : "off";
+      return !list.length ? "none" : list.some((g) => g.logged_on) ? "on" : "";
     }
     case "FORWARD":
     case "FORWARDNUMBER":
-    case "FORWARDTOTARGET":
-      return redirectsOf(k).some((r) => r.enabled) ? "on" : "";
+    case "FORWARDTOTARGET": {
+      // Wie in der STARFACE-App: teilaktiv, wenn nur manche Umleitungen an sind
+      const list = redirectsOf(k);
+      const on = list.filter((r) => r.enabled).length;
+      return !on ? "" : on === list.length ? "on" : "partial";
+    }
+    case "COMPLETIONOFCALLSTOBUSYSUBSCRIBER":
+      // blinkt, solange die Anlage den Rückruf anbietet; an, wenn aktiv
+      return phone.status.callback === "active" ? "on" : phone.status.callback === "available" ? "ringing" : "";
+    case "SIGNALNUMBER": {
+      const n = numberOf(k);
+      return !n ? "none" : n.selected ? "on" : "";
+    }
     case "PARKANDORBIT":
       return fkeys.parked[k.poNumber ?? ""] ? "parked" : "";
     default:
@@ -261,11 +347,23 @@ export async function press(k: FunctionKey) {
       return call("fkey_dnd", { enabled: !ownDnd() });
     case "GROUPLOGIN":
       return call("fkey_group_toggle", { groupIds: k.groupIds, keyName: k.name });
+    case "MODULEACTIVATION":
+      return call("fkey_module_toggle", { moduleIds: k.activateModuleIds });
+    case "COMPLETIONOFCALLSTOBUSYSUBSCRIBER":
+      return call("phone_callback", {});
     case "SIGNALNUMBER": {
-      const list = await invoke<SignalingNumber[]>("signaling_numbers").catch(() => []);
-      const n = k.displayNumberId === 0 ? list.find((x) => x.suppressed) : list.find((x) => x.id === String(k.displayNumberId));
+      await loadSignaling();
+      const n = numberOf(k);
       if (!n) return void (fkeys.notice = t("Diese Rufnummer ist nicht mehr wählbar."));
-      return call("set_signaling_number", { id: n.id });
+      // Wie in der STARFACE-App: Die aktive Nummer abschalten heißt
+      // unterdrücken; Anonym abschalten zeigt wieder die eigene Durchwahl.
+      const anonymous = fkeys.signaling.find((x) => x.suppressed);
+      const own = fkeys.signaling.find((x) => !x.suppressed && !x.group) ?? fkeys.signaling.find((x) => !x.suppressed);
+      const target = !n.selected ? n : n.suppressed ? own : anonymous;
+      if (!target) return;
+      if (target.selected) return;
+      await call("set_signaling_number", { id: target.id });
+      return loadSignaling();
     }
     case "FORWARD":
     case "FORWARDNUMBER":

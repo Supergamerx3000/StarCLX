@@ -85,6 +85,16 @@
   </screenshots>
   <content_rating type="oars-1.1"/>
   <releases>
+    <release version="1.3.0" date="2026-10-07">
+      <description>
+        <ul>
+          <li>Function keys show phone, do-not-disturb, chat status, redirect and the user's picture like the STARFACE app</li>
+          <li>Switch keys for do not disturb, modules, redirects, caller ID, group login and callback on busy</li>
+          <li>Profile menu with status, primary phone, caller ID and redirects</li>
+          <li>Own chat status with saved custom statuses, kept in sync with other clients</li>
+        </ul>
+      </description>
+    </release>
     <release version="1.2.0" date="2026-10-07">
       <description>
         <p>First release on Flathub.</p>

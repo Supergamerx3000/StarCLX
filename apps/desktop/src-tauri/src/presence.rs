@@ -4,10 +4,9 @@
 
 use std::time::Duration;
 
-use tauri::{AppHandle, Manager};
+use tauri::AppHandle;
 use zbus::blocking::Connection;
 
-use crate::chat::ChatState;
 use crate::settings::{self, Prefs};
 
 /// Aktueller automatischer Zustand, damit ein neu verbundener Chat ihn erbt
@@ -156,11 +155,8 @@ pub fn start(app: &AppHandle) {
                     away = now;
                     AWAY.store(away, std::sync::atomic::Ordering::Relaxed);
                     let app = app.clone();
-                    let text = if away { prefs.away_text } else { String::new() };
                     tauri::async_runtime::spawn(async move {
-                        if let Some(chat) = app.state::<ChatState>().chat.lock().await.as_ref() {
-                            chat.set_presence(away, &text);
-                        }
+                        crate::plugins::chat::apply_own(&app).await
                     });
                 }
             }

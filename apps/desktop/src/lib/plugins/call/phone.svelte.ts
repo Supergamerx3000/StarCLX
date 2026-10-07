@@ -22,10 +22,12 @@ export type PhoneStatus = {
   detail: string;
   calls: Call[];
   muted: boolean;
+  /** Rückruf bei Besetzt: "available", "active" oder "" */
+  callback: string;
 };
 
 export const phone = $state({
-  status: { state: "off", detail: "", calls: [], muted: false } as PhoneStatus,
+  status: { state: "off", detail: "", calls: [], muted: false, callback: "" } as PhoneStatus,
   notice: "",
   now: Date.now(),
 });

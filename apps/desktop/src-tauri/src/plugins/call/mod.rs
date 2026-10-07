@@ -75,6 +75,8 @@ pub struct PhoneStatus {
     detail: String,
     calls: Vec<sf_core::phone::CallView>,
     muted: bool,
+    /// Rückruf bei Besetzt: "available", "active" oder ""
+    callback: String,
 }
 
 fn update_phone_status(app: &AppHandle, f: impl FnOnce(&mut PhoneStatus)) {
@@ -157,7 +159,11 @@ async fn start_phone(app: AppHandle, hub: sf_onehub::OneHub, host: String) {
                 s.state = if ok { "ready" } else { "error" }.into();
                 s.detail = detail;
             }),
-            PhoneEvent::Calls { calls, muted } => {
+            PhoneEvent::Calls {
+                calls,
+                muted,
+                callback,
+            } => {
                 let ringing = calls
                     .iter()
                     .any(|c| c.incoming && c.phase == CallPhase::Ringing);
@@ -183,6 +189,7 @@ async fn start_phone(app: AppHandle, hub: sf_onehub::OneHub, host: String) {
                 update_phone_status(&app, |s| {
                     s.calls = calls;
                     s.muted = muted;
+                    s.callback = callback.into();
                 });
                 if ringing && !was_ringing && settings::load(&app).prefs.bring_to_front {
                     show_main_window(&app);
@@ -248,6 +255,12 @@ pub async fn phone_hold(
     hold: bool,
 ) -> Result<(), String> {
     with_phone(&state, async |p| p.hold(&call_id, hold).await).await
+}
+
+/// Rückruf bei Besetzt aktivieren bzw. abbrechen
+#[tauri::command]
+pub async fn phone_callback(state: State<'_, CallState>) -> Result<(), String> {
+    with_phone(&state, async |p| p.toggle_callback().await.map(|_| ())).await
 }
 
 #[tauri::command]

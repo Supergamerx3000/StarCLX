@@ -40,6 +40,9 @@ async fn resolve(host: &str, port: u16) -> Option<std::net::SocketAddr> {
 /// Anlage und wird automatisch angenommen.
 const DIAL_WINDOW: Duration = Duration::from_secs(20);
 const MAX_BACKOFF: Duration = Duration::from_secs(30);
+/// So lange nach dem Angebot der Anlage lässt sich „Rückruf bei Besetzt“
+/// noch auslösen; sie beendet den besetzten Anruf meist sofort.
+const CALLBACK_WINDOW: Duration = Duration::from_secs(60);
 
 #[derive(Debug, thiserror::Error)]
 pub enum PhoneError {
@@ -59,6 +62,8 @@ pub enum PhoneError {
     NotRinging,
     #[error("Keine Voicemailbox vorhanden")]
     NoMailbox,
+    #[error("Kein besetzter Anruf, für den ein Rückruf möglich ist")]
+    NoCallback,
     #[error(
         "Call2Go angefordert, aber kein aktives Mobiltelefon (iFMC) hinterlegt. \
          Ohne weiteres Telefon passiert nichts."
@@ -115,6 +120,8 @@ pub enum PhoneEvent {
     Calls {
         calls: Vec<CallView>,
         muted: bool,
+        /// Rückruf bei Besetzt: "available" (angeboten), "active" oder ""
+        callback: &'static str,
     },
     Error {
         message: String,
@@ -130,6 +137,26 @@ struct Inner {
     sip_active: Vec<String>,
     dial_until: Option<Instant>,
     muted: bool,
+    /// Anruf, für den die Anlage „Rückruf bei Besetzt“ anbietet, seit wann
+    callback_offer: Option<(String, Instant)>,
+    /// Anrufe mit aktivem Rückruf bei Besetzt
+    callback_active: Vec<String>,
+}
+
+impl Inner {
+    fn callback_state(&self) -> &'static str {
+        if !self.callback_active.is_empty() {
+            "active"
+        } else if self
+            .callback_offer
+            .as_ref()
+            .is_some_and(|(_, t)| t.elapsed() < CALLBACK_WINDOW)
+        {
+            "available"
+        } else {
+            ""
+        }
+    }
 }
 
 pub struct Phone {
@@ -251,6 +278,40 @@ impl Phone {
             return Err(sf_onehub::Error::from(e).into());
         }
         Ok(())
+    }
+
+    /// Rückruf bei Besetzt: aktiviert ihn für den zuletzt besetzten Anruf
+    /// oder bricht aktive Rückrufe ab. Liefert, ob danach einer aktiv ist.
+    pub async fn toggle_callback(&self) -> PhoneResult<bool> {
+        let (offer, active) = {
+            let inner = self.inner.lock().unwrap();
+            let offer = inner
+                .callback_offer
+                .clone()
+                .filter(|(_, t)| t.elapsed() < CALLBACK_WINDOW)
+                .map(|(id, _)| id);
+            (offer, inner.callback_active.clone())
+        };
+        let mut svc = self.hub.call_back_on_busy();
+        if let Some(id) = offer {
+            svc.activate_call_back_on_busy(v1::ccbs::ActivateCallBackOnBusyRequest {
+                call_id: Some(call_id_of(&id)),
+            })
+            .await
+            .map_err(sf_onehub::Error::from)?;
+            return Ok(true);
+        }
+        if active.is_empty() {
+            return Err(PhoneError::NoCallback);
+        }
+        for id in active {
+            svc.deactivate_call_back_on_busy(v1::ccbs::DeactivateCallBackOnBusyRequest {
+                call_id: Some(call_id_of(&id)),
+            })
+            .await
+            .map_err(sf_onehub::Error::from)?;
+        }
+        Ok(false)
     }
 
     /// Nimmt einen eingehenden Anruf am Softphone an.
@@ -595,8 +656,20 @@ async fn pbx_session(
     while let Some(ev) = stream.message().await? {
         if let Some(ev) = ev.call_event {
             tracing::debug!(?ev, "Anlage");
+            let offer = matches!(
+                ev,
+                v1::call::call_event_response::CallEvent::CallBackOnBusyStateChanged(_)
+            );
             apply(&mut inner.lock().unwrap(), ev);
             publish(inner, events);
+            // Abgelaufenes Angebot auch ohne weiteres Ereignis zurücknehmen
+            if offer {
+                let (inner, events) = (inner.clone(), events.clone());
+                tokio::spawn(async move {
+                    tokio::time::sleep(CALLBACK_WINDOW + Duration::from_secs(1)).await;
+                    publish(&inner, &events);
+                });
+            }
         }
     }
     Ok(())
@@ -639,16 +712,42 @@ fn apply(inner: &mut Inner, ev: v1::call::call_event_response::CallEvent) {
         E::CallDisconnected(e) => {
             inner.calls.remove(&id_of(&e.call_id));
         }
+        E::CallBackOnBusyStateChanged(e) => {
+            use v1::call::CallBackOnBusyState as S;
+            let id = id_of(&e.call_id);
+            match e.call_back_on_busy_state() {
+                S::Available => inner.callback_offer = Some((id, Instant::now())),
+                S::Active => {
+                    if !inner.callback_active.contains(&id) {
+                        inner.callback_active.push(id.clone());
+                    }
+                    inner.callback_offer.take_if(|(o, _)| *o == id);
+                }
+                S::Inactive => {
+                    inner.callback_active.retain(|a| *a != id);
+                    inner.callback_offer.take_if(|(o, _)| *o == id);
+                }
+                S::Unspecified => {}
+            }
+        }
         _ => {}
     }
 }
 
 fn publish(inner: &Mutex<Inner>, events: &mpsc::UnboundedSender<PhoneEvent>) {
-    let (calls, muted) = {
+    let (calls, muted, callback) = {
         let inner = inner.lock().unwrap();
-        (inner.calls.values().cloned().collect(), inner.muted)
+        (
+            inner.calls.values().cloned().collect(),
+            inner.muted,
+            inner.callback_state(),
+        )
     };
-    let _ = events.send(PhoneEvent::Calls { calls, muted });
+    let _ = events.send(PhoneEvent::Calls {
+        calls,
+        muted,
+        callback,
+    });
 }
 
 fn call_id_of(id: &str) -> v1::types::CallId {

@@ -17,6 +17,14 @@ pub struct Settings {
     pub trusted_certs: BTreeMap<String, BTreeSet<String>>,
 }
 
+/// Ein gespeicherter eigener Status
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ChatPreset {
+    /// "available", "away" oder "dnd"
+    pub availability: String,
+    pub text: String,
+}
+
 /// Benutzereinstellungen der Oberfläche, aufgebaut wie im Windows-Client.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(default)]
@@ -59,6 +67,12 @@ pub struct Prefs {
     /// Statustext bei Abwesenheit bzw. beim Abmelden
     pub away_text: String,
     pub offline_text: String,
+    /// Selbst gewählter Chat-Status: "available", "away" oder "dnd"
+    pub chat_availability: String,
+    /// Selbst gesetzter Statustext
+    pub chat_text: String,
+    /// Gespeicherte eigene Status (Symbol und Text), wie in der STARFACE-App
+    pub chat_presets: Vec<ChatPreset>,
     /// Erscheinungsbild: "system", "dark" oder "light"
     pub theme: String,
     /// Sprache der Oberfläche (bisher nur "de")
@@ -113,6 +127,9 @@ impl Default for Prefs {
             away_on_lock: true,
             away_text: String::new(),
             offline_text: String::new(),
+            chat_availability: "available".into(),
+            chat_text: String::new(),
+            chat_presets: Vec::new(),
             theme: "system".into(),
             language: "de".into(),
             start_minimized: false,
