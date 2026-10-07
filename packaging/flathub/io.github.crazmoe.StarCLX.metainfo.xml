@@ -77,12 +77,12 @@
   </branding>
   <screenshots>
     <screenshot type="default">
-      <caption>Main window with search and function keys</caption>
-      <image>https://raw.githubusercontent.com/crazmoe/StarCLX/main/docs/screenshots/hauptfenster.png</image>
+      <caption>Call manager during an outgoing call, with function keys and call list</caption>
+      <image>https://raw.githubusercontent.com/crazmoe/StarCLX/main/docs/screenshots/gespraech.png</image>
     </screenshot>
     <screenshot>
-      <caption>Call manager during a call</caption>
-      <image>https://raw.githubusercontent.com/crazmoe/StarCLX/main/docs/screenshots/gespraech.png</image>
+      <caption>Chat, address book and voicemail</caption>
+      <image>https://raw.githubusercontent.com/crazmoe/StarCLX/main/docs/screenshots/hauptfenster.png</image>
     </screenshot>
   </screenshots>
   <content_rating type="oars-1.1"/>
