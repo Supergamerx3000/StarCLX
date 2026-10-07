@@ -10,6 +10,7 @@ pub mod directory;
 pub mod fkeys;
 pub mod group;
 pub mod journal;
+pub mod module;
 pub mod phone;
 pub mod reconnect;
 pub mod redirect;

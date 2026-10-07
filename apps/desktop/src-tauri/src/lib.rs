@@ -60,6 +60,8 @@ struct PhoneStatus {
     detail: String,
     calls: Vec<sf_core::phone::CallView>,
     muted: bool,
+    /// Rückruf bei Besetzt: "available", "active" oder ""
+    callback: String,
 }
 
 #[derive(Clone, Serialize)]
@@ -67,6 +69,8 @@ struct SessionInfo {
     server: String,
     server_version: String,
     display_name: String,
+    /// OneHub-ID des angemeldeten Users (Profilbild, eigene Präsenz)
+    user_id: String,
 }
 
 impl From<&sf_core::SessionInfo> for SessionInfo {
@@ -77,6 +81,7 @@ impl From<&sf_core::SessionInfo> for SessionInfo {
             display_name: format!("{} {}", i.first_name, i.last_name)
                 .trim()
                 .to_owned(),
+            user_id: i.user_id.clone(),
         }
     }
 }
@@ -296,7 +301,11 @@ async fn start_phone(app: AppHandle, hub: sf_onehub::OneHub, host: String) {
                 s.state = if ok { "ready" } else { "error" }.into();
                 s.detail = detail;
             }),
-            PhoneEvent::Calls { calls, muted } => {
+            PhoneEvent::Calls {
+                calls,
+                muted,
+                callback,
+            } => {
                 let ringing = calls
                     .iter()
                     .any(|c| c.incoming && c.phase == CallPhase::Ringing);
@@ -317,6 +326,7 @@ async fn start_phone(app: AppHandle, hub: sf_onehub::OneHub, host: String) {
                 update_phone_status(&app, |s| {
                     s.calls = calls;
                     s.muted = muted;
+                    s.callback = callback.into();
                 });
                 if ringing && !was_ringing && settings::load(&app).prefs.bring_to_front {
                     show_main_window(&app);
@@ -449,6 +459,12 @@ async fn phone_hold(state: State<'_, AppState>, call_id: String, hold: bool) -> 
     with_phone(&state, async |p| p.hold(&call_id, hold).await).await
 }
 
+/// Rückruf bei Besetzt aktivieren bzw. abbrechen
+#[tauri::command]
+async fn phone_callback(state: State<'_, AppState>) -> Result<(), String> {
+    with_phone(&state, async |p| p.toggle_callback().await.map(|_| ())).await
+}
+
 #[tauri::command]
 async fn phone_mute(state: State<'_, AppState>, muted: bool) -> Result<(), String> {
     with_phone(&state, async |p| p.set_mute(muted)).await
@@ -521,9 +537,14 @@ fn get_prefs(app: AppHandle) -> Prefs {
 async fn save_prefs(
     app: AppHandle,
     state: State<'_, AppState>,
-    prefs: Prefs,
+    mut prefs: Prefs,
 ) -> Result<(), String> {
     let old = settings::load(&app).prefs;
+    // Der eigene Status kommt aus dem Menü bzw. von der Anlage; ein länger
+    // offener Einstellungsdialog darf ihn nicht mit altem Stand überschreiben.
+    prefs.chat_availability.clone_from(&old.chat_availability);
+    prefs.chat_text.clone_from(&old.chat_text);
+    prefs.chat_presets.clone_from(&old.chat_presets);
     settings::update(&app, |s| s.prefs = prefs.clone());
     if old.language != prefs.language {
         i18n::set_language(&prefs.language);
@@ -591,6 +612,22 @@ async fn signaling_numbers(
     state: State<'_, AppState>,
 ) -> Result<Vec<sf_core::account::SignalingNumber>, String> {
     sf_core::account::signaling_numbers(&hub(&state).await?)
+        .await
+        .map_err(|e| e.to_string())
+}
+
+/// Eigene Telefone mit dem primären
+#[tauri::command]
+async fn phones(state: State<'_, AppState>) -> Result<Vec<sf_core::account::PhoneView>, String> {
+    sf_core::account::phones(&hub(&state).await?)
+        .await
+        .map_err(|e| e.to_string())
+}
+
+/// Primäres Telefon wählen (klingelt bei Anrufen, wählt bei Click-to-Dial)
+#[tauri::command]
+async fn set_primary_phone(state: State<'_, AppState>, id: String) -> Result<(), String> {
+    sf_core::account::set_primary_phone(&hub(&state).await?, &id)
         .await
         .map_err(|e| e.to_string())
 }
@@ -995,12 +1032,15 @@ pub fn run() {
             phone_hangup,
             phone_hold,
             phone_mute,
+            phone_callback,
             phone_dtmf,
             phone_action,
             get_prefs,
             save_prefs,
             signaling_numbers,
             set_signaling_number,
+            phones,
+            set_primary_phone,
             contacts_search,
             contacts_folders,
             contacts_list,
@@ -1010,6 +1050,8 @@ pub fn run() {
             journal_entries,
             journal_action,
             chat::chat_status,
+            chat::chat_set_own,
+            chat::chat_delete_preset,
             chat::chat_recent,
             chat::chat_conversation,
             chat::chat_send,
@@ -1029,11 +1071,14 @@ pub fn run() {
             reach::mailbox_record,
             fkeys::fkeys_load,
             fkeys::fkey_presence,
+            fkeys::fkey_avatar,
             fkeys::fkey_save,
             fkeys::fkey_delete,
             fkeys::fkeys_reorder,
             fkeys::fkey_dnd,
             fkeys::fkey_groups,
+            fkeys::fkey_modules,
+            fkeys::fkey_module_toggle,
             fkeys::fkey_group_toggle,
             fkeys::fkey_park,
             fkeys::fkey_grab,

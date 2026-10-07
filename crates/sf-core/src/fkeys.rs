@@ -63,6 +63,9 @@ pub struct Account {
     pub user_ids: Vec<String>,
     pub name: String,
     pub number: String,
+    /// Eine Gruppe statt eines Users; `user_ids` enthält dann die
+    /// OneHub-Gruppen-ID (siehe [`group_ids`])
+    pub group: bool,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -315,6 +318,7 @@ fn accounts(defaults: &serde_json::Value) -> Vec<Account> {
                 user_ids: Vec::new(),
                 name: str_of(a, "displayInformation"),
                 number: str_of(a, "primaryInternalPhoneNumber"),
+                group: false,
             })
         })
         .collect()
@@ -328,6 +332,7 @@ fn blf_account(edit: &serde_json::Value) -> Option<Account> {
         user_ids: Vec::new(),
         name: str_of(b, "blfDisplayInformation"),
         number: str_of(b, "number"),
+        group: false,
     })
 }
 
@@ -366,12 +371,60 @@ pub async fn user_ids(
         .collect())
 }
 
-/// Telefonie- und Ruhe-Zustand eines Users für die Tastenfarben
+/// OneHub-Gruppen-IDs zu Konten, hinter denen kein User steht (Gruppen im
+/// Besetztlampenfeld). Gesucht wird über die Nummer, sonst den Namen; die
+/// Konto-ID steht je nach Version in der Gruppen-ID oder in `logon_id`.
+pub async fn group_ids(
+    hub: &OneHub,
+    accounts: &[Account],
+) -> sf_onehub::Result<HashMap<i32, String>> {
+    use v1::sfpbx::group::GroupSearchType as T;
+    let mut svc = hub.group();
+    let mut found = HashMap::new();
+    for a in accounts {
+        let key = a.account_id.to_string();
+        for (term, kind) in [(&a.number, T::PhoneNumber), (&a.name, T::Name)] {
+            if term.is_empty() {
+                continue;
+            }
+            let groups = svc
+                .search_groups(v1::sfpbx::group::SearchGroupsRequest {
+                    search_term: term.clone(),
+                    group_search_types: vec![kind as i32],
+                })
+                .await?
+                .into_inner()
+                .groups;
+            let hit = groups.iter().find_map(|g| {
+                let id = g.group_id.as_ref()?.id.clone();
+                let same_number = g
+                    .phone_numbers
+                    .iter()
+                    .any(|n| crate::account::format_number(n) == a.number);
+                (id == key || g.logon_id == key || same_number).then_some(id)
+            });
+            if let Some(id) = hit {
+                found.insert(a.account_id, id);
+                break;
+            }
+        }
+    }
+    Ok(found)
+}
+
+/// Präsenz eines Users für die Funktionstasten: Telefon, Ruhe, Chat und
+/// Umleitung, wie die Anlage sie meldet.
 #[derive(Debug, Clone, Default, Serialize, PartialEq, Eq)]
 pub struct UserState {
     /// "available", "ringing", "active", "unavailable" oder ""
     pub telephony: &'static str,
     pub dnd: bool,
+    /// Chat: "available", "away", "dnd", "offline" oder "" (kein Chat)
+    pub chat: &'static str,
+    /// Selbst gesetzter Statustext
+    pub chat_message: String,
+    /// Eine Umleitung ist aktiv
+    pub redirect: bool,
 }
 
 fn telephony(t: i32) -> &'static str {
@@ -385,6 +438,55 @@ fn telephony(t: i32) -> &'static str {
     }
 }
 
+fn chat(c: i32) -> &'static str {
+    use v1::presence::ChatState as C;
+    match C::try_from(c) {
+        Ok(C::Available | C::FreeForChat) => "available",
+        Ok(C::Away | C::ExtendedAway) => "away",
+        Ok(C::DoNotDisturb) => "dnd",
+        Ok(C::Unavailable) => "offline",
+        _ => "",
+    }
+}
+
+fn user_state(u: v1::presence::UserPresenceState) -> UserState {
+    UserState {
+        telephony: telephony(u.telephony_state),
+        dnd: u.dnd_enabled,
+        chat: chat(u.chat_state),
+        chat_message: u.chat_state_message,
+        redirect: u.redirect_enabled,
+    }
+}
+
+/// Aktueller Zustand eines einzelnen Users, wie ihn die Anlage gerade kennt
+pub async fn current_state(hub: &OneHub, user_id: &str) -> sf_onehub::Result<Option<UserState>> {
+    use v1::presence::presence_state::PresenceState as S;
+    let resp = hub
+        .presence()
+        .subscribe_presence_states(v1::presence::SubscribePresenceStatesRequest {
+            presence_ids: Some(
+                v1::presence::subscribe_presence_states_request::PresenceIds::UserIdList(
+                    v1::presence::UserIdList {
+                        user_ids: vec![v1::types::UserId {
+                            id: user_id.to_owned(),
+                        }],
+                    },
+                ),
+            ),
+            return_presence_states: true,
+        })
+        .await?
+        .into_inner();
+    Ok(resp
+        .presence_states
+        .into_iter()
+        .find_map(|s| match s.presence_state {
+            Some(S::UserPresenceState(u)) => Some(user_state(u)),
+            _ => None,
+        }))
+}
+
 /// Verfolgt die Präsenz der angegebenen User (OneHub-IDs). Jede Änderung
 /// schickt den vollständigen Stand.
 pub struct Presence(JoinHandle<()>);
@@ -393,14 +495,16 @@ impl Presence {
     pub fn start(
         hub: OneHub,
         users: Vec<String>,
+        groups: Vec<String>,
         updates: mpsc::UnboundedSender<HashMap<String, UserState>>,
     ) -> Self {
         Self(tokio::spawn(crate::reconnect::forever(
             "Präsenz",
             MAX_BACKOFF,
             move || {
-                let (hub, users, updates) = (hub.clone(), users.clone(), updates.clone());
-                async move { watch(&hub, &users, &updates).await }
+                let (hub, users, groups, updates) =
+                    (hub.clone(), users.clone(), groups.clone(), updates.clone());
+                async move { watch(&hub, &users, &groups, &updates).await }
             },
         )))
     }
@@ -415,12 +519,18 @@ impl Drop for Presence {
 async fn watch(
     hub: &OneHub,
     users: &[String],
+    groups: &[String],
     updates: &mpsc::UnboundedSender<HashMap<String, UserState>>,
 ) -> sf_onehub::Result<()> {
     use v1::presence::presence_event_response::PresenceEvent as E;
     use v1::presence::presence_state::PresenceState as S;
     let mut svc = hub.presence();
-    let mut stream = svc.subscribe_presence_events(()).await?.into_inner();
+    // Den Ereignis-Stream nebenher öffnen: Die Anlage antwortet darauf erst
+    // mit dem ersten Ereignis. Darauf zu warten hielt auch die Anfangszustände
+    // auf, die Tasten blieben ohne Zustand.
+    let mut events_svc = svc.clone();
+    let events = tokio::spawn(async move { events_svc.subscribe_presence_events(()).await });
+    tokio::task::yield_now().await;
     let initial = svc
         .subscribe_presence_states(v1::presence::SubscribePresenceStatesRequest {
             presence_ids: Some(
@@ -437,25 +547,71 @@ async fn watch(
         })
         .await?
         .into_inner();
+    let mut initial = initial.presence_states;
+    if !groups.is_empty() {
+        let g = svc
+            .subscribe_presence_states(v1::presence::SubscribePresenceStatesRequest {
+                presence_ids: Some(
+                    v1::presence::subscribe_presence_states_request::PresenceIds::GroupIdList(
+                        v1::presence::GroupIdList {
+                            group_ids: groups
+                                .iter()
+                                .map(|id| v1::types::GroupId { id: id.clone() })
+                                .collect(),
+                        },
+                    ),
+                ),
+                return_presence_states: true,
+            })
+            .await?
+            .into_inner();
+        initial.extend(g.presence_states);
+    }
     let mut states: HashMap<String, UserState> = HashMap::new();
     let apply_state = |states: &mut HashMap<String, UserState>, s: v1::presence::PresenceState| {
-        if let Some(S::UserPresenceState(u)) = s.presence_state
-            && let Some(id) = u.user_id
-        {
-            states.insert(
-                id.id,
-                UserState {
-                    telephony: telephony(u.telephony_state),
-                    dnd: u.dnd_enabled,
-                },
-            );
+        match s.presence_state {
+            Some(S::UserPresenceState(u)) => {
+                if let Some(id) = u.user_id.clone() {
+                    states.insert(id.id, user_state(u));
+                }
+            }
+            // Gruppen haben nur Telefon und Umleitung
+            Some(S::GroupPresenceState(g)) => {
+                if let Some(id) = g.group_id {
+                    states.insert(
+                        id.id,
+                        UserState {
+                            telephony: telephony(g.telephony_state),
+                            redirect: g.redirect_enabled,
+                            ..Default::default()
+                        },
+                    );
+                }
+            }
+            None => {}
         }
     };
-    for s in initial.presence_states {
+    tracing::debug!(
+        users = users.len(),
+        groups = groups.len(),
+        initial = initial.len(),
+        "Präsenz abonniert"
+    );
+    for s in initial {
         apply_state(&mut states, s);
     }
+    tracing::debug!(?states, "Präsenz Anfangsstand");
     let _ = updates.send(states.clone());
+    let mut stream = match events.await {
+        Ok(r) => r?.into_inner(),
+        // Aufgabe abgebrochen: neuer Versuch über Presence::start
+        Err(e) => {
+            tracing::warn!(error = %e, "Präsenz-Ereignisse nicht abonniert");
+            return Ok(());
+        }
+    };
     while let Some(ev) = stream.message().await? {
+        tracing::debug!(?ev, "Präsenz-Ereignis");
         let user = |id: Option<v1::types::UserId>| id.map(|i| i.id).unwrap_or_default();
         match ev.presence_event {
             Some(E::PresenceStateSubscribed(s)) => {
@@ -465,12 +621,30 @@ async fn watch(
             }
             Some(E::TelephonyStateChanged(t)) => {
                 use v1::presence::telephony_state_changed_event::Target;
-                if let Some(Target::UserId(id)) = t.target {
-                    states.entry(id.id).or_default().telephony = telephony(t.telephony_state);
-                }
+                let id = match t.target {
+                    Some(Target::UserId(id)) => id.id,
+                    Some(Target::GroupId(id)) => id.id,
+                    None => continue,
+                };
+                states.entry(id).or_default().telephony = telephony(t.telephony_state);
             }
             Some(E::DoNotDisturbStatusChanged(d)) => {
                 states.entry(user(d.user_id)).or_default().dnd = d.dnd_enabled;
+            }
+            Some(E::ChatStateChanged(c)) => {
+                states.entry(user(c.user_id)).or_default().chat = chat(c.chat_state);
+            }
+            Some(E::ChatStateMessageChanged(c)) => {
+                states.entry(user(c.user_id)).or_default().chat_message = c.chat_state_message;
+            }
+            Some(E::RedirectStatusChanged(r)) => {
+                use v1::presence::redirect_status_changed_event::Target;
+                let id = match r.target {
+                    Some(Target::UserId(id)) => id.id,
+                    Some(Target::GroupId(id)) => id.id,
+                    None => continue,
+                };
+                states.entry(id).or_default().redirect = r.redirect_enabled;
             }
             _ => continue,
         }
