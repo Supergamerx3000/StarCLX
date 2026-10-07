@@ -23,9 +23,16 @@ if [ ! -d "$tools/flatpak-builder-tools" ]; then
   mkdir -p "$tools"
   git clone --depth 1 https://github.com/flatpak/flatpak-builder-tools.git "$tools/flatpak-builder-tools"
 fi
-if [ ! -x "$tools/venv/bin/python" ]; then
-  python3 -m venv "$tools/venv"
-  "$tools/venv/bin/pip" install -q aiohttp tomlkit "$tools/flatpak-builder-tools/node"
+# Python-Umgebung für die Generatoren; nach einem abgebrochenen Versuch neu
+if ! "$tools/venv/bin/python" -c 'import aiohttp, tomlkit' 2>/dev/null \
+  || [ ! -x "$tools/venv/bin/flatpak-node-generator" ]; then
+  rm -rf "$tools/venv"
+  if ! python3 -m venv "$tools/venv"; then
+    rm -rf "$tools/venv"
+    echo "python3 -m venv geht nicht. Unter Ubuntu/Zorin/Debian: sudo apt install python3-venv" >&2
+    exit 1
+  fi
+  "$tools/venv/bin/python" -m pip install -q aiohttp tomlkit "$tools/flatpak-builder-tools/node"
 fi
 
 echo "Erzeuge cargo-sources.json"
@@ -37,7 +44,11 @@ echo "Erzeuge node-sources.json"
 
 [ -n "$tag" ] || exit 0
 
-commit=$(git rev-parse "$tag^{commit}")
+git fetch -q --tags origin 2>/dev/null || true
+if ! commit=$(git rev-parse -q --verify "$tag^{commit}"); then
+  echo "Tag oder Commit $tag gibt es nicht (git tag zeigt die vorhandenen Tags)" >&2
+  exit 1
+fi
 git show-ref --verify --quiet "refs/tags/$tag" || tag=""
 rm -rf submission
 mkdir submission

@@ -1,5 +1,15 @@
 # Änderungen
 
+## 1.2.0 – 2026-10-07
+
+### Flatpak und Flathub
+- StarCLX gibt es zusätzlich als Flatpak (`starclx-<Version>.flatpak` am Release); es verhält
+  sich wie das .deb-Paket, nur die udev-Regel für Headsets muss man selbst anlegen
+- Flathub-Variante `io.github.crazmoe.StarCLX`, aus dem Quellcode gebaut; dort lassen sich bei
+  Anruf nur URLs öffnen, keine Programme starten, und Tastenkürzel trägt man selbst ein
+- Im Flatpak läuft der Autostart über das Hintergrund-Portal der Desktop-Umgebung
+- StarCLX steht unter der MIT-Lizenz
+
 ## 1.1.1 – 2026-10-06
 
 ### Chat
