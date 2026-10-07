@@ -109,16 +109,15 @@ Unterschiede:
 `packaging/flathub` ist die Variante für Flathub (App-ID `io.github.crazmoe.StarCLX`). Sie wird
 ohne Netz aus dem Quellcode gebaut und hat weniger Rechte als das eigene Flatpak: Programme bei
 Anruf starten und GNOME-Tastenkürzel automatisch eintragen geht dort nicht (URLs bei Anruf,
-Autostart und `tel:`-Links schon). Die CI baut sie bei jedem Lauf; das Artefakt `starclx-flathub`
-enthält das Paket und unter `submission/` die Dateien für das Flathub-Repo.
+Autostart und `tel:`-Links schon). Die CI baut sie nicht mit; bauen lässt sie sich mit
+`packaging/flathub/prepare.sh` und `flatpak-builder` (siehe Manifest).
 
 Zurzeit nicht eingereicht: Flathub nimmt keine Manifeste an, die mit KI erstellt wurden, und
 verlangt eine längere Projektgeschichte ([Anforderungen](https://docs.flathub.org/docs/for-app-authors/requirements)).
 
 Einreichen (einmalig):
 
-1. Release-Tag anlegen und `packaging/flathub/prepare.sh --submission v<version>` ausführen
-   (oder `submission/` aus dem Artefakt des Release-Builds nehmen).
+1. Release-Tag anlegen und `packaging/flathub/prepare.sh --submission v<version>` ausführen.
 2. `github.com/flathub/flathub` forken, Branch vom Branch `new-pr` anlegen, den Inhalt von
    `submission/` hineinlegen und `git submodule add https://github.com/flathub/shared-modules.git`.
 3. Pull Request gegen `new-pr` öffnen; die Prüfer von Flathub melden sich dort.
