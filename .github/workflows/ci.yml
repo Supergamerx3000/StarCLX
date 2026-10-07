@@ -135,7 +135,9 @@ jobs:
           cp target/release/sfctl "sfctl-${VERSION}-linux-x86_64"
           # Abschnitt dieser Version aus CHANGELOG.md als Release-Text
           awk -v v="## $VERSION" '$0 ~ "^## " {p = index($0, v) == 1} p' CHANGELOG.md > notes.md
-          gh release create "v$VERSION" --target "$GITHUB_SHA" --title "StarCLX $VERSION" --notes-file notes.md \
+          # Erst als Entwurf: veröffentlichte Releases sind unveränderlich,
+          # das Flatpak kommt aber erst danach dazu (flatpak-release)
+          gh release create "v$VERSION" --draft --target "$GITHUB_SHA" --title "StarCLX $VERSION" --notes-file notes.md \
             target/release/bundle/deb/*.deb \
             target/release/bundle/rpm/*.rpm \
             target/release/bundle/appimage/*.AppImage \
@@ -244,7 +246,8 @@ jobs:
             packaging/flathub/starclx-flathub.flatpak
             packaging/flathub/submission
 
-  # Im Container fehlt gh, deshalb ein eigener Schritt für das Release
+  # Im Container fehlt gh, deshalb ein eigener Schritt für das Release.
+  # Hängt das Flatpak an den Entwurf und veröffentlicht ihn dann.
   flatpak-release:
     needs: [build, flatpak]
     if: needs.build.outputs.release == '1'
@@ -260,13 +263,15 @@ jobs:
       - name: Release ergänzen
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh release upload "v$VERSION" "starclx_${VERSION}_x86_64.flatpak" --clobber --repo "$GITHUB_REPOSITORY"
+        run: |
+          gh release upload "v$VERSION" "starclx_${VERSION}_x86_64.flatpak" --clobber --repo "$GITHUB_REPOSITORY"
+          gh release edit "v$VERSION" --draft=false --latest --repo "$GITHUB_REPOSITORY"
 
   # Paketquellen für apt und dnf auf GitHub Pages (Branch gh-pages). Signiert
   # mit dem Schlüssel aus dem Secret REPO_GPG_KEY; ohne Secret wird nichts
   # veröffentlicht. Es bleiben die letzten drei Versionen.
   repo:
-    needs: build
+    needs: [build, flatpak-release]
     if: needs.build.outputs.release == '1'
     runs-on: ubuntu-24.04
     permissions:
