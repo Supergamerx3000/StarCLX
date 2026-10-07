@@ -7,7 +7,7 @@
 //! Zerlegen der Befehlszeile in einzelne Argumente eingesetzt; eine Shell
 //! ist nie beteiligt.
 
-use std::process::{Command, Stdio};
+use std::process::Stdio;
 
 use serde::{Deserialize, Serialize};
 use tauri::AppHandle;
@@ -243,7 +243,7 @@ pub fn run(app: &AppHandle, target: &str, number: &str, country: &str) -> Result
             .map_err(|e| e.to_string());
     }
     let argv = expand_argv(target, number, country)?;
-    let mut child = Command::new(&argv[0])
+    let mut child = crate::flatpak::host_command(&argv[0])
         .args(&argv[1..])
         .stdin(Stdio::null())
         .stdout(Stdio::null())

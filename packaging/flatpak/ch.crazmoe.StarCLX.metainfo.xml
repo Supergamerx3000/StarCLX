@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<component type="desktop-application">
+  <id>ch.crazmoe.StarCLX</id>
+  <name>StarCLX</name>
+  <summary>Freier Client für STARFACE-Telefonanlagen</summary>
+  <metadata_license>CC0-1.0</metadata_license>
+  <developer id="ch.crazmoe">
+    <name>crazmoe</name>
+  </developer>
+  <description>
+    <p>
+      Softphone, Call Manager, Adressbuch, Rufliste, Chat, Voicemail und
+      Funktionstasten für STARFACE ab Version 10. Nicht mit der STARFACE GmbH
+      verbunden.
+    </p>
+  </description>
+  <launchable type="desktop-id">ch.crazmoe.StarCLX.desktop</launchable>
+  <url type="homepage">https://github.com/crazmoe/StarCLX</url>
+  <content_rating type="oars-1.1"/>
+</component>

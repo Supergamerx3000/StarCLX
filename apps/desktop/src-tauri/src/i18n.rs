@@ -337,6 +337,14 @@ const TEXTS: &[(&str, [&str; 3])] = &[
             "Salvato, ma avvio automatico non configurato: {e}",
         ],
     ),
+    (
+        "StarCLX beim Anmelden starten",
+        [
+            "Start StarCLX at login",
+            "Démarrer StarCLX à l'ouverture de session",
+            "Avvia StarCLX all'accesso",
+        ],
+    ),
     // URL oder Programm bei Anruf
     (
         "Anführungszeichen nicht geschlossen",

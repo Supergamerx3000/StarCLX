@@ -141,6 +141,57 @@ jobs:
             target/release/bundle/appimage/*.AppImage \
             "sfctl-${VERSION}-linux-x86_64"
 
+  # Flatpak aus dem eben gebauten .deb (packaging/flatpak), bei einem
+  # Release auch als Datei im Release
+  flatpak:
+    needs: build
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    env:
+      VERSION: ${{ needs.build.outputs.version }}
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/download-artifact@v7
+        with:
+          name: starclx-${{ needs.build.outputs.version }}-linux-x86_64
+          path: dl
+
+      - name: Werkzeuge
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y flatpak flatpak-builder dbus-daemon
+
+      - uses: actions/cache@v4
+        with:
+          path: packaging/flatpak/.flatpak-builder
+          key: flatpak-builder-${{ hashFiles('packaging/flatpak/ch.crazmoe.StarCLX.yml') }}
+
+      - name: Flatpak bauen
+        run: |
+          packaging/flatpak/build.sh dl/bundle/deb/*.deb
+          mv packaging/flatpak/starclx.flatpak "starclx_${VERSION}_x86_64.flatpak"
+
+      - name: Flatpak prüfen
+        run: |
+          flatpak install --user -y --noninteractive "./starclx_${VERSION}_x86_64.flatpak"
+          dbus-run-session -- flatpak run --command=sh ch.crazmoe.StarCLX -c '
+            ldd /app/bin/starclx
+            ls /app/lib/libayatana-appindicator3.so.1
+            ! ldd /app/bin/starclx | grep "not found"'
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: starclx-${{ needs.build.outputs.version }}-flatpak
+          path: starclx_*.flatpak
+
+      - name: Release ergänzen
+        if: needs.build.outputs.release == '1'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release upload "v$VERSION" "starclx_${VERSION}_x86_64.flatpak" --clobber
+
   # Paketquellen für apt und dnf auf GitHub Pages (Branch gh-pages). Signiert
   # mit dem Schlüssel aus dem Secret REPO_GPG_KEY; ohne Secret wird nichts
   # veröffentlicht. Es bleiben die letzten drei Versionen.

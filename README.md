@@ -68,6 +68,33 @@ unter dem Namen `starface-linuxclient` und registriert die Link-Handler `starfac
 Zwischenstände: Jeder Build auf `main` legt unter **Actions** das Artefakt
 `starclx-<version>-linux-x86_64` ab (Version `1.0.0+<Laufnummer>`).
 
+### Flatpak
+
+Jeder Build legt zusätzlich das Artefakt `starclx-<version>-flatpak` ab, Releases enthalten
+`starclx_<version>_x86_64.flatpak`. Installieren (holt die GNOME-Laufzeit von Flathub dazu):
+
+```sh
+flatpak install --user ./starclx_<version>_x86_64.flatpak
+flatpak run ch.crazmoe.StarCLX
+```
+
+Selbst bauen aus einem `.deb` (ohne Argument das neueste Release):
+`packaging/flatpak/build.sh [starclx_<version>_amd64.deb]`.
+
+Das Flatpak hat dieselben Funktionen wie das `.deb` und teilt mit ihm Einstellungen und
+bestätigte Zertifikate. Es darf dafür Programme auf dem System starten (Programm bei Anruf,
+GNOME-Tastenkürzel, `tel:`-Links als Standard), die Sandbox schützt also kaum mehr als beim `.deb`.
+Unterschiede:
+
+- **Autostart** läuft über die Desktop-Umgebung; GNOME fragt beim Einschalten einmal nach.
+- **`tel:`-Links abschalten** geht nicht in StarCLX, ein anderes Programm wählt man in den
+  Systemeinstellungen unter Standardanwendungen.
+- **Busylight** braucht die udev-Regel auf dem System, einmalig:
+  `flatpak run --command=cat ch.crazmoe.StarCLX /app/share/starclx/60-starclx-busylight.rules | sudo tee /etc/udev/rules.d/60-starclx-busylight.rules`
+- Eine eigene Firmen-CA, die nur im System hinterlegt ist, kann im Flatpak fehlen;
+  selbstsignierte Zertifikate lokaler Anlagen bestätigt man wie gewohnt in StarCLX.
+- Updates kommen nicht automatisch, sondern mit dem nächsten `.flatpak`.
+
 ### Voraussetzungen auf der Anlage
 
 - STARFACE 10 mit erreichbarem OneHub-Port 9092 und SIP/TLS
