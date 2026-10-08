@@ -43,6 +43,31 @@ const TEXTS: &[(&str, [&str; 3])] = &[
         ["Save log", "Enregistrer le journal", "Salva registro"],
     ),
     ("Textdatei", ["Text file", "Fichier texte", "File di testo"]),
+    // Dateien im Chat
+    (
+        "Datei angeboten: {name}",
+        [
+            "File offered: {name}",
+            "Fichier proposé : {name}",
+            "File offerto: {name}",
+        ],
+    ),
+    (
+        "Dateien senden",
+        ["Send files", "Envoyer des fichiers", "Invia file"],
+    ),
+    (
+        "Kein Ordner für empfangene Dateien",
+        [
+            "No folder for received files",
+            "Aucun dossier pour les fichiers reçus",
+            "Nessuna cartella per i file ricevuti",
+        ],
+    ),
+    (
+        "Datei nicht gefunden",
+        ["File not found", "Fichier introuvable", "File non trovato"],
+    ),
     // Tray und Fenster
     ("Öffnen", ["Open", "Ouvrir", "Apri"]),
     (

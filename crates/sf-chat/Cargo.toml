@@ -17,4 +17,5 @@ serde_json.workspace = true
 thiserror.workspace = true
 tracing.workspace = true
 tokio = { workspace = true, features = ["sync", "time", "rt", "macros"] }
+base64 = "0.22"
 chrono = { version = "0.4", default-features = false, features = ["std"] }

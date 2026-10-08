@@ -2,7 +2,7 @@
 //! reicht Ereignisse als Tauri-Events weiter.
 
 use serde::Serialize;
-use sf_chat::{Chat, ChatEvent, ChatMessage, Contact};
+use sf_chat::{Chat, ChatEvent, ChatMessage, Contact, Transfer, TransferState};
 use tauri::{AppHandle, Emitter, Manager, State};
 use tauri_plugin_notification::NotificationExt;
 use tokio::sync::{Mutex, mpsc};
@@ -16,6 +16,8 @@ pub struct ChatState {
     /// Zuletzt gesendeter eigener Status; was die Anlage anders meldet, kam
     /// von einem anderen Client
     last_sent: std::sync::Mutex<Option<(sf_chat::Availability, String)>>,
+    /// Dateiübertragungen dieser Sitzung
+    transfers: std::sync::Mutex<std::collections::BTreeMap<String, Transfer>>,
 }
 
 #[derive(Clone, Default, Serialize)]
@@ -95,6 +97,17 @@ pub fn session_started(app: &AppHandle, hub: sf_onehub::OneHub, host: String, us
                 }
                 ChatEvent::History { peer, messages } => {
                     let _ = app.emit("chat-history", (peer, messages));
+                }
+                ChatEvent::Transfer { transfer } => {
+                    if transfer.state == TransferState::Offered {
+                        notify_offer(&app, &transfer);
+                    }
+                    app.state::<ChatState>()
+                        .transfers
+                        .lock()
+                        .unwrap()
+                        .insert(transfer.id.clone(), transfer.clone());
+                    let _ = app.emit("chat-transfer", transfer);
                 }
             }
         }
@@ -226,6 +239,7 @@ pub async fn session_ended(app: &AppHandle) {
             .await;
     }
     set_status(app, |s| *s = ChatStatus::default());
+    app.state::<ChatState>().transfers.lock().unwrap().clear();
 }
 
 fn set_status(app: &AppHandle, f: impl FnOnce(&mut ChatStatus)) {
@@ -239,6 +253,20 @@ fn set_status(app: &AppHandle, f: impl FnOnce(&mut ChatStatus)) {
 }
 
 fn notify_message(app: &AppHandle, m: &ChatMessage) {
+    let body: String = m.body.chars().take(140).collect();
+    notify(app, &m.peer, body);
+}
+
+fn notify_offer(app: &AppHandle, t: &Transfer) {
+    notify(
+        app,
+        &t.peer,
+        tf("Datei angeboten: {name}", &[("name", &t.name)]),
+    );
+}
+
+/// Ton und Benachrichtigung, wenn das Fenster nicht im Vordergrund ist
+fn notify(app: &AppHandle, peer: &str, body: String) {
     let focused = app
         .get_webview_window("main")
         .and_then(|w| w.is_focused().ok())
@@ -260,9 +288,8 @@ fn notify_message(app: &AppHandle, m: &ChatMessage) {
         .unwrap()
         .contacts
         .iter()
-        .find(|c| c.jid == m.peer)
-        .map_or_else(|| m.peer.clone(), |c| c.name.clone());
-    let body: String = m.body.chars().take(140).collect();
+        .find(|c| c.jid == peer)
+        .map_or_else(|| peer.to_owned(), |c| c.name.clone());
     if let Err(e) = app.notification().builder().title(name).body(body).show() {
         tracing::warn!(error = %e, "Benachrichtigung nicht angezeigt");
     }
@@ -317,6 +344,123 @@ pub fn default_download_dir(app: AppHandle) -> String {
         .download_dir()
         .map(|p| p.to_string_lossy().into_owned())
         .unwrap_or_default()
+}
+
+/// Ordner für empfangene Dateien aus den Einstellungen, sonst Downloads
+fn download_dir(app: &AppHandle) -> Result<std::path::PathBuf, String> {
+    let dir = crate::settings::load(app).prefs.download_dir;
+    if !dir.trim().is_empty() {
+        return Ok(dir.trim().into());
+    }
+    app.path()
+        .download_dir()
+        .map_err(|_| t("Kein Ordner für empfangene Dateien").to_owned())
+}
+
+/// Übertragungen dieser Sitzung (für die Oberfläche nach dem Laden)
+#[tauri::command]
+pub fn chat_transfers(state: State<'_, ChatState>) -> Vec<Transfer> {
+    state.transfers.lock().unwrap().values().cloned().collect()
+}
+
+/// Dateiauswahl zum Senden
+#[tauri::command]
+pub async fn chat_pick_files(app: AppHandle) -> Result<Vec<String>, String> {
+    use tauri_plugin_dialog::DialogExt;
+    let (tx, rx) = tokio::sync::oneshot::channel();
+    app.dialog()
+        .file()
+        .set_title(t("Dateien senden"))
+        .pick_files(move |f| {
+            let _ = tx.send(f);
+        });
+    let files = rx.await.map_err(|e| e.to_string())?.unwrap_or_default();
+    Ok(files
+        .into_iter()
+        .filter_map(|f| f.into_path().ok())
+        .map(|p| p.to_string_lossy().into_owned())
+        .collect())
+}
+
+#[tauri::command]
+pub async fn chat_send_files(
+    state: State<'_, ChatState>,
+    peer: String,
+    paths: Vec<String>,
+) -> Result<(), String> {
+    let chat = state.chat.lock().await;
+    let chat = chat.as_ref().ok_or(t("Chat ist nicht verbunden"))?;
+    for path in paths {
+        chat.send_file(&peer, path.into());
+    }
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn chat_accept_file(
+    app: AppHandle,
+    state: State<'_, ChatState>,
+    id: String,
+) -> Result<(), String> {
+    let dir = download_dir(&app)?;
+    let chat = state.chat.lock().await;
+    let chat = chat.as_ref().ok_or(t("Chat ist nicht verbunden"))?;
+    chat.accept_file(&id, dir);
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn chat_decline_file(state: State<'_, ChatState>, id: String) -> Result<(), String> {
+    let chat = state.chat.lock().await;
+    let chat = chat.as_ref().ok_or(t("Chat ist nicht verbunden"))?;
+    chat.decline_file(&id);
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn chat_cancel_file(state: State<'_, ChatState>, id: String) -> Result<(), String> {
+    let chat = state.chat.lock().await;
+    let chat = chat.as_ref().ok_or(t("Chat ist nicht verbunden"))?;
+    chat.cancel_file(&id);
+    Ok(())
+}
+
+/// Pfad einer fertigen Übertragung; andere Pfade öffnet die Oberfläche nicht.
+fn transfer_path(state: &ChatState, id: &str) -> Result<String, String> {
+    state
+        .transfers
+        .lock()
+        .unwrap()
+        .get(id)
+        .filter(|t| t.state == TransferState::Done && !t.path.is_empty())
+        .map(|t| t.path.clone())
+        .ok_or_else(|| t("Datei nicht gefunden").to_owned())
+}
+
+/// Öffnet eine übertragene Datei mit dem Standardprogramm.
+#[tauri::command]
+pub fn chat_open_file(
+    app: AppHandle,
+    state: State<'_, ChatState>,
+    id: String,
+) -> Result<(), String> {
+    use tauri_plugin_opener::OpenerExt;
+    app.opener()
+        .open_path(transfer_path(&state, &id)?, None::<&str>)
+        .map_err(|e| e.to_string())
+}
+
+/// Zeigt eine übertragene Datei im Dateimanager.
+#[tauri::command]
+pub fn chat_show_file(
+    app: AppHandle,
+    state: State<'_, ChatState>,
+    id: String,
+) -> Result<(), String> {
+    use tauri_plugin_opener::OpenerExt;
+    app.opener()
+        .reveal_item_in_dir(transfer_path(&state, &id)?)
+        .map_err(|e| e.to_string())
 }
 
 #[tauri::command]

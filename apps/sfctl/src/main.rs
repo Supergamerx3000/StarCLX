@@ -931,6 +931,7 @@ mod tests {
             name: name.into(),
             show: "online".into(),
             status: String::new(),
+            clients: Vec::new(),
         }
     }
 

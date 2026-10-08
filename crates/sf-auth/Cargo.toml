@@ -19,7 +19,10 @@ sha2 = "0.11"
 keyring-core = "1"
 
 [target.'cfg(target_os = "linux")'.dependencies]
-zbus-secret-service-keyring-store = { version = "1", features = ["rt-tokio-crypto-rust"] }
+# Nicht die tokio-Variante: Sie schaltet bei zbus das Feature „tokio“ ein,
+# und dann stürzen blockierende D-Bus-Aufrufe aus async-Code ab (z. B. jede
+# Desktop-Benachrichtigung über tauri-plugin-notification).
+zbus-secret-service-keyring-store = { version = "1", features = ["rt-async-io-crypto-rust"] }
 
 [dev-dependencies]
 serde_json.workspace = true

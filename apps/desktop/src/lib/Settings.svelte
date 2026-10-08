@@ -472,7 +472,7 @@
             <input type="text" bind:value={draft.download_dir} placeholder={defaultDownloads || "Downloads"} />
             <button onclick={pickDownloadDir}>{t("Suchen")}</button>
           </div>
-          <p class="small muted">{t("Leer lassen für den Standardordner. Der Dateiempfang im Chat folgt in einem späteren Schritt.")}</p>
+          <p class="small muted">{t("Leer lassen für den Standardordner. Hier landen Dateien, die du im Chat annimmst.")}</p>
         </div>
       </section>
 
