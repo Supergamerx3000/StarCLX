@@ -296,10 +296,11 @@ pub fn fkey_modules(fk: State<'_, FkeyState>) -> Vec<Module> {
 pub async fn fkey_module_toggle(
     state: State<'_, AppState>,
     module_ids: Vec<String>,
+    module_names: Vec<String>,
 ) -> Result<bool, String> {
     let hub = hub(&state).await?;
     let list = sf_core::module::modules(&hub).await.map_err(module_error)?;
-    let targets: Vec<&Module> = list.iter().filter(|m| module_ids.contains(&m.id)).collect();
+    let targets = key_modules(&list, &module_ids, &module_names);
     if targets.is_empty() {
         return Err(crate::i18n::t("Modul nicht gefunden oder nicht freigegeben").into());
     }
@@ -313,6 +314,16 @@ pub async fn fkey_module_toggle(
             .map_err(module_error)?;
     }
     Ok(on)
+}
+
+/// Module einer Taste: über die IDs der Taste, sonst über die Namen der
+/// gewählten Module
+fn key_modules<'a>(list: &'a [Module], ids: &[String], names: &[String]) -> Vec<&'a Module> {
+    let by_id: Vec<_> = list.iter().filter(|m| ids.contains(&m.id)).collect();
+    if !by_id.is_empty() {
+        return by_id;
+    }
+    list.iter().filter(|m| names.contains(&m.name)).collect()
 }
 
 /// Fehlendes Recht als verständliche Meldung
@@ -580,6 +591,21 @@ mod tests {
             name: name.into(),
             ..Default::default()
         }
+    }
+
+    #[test]
+    fn module_key_resolution() {
+        let mm = |id: &str, name: &str| Module {
+            id: id.into(),
+            name: name.into(),
+            ..Default::default()
+        };
+        let list = [mm("a", "Nacht"), mm("b", "Mittag")];
+        let s = |v: &[&str]| v.iter().map(|x| x.to_string()).collect::<Vec<_>>();
+        let ids = |v: Vec<&Module>| v.iter().map(|m| m.id.clone()).collect::<Vec<_>>();
+        assert_eq!(ids(key_modules(&list, &s(&["b"]), &s(&["Nacht"]))), ["b"]);
+        assert_eq!(ids(key_modules(&list, &s(&["x"]), &s(&["Nacht"]))), ["a"]);
+        assert!(key_modules(&list, &s(&["x"]), &[]).is_empty());
     }
 
     #[test]

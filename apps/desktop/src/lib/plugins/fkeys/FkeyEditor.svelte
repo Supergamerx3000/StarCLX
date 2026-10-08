@@ -6,7 +6,7 @@
   import { onMount } from "svelte";
   import FkeyTile from "./FkeyTile.svelte";
   import Icon from "../../Icon.svelte";
-  import { types, blank, fkeys, groupNames, forwardTypesExhausted, setAsksTarget, usedForwardTypes, keyAt, loadFkeys, placeAt, saveOrder, typeInfo, type FunctionKey, type SignalingNumber } from "./fkeys.svelte";
+  import { types, blank, fkeys, groupNames, moduleNames, forwardTypesExhausted, setAsksTarget, usedForwardTypes, keyAt, loadFkeys, placeAt, saveOrder, typeInfo, type FunctionKey, type SignalingNumber } from "./fkeys.svelte";
   import { t } from "../../i18n.svelte";
 
   let { columns = $bindable(3) }: { columns: number } = $props();
@@ -73,6 +73,10 @@
         const names = groupNames(k);
         return names.length === 1 ? t("Gruppe[{name}]", { name: names[0] }) : label;
       }
+      case "MODULEACTIVATION": {
+        const names = moduleNames(k);
+        return names.length === 1 ? t("Modul[{name}]", { name: names[0] }) : label;
+      }
       case "PHONEDTMF": return t("Tastentöne[{dtmf}]", { dtmf: k.dtmf ?? "" });
       case "SEPARATOR": return "";
       default: return label;
@@ -90,6 +94,7 @@
       // Bestehende Doppel nur beim Ändern der Art bemängeln
       case "FORWARD": return fkeys.keys.find((x) => x.id === k.id)?.forwardType !== k.forwardType && usedForwardTypes(k.id).includes(k.forwardType ?? "ALWAYS") ? t("Für diese Art gibt es schon eine Umleitungstaste.") : "";
       case "GROUPLOGIN": return k.groupIds.length ? "" : t("Bitte mindestens eine Gruppe wählen.");
+      case "MODULEACTIVATION": return k.activateModuleIds.length ? "" : t("Bitte mindestens ein Modul wählen.");
       case "SIGNALNUMBER": return k.displayNumberId === null ? t("Bitte eine Rufnummer wählen.") : "";
       case "PHONEDTMF": return k.dtmf?.trim() ? "" : t("Bitte Tastentöne eingeben.");
       case "PHONEGENERICURL": return k.genericURL?.trim() ? "" : t("Bitte eine URL eingeben.");
@@ -200,6 +205,12 @@
     if (!editing) return;
     const ids = editing.groupIds;
     editing.groupIds = ids.includes(id) ? ids.filter((x) => x !== id) : [...ids, id];
+  };
+
+  const toggleModule = (id: string) => {
+    if (!editing) return;
+    const ids = editing.activateModuleIds;
+    editing.activateModuleIds = ids.includes(id) ? ids.filter((x) => x !== id) : [...ids, id];
   };
 </script>
 
@@ -347,7 +358,14 @@
       </div>
       <p class="small muted">{t("Ein Druck auf die Taste meldet bei den gewählten Gruppen an oder ab.")}</p>
     {:else if k.functionKeyType === "MODULEACTIVATION"}
-      <p class="small muted">{t("Die Auswahl der Module folgt später; bis dahin bitte in der Web-App einstellen.")}</p>
+      <div class="row"><span>{t("Module")}</span>
+        <span class="checks">
+          {#each fkeys.moduleChoices as m}
+            <label><input type="checkbox" checked={k.activateModuleIds.includes(m.id)} onchange={() => toggleModule(m.id)} /> {m.name}</label>
+          {:else}<span class="muted small">{t("Keine Module gefunden.")}</span>{/each}
+        </span>
+      </div>
+      <p class="small muted">{t("Ein Druck auf die Taste schaltet die gewählten Module ein oder aus.")}</p>
     {/if}
     {#if error}<p class="notice">{error}</p>{/if}
     <div class="actions">

@@ -76,6 +76,21 @@ pub struct GroupChoice {
     pub name: String,
 }
 
+/// Modul, das eine Taste „Modul aktivieren“ schalten kann
+#[derive(Debug, Clone, Serialize, PartialEq, Eq)]
+pub struct ModuleChoice {
+    /// ID des Moduls, wie sie in `activateModuleIds` der Taste steht
+    pub id: String,
+    pub name: String,
+}
+
+/// Wählbare Gruppen und Module aus den Vorgaben der Anlage
+#[derive(Debug, Clone, Default)]
+struct Choices {
+    groups: Vec<GroupChoice>,
+    modules: Vec<ModuleChoice>,
+}
+
 #[derive(Debug, Clone, Serialize)]
 pub struct Keys {
     pub set_id: String,
@@ -88,6 +103,8 @@ pub struct Keys {
     pub accounts: Vec<Account>,
     /// Wählbare Gruppen für „Gruppe An-/Abmelden“
     pub group_choices: Vec<GroupChoice>,
+    /// Wählbare Module für „Modul aktivieren“
+    pub module_choices: Vec<ModuleChoice>,
     /// Eigene OneHub-User-ID (für den Ruhe-Zustand); setzt der Aufrufer
     pub me: String,
 }
@@ -186,6 +203,7 @@ impl Rest {
             keys,
             accounts,
             group_choices: group_choices(&defaults),
+            module_choices: module_choices(&defaults),
             me: String::new(),
         })
     }
@@ -194,20 +212,26 @@ impl Rest {
     /// geht in der Bearbeitungsform an die Anlage; im flachen Format
     /// übernimmt sie den Besitzer statt des gewählten Users.
     pub async fn save(&self, set: &str, key: &FunctionKey) -> Result<(), BoxError> {
-        // Die Gruppen-Form nennt alle wählbaren Gruppen mit Namen
-        let groups = if key.function_key_type == "GROUPLOGIN" {
+        // Die Formen für Gruppen und Module nennen alle wählbaren mit Namen
+        let choices = if matches!(
+            key.function_key_type.as_str(),
+            "GROUPLOGIN" | "MODULEACTIVATION"
+        ) {
             match self
                 .get::<serde_json::Value>("/rest/functionkeysets/edit/defaults")
                 .await
             {
-                Ok(d) => group_choices(&d),
+                Ok(d) => Choices {
+                    groups: group_choices(&d),
+                    modules: module_choices(&d),
+                },
                 Err(e) => {
-                    tracing::warn!(error = %e, "Gruppen für die Taste nicht gelesen");
-                    Vec::new()
+                    tracing::warn!(error = %e, "Vorgaben für die Taste nicht gelesen");
+                    Choices::default()
                 }
             }
         } else {
-            Vec::new()
+            Choices::default()
         };
         let (method, path) = if key.id.is_empty() {
             (
@@ -220,7 +244,7 @@ impl Rest {
                 format!("/rest/functionkeysets/{set}/{}", key.id),
             )
         };
-        if let Some(edit) = edit_form(key, &groups) {
+        if let Some(edit) = edit_form(key, &choices) {
             match self.send_json(method.clone(), &path, &edit).await {
                 Ok(()) => return Ok(()),
                 Err(e) => {
@@ -310,7 +334,9 @@ fn trim_gaps(order: &[String]) -> Vec<String> {
 }
 
 /// Bearbeitungsform für Typen, deren flaches Format die Anlage falsch übernimmt
-fn edit_form(k: &FunctionKey, groups: &[GroupChoice]) -> Option<serde_json::Value> {
+fn edit_form(k: &FunctionKey, choices: &Choices) -> Option<serde_json::Value> {
+    let groups = &choices.groups;
+    let modules = &choices.modules;
     match k.function_key_type.as_str() {
         // Wie die Web-App: alle Gruppen, die gewählten mit `activated`
         "GROUPLOGIN" if !groups.is_empty() => Some(serde_json::json!({
@@ -322,6 +348,19 @@ fn edit_form(k: &FunctionKey, groups: &[GroupChoice]) -> Option<serde_json::Valu
                         "groupId": g.id,
                         "groupname": g.name,
                         "activated": k.group_ids.contains(&g.id),
+                    }))
+                    .collect::<Vec<_>>(),
+            }
+        })),
+        "MODULEACTIVATION" if !modules.is_empty() => Some(serde_json::json!({
+            "editFunctionKeyModuleActivation": {
+                "name": k.name,
+                "editFunctionKeyMaModuleSettings": modules
+                    .iter()
+                    .map(|m| serde_json::json!({
+                        "moduleId": m.id,
+                        "name": m.name,
+                        "activated": k.activate_module_ids.contains(&m.id),
                     }))
                     .collect::<Vec<_>>(),
             }
@@ -379,6 +418,24 @@ fn group_choices(defaults: &serde_json::Value) -> Vec<GroupChoice> {
         })
         .collect();
     list.sort_by_key(|g| g.name.to_lowercase());
+    list
+}
+
+/// Module aus den Vorgaben der Modul-Taste, nach Namen sortiert
+fn module_choices(defaults: &serde_json::Value) -> Vec<ModuleChoice> {
+    let mut list: Vec<ModuleChoice> = defaults
+        .pointer("/editFunctionKeyModuleActivation/editFunctionKeyMaModuleSettings")
+        .and_then(|v| v.as_array())
+        .into_iter()
+        .flatten()
+        .filter_map(|m| {
+            Some(ModuleChoice {
+                id: m.get("moduleId")?.as_str()?.to_owned(),
+                name: str_of(m, "name"),
+            })
+        })
+        .collect();
+    list.sort_by_key(|m| m.name.to_lowercase());
     list
 }
 
@@ -810,7 +867,7 @@ mod tests {
             direct_call_targetnumber: Some("10".into()),
             ..Default::default()
         };
-        let v = edit_form(&k, &[]).unwrap();
+        let v = edit_form(&k, &Choices::default()).unwrap();
         assert_eq!(v["editFunctionKeyBusyLampField"]["blfAccountId"], 1000);
         assert_eq!(v["editFunctionKeyBusyLampField"]["number"], "10");
         assert!(
@@ -819,7 +876,7 @@ mod tests {
                     function_key_type: "QUICKDIAL".into(),
                     ..Default::default()
                 },
-                &[]
+                &Choices::default()
             )
             .is_none()
         );
@@ -845,7 +902,11 @@ mod tests {
             group_ids: vec![1008],
             ..Default::default()
         };
-        let v = edit_form(&k, &groups).unwrap();
+        let choices = Choices {
+            groups,
+            ..Default::default()
+        };
+        let v = edit_form(&k, &choices).unwrap();
         let s = &v["editFunctionKeyGroupLogin"]["editFunctionKeyGlGroupSettings"];
         assert_eq!(v["editFunctionKeyGroupLogin"]["name"], "Gruppe[Support]");
         assert_eq!(
@@ -854,7 +915,34 @@ mod tests {
         );
         assert_eq!(s[1]["activated"], false);
         // Ohne Vorgaben geht die Taste im flachen Format hinaus
-        assert!(edit_form(&k, &[]).is_none());
+        assert!(edit_form(&k, &Choices::default()).is_none());
+    }
+
+    #[test]
+    fn module_activation_goes_out_with_all_modules() {
+        let d = serde_json::json!({"editFunctionKeyModuleActivation": {"name": "", "editFunctionKeyMaModuleSettings": [
+            {"moduleId": "m-2", "name": "Zeitsteuerung", "activated": false},
+            {"moduleId": "m-1", "name": "Nachtschaltung", "activated": false}
+        ]}});
+        let choices = Choices {
+            modules: module_choices(&d),
+            ..Default::default()
+        };
+        assert_eq!(choices.modules[0].id, "m-1");
+        let k = FunctionKey {
+            function_key_type: "MODULEACTIVATION".into(),
+            name: "Nacht".into(),
+            activate_module_ids: vec!["m-2".into()],
+            ..Default::default()
+        };
+        let v = edit_form(&k, &choices).unwrap();
+        let s = &v["editFunctionKeyModuleActivation"]["editFunctionKeyMaModuleSettings"];
+        assert_eq!(
+            s[0],
+            serde_json::json!({"moduleId": "m-1", "name": "Nachtschaltung", "activated": false})
+        );
+        assert_eq!(s[1]["activated"], true);
+        assert!(edit_form(&k, &Choices::default()).is_none());
     }
 
     #[test]

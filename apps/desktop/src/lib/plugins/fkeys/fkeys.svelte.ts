@@ -33,7 +33,9 @@ export type FunctionKey = {
 export type Account = { account_id: number; user_ids: string[]; name: string; number: string; group: boolean };
 /** Gruppe, die „Gruppe An-/Abmelden“ schalten kann; id wie in groupIds */
 export type GroupChoice = { id: number; name: string };
-type Keys = { set_id: string; set_name: string; account_id: string; keys: FunctionKey[]; order: string[]; accounts: Account[]; group_choices: GroupChoice[]; me: string };
+/** Modul, das „Modul aktivieren“ schalten kann; id wie in activateModuleIds */
+export type ModuleChoice = { id: string; name: string };
+type Keys = { set_id: string; set_name: string; account_id: string; keys: FunctionKey[]; order: string[]; accounts: Account[]; group_choices: GroupChoice[]; module_choices: ModuleChoice[]; me: string };
 /** Präsenz eines Users; chat: "available", "away", "dnd", "offline" oder "" (kein Chat) */
 export type UserState = { telephony: string; dnd: boolean; chat: string; chat_message: string; redirect: boolean };
 export type Redirect = {
@@ -92,6 +94,7 @@ export const fkeys = $state({
   groups: [] as Membership[],
   /** Wählbare Gruppen für den Editor */
   groupChoices: [] as GroupChoice[],
+  moduleChoices: [] as ModuleChoice[],
   /** Module der Anlage für „Modul aktivieren“ */
   modules: [] as Module[],
   me: "",
@@ -108,6 +111,17 @@ export type Membership = { id: string; name: string; logon_id: string; logged_on
 
 /** Namen der gewählten Gruppen einer Taste */
 export const groupNames = (k: FunctionKey) => fkeys.groupChoices.filter((g) => k.groupIds.includes(g.id)).map((g) => g.name);
+
+/** Namen der gewählten Module einer Taste */
+export const moduleNames = (k: FunctionKey) => fkeys.moduleChoices.filter((m) => k.activateModuleIds.includes(m.id)).map((m) => m.name);
+
+/** Module einer Taste: über die IDs, sonst über die Namen der gewählten Module */
+function modulesOf(k: FunctionKey): Module[] {
+  const byId = fkeys.modules.filter((m) => k.activateModuleIds.includes(m.id));
+  if (byId.length) return byId;
+  const names = moduleNames(k);
+  return fkeys.modules.filter((m) => names.includes(m.name));
+}
 
 /** Gruppen einer Taste: über die IDs, sonst über die Namen der gewählten
  *  Gruppen, sonst über den Namen in `Gruppe[Name]` */
@@ -155,6 +169,7 @@ export async function loadFkeys() {
     fkeys.order = k.order;
     fkeys.accounts = k.accounts;
     fkeys.groupChoices = k.group_choices;
+    fkeys.moduleChoices = k.module_choices;
     fkeys.me = k.me;
     fkeys.error = "";
     fkeys.loaded = true;
@@ -339,7 +354,7 @@ export function keyState(k: FunctionKey): string {
       return ownDnd() ? "on" : "";
     case "MODULEACTIVATION": {
       // an = alle aktiv; ohne passendes Modul (z. B. kein Recht) "none"
-      const list = fkeys.modules.filter((m) => k.activateModuleIds.includes(m.id));
+      const list = modulesOf(k);
       return !list.length ? "none" : list.every((m) => m.active) ? "on" : "";
     }
     case "GROUPLOGIN": {
@@ -411,7 +426,7 @@ export async function press(k: FunctionKey) {
     case "GROUPLOGIN":
       return call("fkey_group_toggle", { groupIds: k.groupIds, groupNames: groupNames(k), keyName: k.name });
     case "MODULEACTIVATION":
-      return call("fkey_module_toggle", { moduleIds: k.activateModuleIds });
+      return call("fkey_module_toggle", { moduleIds: k.activateModuleIds, moduleNames: moduleNames(k) });
     case "COMPLETIONOFCALLSTOBUSYSUBSCRIBER":
       return call("phone_callback", {});
     case "SIGNALNUMBER": {
