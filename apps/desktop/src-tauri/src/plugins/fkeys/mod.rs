@@ -502,6 +502,17 @@ pub async fn fkey_grab(
         .map_err(|e| e.to_string())
 }
 
+/// Mit wem der überwachte User telefoniert (braucht das Recht dazu)
+#[tauri::command]
+pub async fn fkey_calls(
+    state: State<'_, AppState>,
+    user_id: String,
+) -> Result<Vec<sf_core::fkeys::CallDetail>, String> {
+    sf_core::fkeys::call_details(&hub(&state).await?, &user_id)
+        .await
+        .map_err(|e| e.to_string())
+}
+
 /// Einstellungen einer Umleitung, bevor eine Taste sie programmiert hat
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(default)]

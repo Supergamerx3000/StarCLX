@@ -920,6 +920,7 @@ pub fn run() {
             fkeys::fkey_group_toggle,
             fkeys::fkey_park,
             fkeys::fkey_grab,
+            fkeys::fkey_calls,
             fkeys::fkey_redirect_options,
             fkeys::fkey_set_ask,
             fkeys::fkey_redirect_program,

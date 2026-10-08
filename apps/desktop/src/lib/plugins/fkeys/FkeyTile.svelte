@@ -4,6 +4,7 @@
   // Telefonfarbe, Ruhe oben links, Chat-Status oben rechts, Umleitung unten
   // links, darunter der Statustext.
   import { account, avatarOf, blfUser, callDrag, chatText, keyState, keyTitle, typeInfo, type FunctionKey } from "./fkeys.svelte";
+  import { invoke } from "@tauri-apps/api/core";
   import ChatBubble from "../../ChatBubble.svelte";
   import Icon from "../../Icon.svelte";
   import { t } from "../../i18n.svelte";
@@ -15,7 +16,7 @@
   const blf = $derived(key.functionKeyType === "BUSYLAMPFIELD" && !blank);
 
   const info = $derived(typeInfo(key.functionKeyType));
-  const state = $derived(keyState(key));
+  const kstate = $derived(keyState(key));
   const user = $derived(blf ? blfUser(key) : undefined);
   const presence = $derived(user?.state);
   // Gruppen haben kein Bild
@@ -61,32 +62,59 @@
       ? undefined
       : [
           info.label,
-          (key.functionKeyType === "GROUPLOGIN" ? groupText : key.functionKeyType === "MODULEACTIVATION" ? moduleText : stateText)[state],
+          (key.functionKeyType === "GROUPLOGIN" ? groupText : key.functionKeyType === "MODULEACTIVATION" ? moduleText : stateText)[kstate],
           blf && presence?.redirect ? t("Umleitung aktiv") : "",
           blf ? status : "",
         ]
           .filter(Boolean)
           .join(" · "),
   );
+  // Wie in der STARFACE-App: beim Überfahren zeigen, mit wem telefoniert
+  // wird. Die Anlage gibt das nur mit dem Recht dazu heraus, sonst bleibt es weg.
+  type CallDetail = { name: string; number: string; state: string; seconds: number };
+  let calls = $state<CallDetail[]>([]);
+  const callLabel: Record<string, string> = $derived({ ringing: t("klingelt"), connected: t("im Gespräch"), parked: t("Gespräch geparkt"), conference: t("Konferenz") });
+  const duration = (s: number) => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
+  const inCall = $derived(["busy", "ringing", "parked"].includes(kstate));
+  // Nach dem Auflegen keine alten Gespräche mehr zeigen
+  const callLines = $derived(
+    (inCall ? calls : []).map((c) => {
+      const who = c.name && c.number && c.name !== c.number ? `${c.name} (${c.number})` : c.name || c.number;
+      return [[callLabel[c.state], who ? t("mit {who}", { who }) : ""].filter(Boolean).join(" "), c.seconds > 0 ? duration(c.seconds) : ""]
+        .filter(Boolean)
+        .join(" · ");
+    }),
+  );
+  async function loadCalls() {
+    if (!user || user.group || !inCall) return void (calls = []);
+    try {
+      calls = await invoke<CallDetail[]>("fkey_calls", { userId: user.id });
+    } catch {
+      calls = [];
+    }
+  }
+
   // Vollständiger Name im Tooltip, falls er auf der Taste gekürzt ist
-  const title = $derived(tooltip && keyTitle(key) !== info.label ? `${keyTitle(key)}
-${tooltip}` : tooltip);
+  const title = $derived(
+    [tooltip && keyTitle(key) !== info.label ? keyTitle(key) : "", tooltip, ...callLines].filter(Boolean).join("\n") || undefined,
+  );
 </script>
 
 <button
-  class="tile {state}"
+  class="tile {kstate}"
   class:sep={key.functionKeyType === "SEPARATOR" && editor}
   class:blank
   class:unusable={!info.usable && !blank}
   class:target={callDrag.call && callDrag.over === key.id}
   data-fkey={key.id}
   title={title}
+  onmouseenter={blf ? loadCalls : undefined}
   disabled={disabled || blank}
   {onclick}
 >
   {#if blf}
     <span class="blf">
-      {#if state === "off"}<span class="dash">–</span>{/if}
+      {#if kstate === "off"}<span class="dash">–</span>{/if}
       <span class="pic">
         {#if avatar}<img src={avatar} alt="" />{:else}{initials}{/if}
       </span>
@@ -108,15 +136,15 @@ ${tooltip}` : tooltip);
     <!-- Direktwahl wie ein Kontakt in der STARFACE-App -->
     <span class="contact"><Icon name="person" size={20} /></span>
   {:else if toggle}
-    <span class="switch" class:on={state === "on"} class:partial={state === "partial"} class:none={state === "none"}>
-      {#if state === "partial"}<span class="half">–</span>{/if}
+    <span class="switch" class:on={kstate === "on"} class:partial={kstate === "partial"} class:none={kstate === "none"}>
+      {#if kstate === "partial"}<span class="half">–</span>{/if}
       <span class="knob"><Icon name={toggle} size={15} /></span>
     </span>
   {:else}
     <span class="lamp"></span>
   {/if}
   {#if !blank}<span class="txt"><strong>{keyTitle(key)}</strong>{#if sub}<small>{sub}</small>{/if}</span>{/if}
-  {#if state === "partial"}<span class="partial-pill"><Icon name="info" size={15} /> {t("Teilaktiv")}</span>{/if}
+  {#if kstate === "partial"}<span class="partial-pill"><Icon name="info" size={15} /> {t("Teilaktiv")}</span>{/if}
 </button>
 
 <style>
@@ -127,7 +155,8 @@ ${tooltip}` : tooltip);
   .free .lamp { background: var(--green); }
   .busy .lamp, .on .lamp { background: var(--red); }
   .on .lamp { background: var(--accent); }
-  .ringing .lamp { background: var(--red); animation: blink 0.6s steps(2) infinite; }
+  /* Klingeln gelb wie in der STARFACE-App */
+  .ringing .lamp { background: var(--yellow); }
   .parked .lamp { background: var(--accent); animation: blink 0.6s steps(2) infinite; }
   .off .lamp { background: transparent; border: 1px solid var(--muted); }
 
@@ -139,8 +168,8 @@ ${tooltip}` : tooltip);
   /* Grau (kein Telefon, Ruhe): spitze Ecke unten rechts, wie in der STARFACE-App */
   .off .blf, .dnd .blf { border-radius: 1.25rem 1.25rem 0.25rem 1.25rem; }
   .free .blf { background: var(--green); }
-  .busy .blf, .ringing .blf { background: var(--red); }
-  .ringing .blf { animation: blink 0.6s steps(2) infinite; }
+  .busy .blf { background: var(--red); }
+  .ringing .blf { background: var(--yellow); }
   .pic {
     position: absolute; right: 0.15rem; top: 0.15rem; width: 2.2rem; height: 2.2rem; border-radius: 50%;
     overflow: hidden; display: grid; place-items: center; background: #c9ccd0; color: #555b62;
