@@ -323,15 +323,25 @@ fn module_error(e: sf_onehub::Error) -> String {
     }
 }
 
-/// Gruppen einer Taste: über die IDs der Taste, sonst über den Namen in
-/// `Gruppe[Name]`, wie ihn die Anlage für die Taste vergibt.
-fn key_groups<'a>(list: &'a [Membership], ids: &[i32], key_name: &str) -> Vec<&'a Membership> {
+/// Gruppen einer Taste: über die IDs der Taste, sonst über die Namen der
+/// gewählten Gruppen, sonst über den Namen in `Gruppe[Name]`, wie ihn die
+/// Anlage für die Taste vergibt.
+fn key_groups<'a>(
+    list: &'a [Membership],
+    ids: &[i32],
+    names: &[String],
+    key_name: &str,
+) -> Vec<&'a Membership> {
     let by_id: Vec<_> = list
         .iter()
         .filter(|m| ids.iter().any(|id| sf_core::group::matches(m, *id)))
         .collect();
     if !by_id.is_empty() {
         return by_id;
+    }
+    let by_name: Vec<_> = list.iter().filter(|m| names.contains(&m.name)).collect();
+    if !by_name.is_empty() {
+        return by_name;
     }
     let name = key_name
         .split_once('[')
@@ -346,13 +356,14 @@ fn key_groups<'a>(list: &'a [Membership], ids: &[i32], key_name: &str) -> Vec<&'
 pub async fn fkey_group_toggle(
     state: State<'_, AppState>,
     group_ids: Vec<i32>,
+    group_names: Vec<String>,
     key_name: String,
 ) -> Result<bool, String> {
     let hub = hub(&state).await?;
     let list = sf_core::group::memberships(&hub)
         .await
         .map_err(|e| e.to_string())?;
-    let targets = key_groups(&list, &group_ids, &key_name);
+    let targets = key_groups(&list, &group_ids, &group_names, &key_name);
     if targets.is_empty() {
         return Err(crate::i18n::t("Gruppe nicht gefunden oder kein Mitglied").into());
     }
@@ -575,8 +586,18 @@ mod tests {
     fn group_key_resolution() {
         let list = [m("a", "4711", "DSS Zentrale"), m("b", "4712", "Support")];
         let ids = |v: Vec<&Membership>| v.iter().map(|m| m.id.clone()).collect::<Vec<_>>();
-        assert_eq!(ids(key_groups(&list, &[4712], "egal")), ["b"]);
-        assert_eq!(ids(key_groups(&list, &[1], "Gruppe[DSS Zentrale]")), ["a"]);
-        assert!(key_groups(&list, &[1], "Gruppe[Fremd]").is_empty());
+        let none: &[String] = &[];
+        assert_eq!(ids(key_groups(&list, &[4712], none, "egal")), ["b"]);
+        assert_eq!(
+            ids(key_groups(&list, &[1], none, "Gruppe[DSS Zentrale]")),
+            ["a"]
+        );
+        assert!(key_groups(&list, &[1], none, "Gruppe[Fremd]").is_empty());
+        // Gewählte Gruppen über ihren Namen, wenn die ID nicht passt
+        let names = ["Support".to_string(), "DSS Zentrale".to_string()];
+        assert_eq!(
+            ids(key_groups(&list, &[1], &names, "Gruppe An-/Abmelden")),
+            ["a", "b"]
+        );
     }
 }

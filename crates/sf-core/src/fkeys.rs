@@ -68,6 +68,14 @@ pub struct Account {
     pub group: bool,
 }
 
+/// Gruppe, die eine Taste „Gruppe An-/Abmelden“ schalten kann
+#[derive(Debug, Clone, Serialize, PartialEq, Eq)]
+pub struct GroupChoice {
+    /// Konto-ID der Gruppe, wie sie in `groupIds` der Taste steht
+    pub id: i32,
+    pub name: String,
+}
+
 #[derive(Debug, Clone, Serialize)]
 pub struct Keys {
     pub set_id: String,
@@ -78,6 +86,8 @@ pub struct Keys {
     /// Platzbelegung: Tasten-ID je Platz, `""` für einen leeren Platz
     pub order: Vec<String>,
     pub accounts: Vec<Account>,
+    /// Wählbare Gruppen für „Gruppe An-/Abmelden“
+    pub group_choices: Vec<GroupChoice>,
     /// Eigene OneHub-User-ID (für den Ruhe-Zustand); setzt der Aufrufer
     pub me: String,
 }
@@ -175,6 +185,7 @@ impl Rest {
             account_id: me.id.to_string(),
             keys,
             accounts,
+            group_choices: group_choices(&defaults),
             me: String::new(),
         })
     }
@@ -183,6 +194,21 @@ impl Rest {
     /// geht in der Bearbeitungsform an die Anlage; im flachen Format
     /// übernimmt sie den Besitzer statt des gewählten Users.
     pub async fn save(&self, set: &str, key: &FunctionKey) -> Result<(), BoxError> {
+        // Die Gruppen-Form nennt alle wählbaren Gruppen mit Namen
+        let groups = if key.function_key_type == "GROUPLOGIN" {
+            match self
+                .get::<serde_json::Value>("/rest/functionkeysets/edit/defaults")
+                .await
+            {
+                Ok(d) => group_choices(&d),
+                Err(e) => {
+                    tracing::warn!(error = %e, "Gruppen für die Taste nicht gelesen");
+                    Vec::new()
+                }
+            }
+        } else {
+            Vec::new()
+        };
         let (method, path) = if key.id.is_empty() {
             (
                 reqwest::Method::POST,
@@ -194,7 +220,7 @@ impl Rest {
                 format!("/rest/functionkeysets/{set}/{}", key.id),
             )
         };
-        if let Some(edit) = edit_form(key) {
+        if let Some(edit) = edit_form(key, &groups) {
             match self.send_json(method.clone(), &path, &edit).await {
                 Ok(()) => return Ok(()),
                 Err(e) => {
@@ -284,8 +310,22 @@ fn trim_gaps(order: &[String]) -> Vec<String> {
 }
 
 /// Bearbeitungsform für Typen, deren flaches Format die Anlage falsch übernimmt
-fn edit_form(k: &FunctionKey) -> Option<serde_json::Value> {
+fn edit_form(k: &FunctionKey, groups: &[GroupChoice]) -> Option<serde_json::Value> {
     match k.function_key_type.as_str() {
+        // Wie die Web-App: alle Gruppen, die gewählten mit `activated`
+        "GROUPLOGIN" if !groups.is_empty() => Some(serde_json::json!({
+            "editFunctionKeyGroupLogin": {
+                "name": k.name,
+                "editFunctionKeyGlGroupSettings": groups
+                    .iter()
+                    .map(|g| serde_json::json!({
+                        "groupId": g.id,
+                        "groupname": g.name,
+                        "activated": k.group_ids.contains(&g.id),
+                    }))
+                    .collect::<Vec<_>>(),
+            }
+        })),
         "BUSYLAMPFIELD" => Some(serde_json::json!({
             "editFunctionKeyBusyLampField": {
                 "name": k.name,
@@ -322,6 +362,24 @@ fn accounts(defaults: &serde_json::Value) -> Vec<Account> {
             })
         })
         .collect()
+}
+
+/// Gruppen aus den Vorgaben der Gruppen-Taste, nach Namen sortiert
+fn group_choices(defaults: &serde_json::Value) -> Vec<GroupChoice> {
+    let mut list: Vec<GroupChoice> = defaults
+        .pointer("/editFunctionKeyGroupLogin/editFunctionKeyGlGroupSettings")
+        .and_then(|v| v.as_array())
+        .into_iter()
+        .flatten()
+        .filter_map(|g| {
+            Some(GroupChoice {
+                id: g.get("groupId")?.as_i64()? as i32,
+                name: str_of(g, "groupname"),
+            })
+        })
+        .collect();
+    list.sort_by_key(|g| g.name.to_lowercase());
+    list
 }
 
 /// Der gewählte User aus der Bearbeitungsform eines Besetztlampenfelds
@@ -752,16 +810,51 @@ mod tests {
             direct_call_targetnumber: Some("10".into()),
             ..Default::default()
         };
-        let v = edit_form(&k).unwrap();
+        let v = edit_form(&k, &[]).unwrap();
         assert_eq!(v["editFunctionKeyBusyLampField"]["blfAccountId"], 1000);
         assert_eq!(v["editFunctionKeyBusyLampField"]["number"], "10");
         assert!(
-            edit_form(&FunctionKey {
-                function_key_type: "QUICKDIAL".into(),
-                ..Default::default()
-            })
+            edit_form(
+                &FunctionKey {
+                    function_key_type: "QUICKDIAL".into(),
+                    ..Default::default()
+                },
+                &[]
+            )
             .is_none()
         );
+    }
+
+    #[test]
+    fn group_login_goes_out_with_all_groups() {
+        let d = serde_json::json!({"editFunctionKeyGroupLogin": {"name": "", "editFunctionKeyGlGroupSettings": [
+            {"groupId": 1007, "groupname": "Zentrale", "activated": false},
+            {"groupId": 1008, "groupname": "Support", "activated": false}
+        ]}});
+        let groups = group_choices(&d);
+        assert_eq!(
+            groups
+                .iter()
+                .map(|g| (g.id, g.name.as_str()))
+                .collect::<Vec<_>>(),
+            [(1008, "Support"), (1007, "Zentrale")]
+        );
+        let k = FunctionKey {
+            function_key_type: "GROUPLOGIN".into(),
+            name: "Gruppe[Support]".into(),
+            group_ids: vec![1008],
+            ..Default::default()
+        };
+        let v = edit_form(&k, &groups).unwrap();
+        let s = &v["editFunctionKeyGroupLogin"]["editFunctionKeyGlGroupSettings"];
+        assert_eq!(v["editFunctionKeyGroupLogin"]["name"], "Gruppe[Support]");
+        assert_eq!(
+            s[0],
+            serde_json::json!({"groupId": 1008, "groupname": "Support", "activated": true})
+        );
+        assert_eq!(s[1]["activated"], false);
+        // Ohne Vorgaben geht die Taste im flachen Format hinaus
+        assert!(edit_form(&k, &[]).is_none());
     }
 
     #[test]
