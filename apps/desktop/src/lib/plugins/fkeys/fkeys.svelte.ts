@@ -31,7 +31,11 @@ export type FunctionKey = {
 };
 /** Konto im Besetztlampenfeld; bei einer Gruppe enthält user_ids die Gruppen-ID */
 export type Account = { account_id: number; user_ids: string[]; name: string; number: string; group: boolean };
-type Keys = { set_id: string; set_name: string; account_id: string; keys: FunctionKey[]; order: string[]; accounts: Account[]; me: string };
+/** Gruppe, die „Gruppe An-/Abmelden“ schalten kann; id wie in groupIds */
+export type GroupChoice = { id: number; name: string };
+/** Modul, das „Modul aktivieren“ schalten kann; id wie in activateModuleIds */
+export type ModuleChoice = { id: string; name: string };
+type Keys = { set_id: string; set_name: string; account_id: string; keys: FunctionKey[]; order: string[]; accounts: Account[]; group_choices: GroupChoice[]; module_choices: ModuleChoice[]; me: string };
 /** Präsenz eines Users; chat: "available", "away", "dnd", "offline" oder "" (kein Chat) */
 export type UserState = { telephony: string; dnd: boolean; chat: string; chat_message: string; redirect: boolean };
 export type Redirect = {
@@ -88,6 +92,9 @@ export const fkeys = $state({
   /** Wählbare signalisierte Rufnummern, für „Rufnummer anzeigen“ */
   signaling: [] as SignalingNumber[],
   groups: [] as Membership[],
+  /** Wählbare Gruppen für den Editor */
+  groupChoices: [] as GroupChoice[],
+  moduleChoices: [] as ModuleChoice[],
   /** Module der Anlage für „Modul aktivieren“ */
   modules: [] as Module[],
   me: "",
@@ -102,11 +109,29 @@ export type Program = { key: FunctionKey; ids: string[]; number: string; timeout
 /** Gruppe, in der man Mitglied ist (für „Gruppe An-/Abmelden“) */
 export type Membership = { id: string; name: string; logon_id: string; logged_on: boolean; read_only: boolean };
 
-/** Gruppen einer Taste: über die IDs, sonst über den Namen in `Gruppe[Name]` */
+/** Namen der gewählten Gruppen einer Taste */
+export const groupNames = (k: FunctionKey) => fkeys.groupChoices.filter((g) => k.groupIds.includes(g.id)).map((g) => g.name);
+
+/** Namen der gewählten Module einer Taste */
+export const moduleNames = (k: FunctionKey) => fkeys.moduleChoices.filter((m) => k.activateModuleIds.includes(m.id)).map((m) => m.name);
+
+/** Module einer Taste: über die IDs, sonst über die Namen der gewählten Module */
+function modulesOf(k: FunctionKey): Module[] {
+  const byId = fkeys.modules.filter((m) => k.activateModuleIds.includes(m.id));
+  if (byId.length) return byId;
+  const names = moduleNames(k);
+  return fkeys.modules.filter((m) => names.includes(m.name));
+}
+
+/** Gruppen einer Taste: über die IDs, sonst über die Namen der gewählten
+ *  Gruppen, sonst über den Namen in `Gruppe[Name]` */
 function groupsOf(k: FunctionKey): Membership[] {
   const ids = k.groupIds.map(String);
   const byId = fkeys.groups.filter((g) => ids.includes(g.id) || ids.includes(g.logon_id));
   if (byId.length) return byId;
+  const names = groupNames(k);
+  const byName = fkeys.groups.filter((g) => names.includes(g.name));
+  if (byName.length) return byName;
   const name = /\[(.*)\]$/.exec(k.name)?.[1] ?? k.name;
   return fkeys.groups.filter((g) => g.name === name);
 }
@@ -143,6 +168,8 @@ export async function loadFkeys() {
     fkeys.keys = k.keys;
     fkeys.order = k.order;
     fkeys.accounts = k.accounts;
+    fkeys.groupChoices = k.group_choices;
+    fkeys.moduleChoices = k.module_choices;
     fkeys.me = k.me;
     fkeys.error = "";
     fkeys.loaded = true;
@@ -327,7 +354,7 @@ export function keyState(k: FunctionKey): string {
       return ownDnd() ? "on" : "";
     case "MODULEACTIVATION": {
       // an = alle aktiv; ohne passendes Modul (z. B. kein Recht) "none"
-      const list = fkeys.modules.filter((m) => k.activateModuleIds.includes(m.id));
+      const list = modulesOf(k);
       return !list.length ? "none" : list.every((m) => m.active) ? "on" : "";
     }
     case "GROUPLOGIN": {
@@ -397,9 +424,9 @@ export async function press(k: FunctionKey) {
     case "DONOTDISTURB":
       return call("fkey_dnd", { enabled: !ownDnd() });
     case "GROUPLOGIN":
-      return call("fkey_group_toggle", { groupIds: k.groupIds, keyName: k.name });
+      return call("fkey_group_toggle", { groupIds: k.groupIds, groupNames: groupNames(k), keyName: k.name });
     case "MODULEACTIVATION":
-      return call("fkey_module_toggle", { moduleIds: k.activateModuleIds });
+      return call("fkey_module_toggle", { moduleIds: k.activateModuleIds, moduleNames: moduleNames(k) });
     case "COMPLETIONOFCALLSTOBUSYSUBSCRIBER":
       return call("phone_callback", {});
     case "SIGNALNUMBER": {

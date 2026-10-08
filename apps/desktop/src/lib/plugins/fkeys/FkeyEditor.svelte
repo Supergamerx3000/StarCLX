@@ -6,7 +6,7 @@
   import { onMount } from "svelte";
   import FkeyTile from "./FkeyTile.svelte";
   import Icon from "../../Icon.svelte";
-  import { types, blank, fkeys, forwardTypesExhausted, setAsksTarget, usedForwardTypes, keyAt, loadFkeys, placeAt, saveOrder, typeInfo, type FunctionKey, type SignalingNumber } from "./fkeys.svelte";
+  import { types, blank, fkeys, groupNames, moduleNames, forwardTypesExhausted, setAsksTarget, usedForwardTypes, keyAt, loadFkeys, placeAt, saveOrder, typeInfo, type FunctionKey, type SignalingNumber } from "./fkeys.svelte";
   import { t } from "../../i18n.svelte";
 
   let { columns = $bindable(3) }: { columns: number } = $props();
@@ -68,6 +68,15 @@
       case "QUICKDIAL": return k.directCallTargetnumber ?? label;
       case "FORWARD": return t("Umleitung [{art}]", { art: { ALWAYS: t("Immer"), BUSY: t("Besetzt"), TIMEOUT: t("Zeitüberschreitung") }[k.forwardType ?? "ALWAYS"] ?? "" });
       case "PARKANDORBIT": return `P+O[${k.poNumber ?? ""}]`;
+      // Wie die Anlage: Gruppe[Name]; bei mehreren Gruppen der Typname
+      case "GROUPLOGIN": {
+        const names = groupNames(k);
+        return names.length === 1 ? t("Gruppe[{name}]", { name: names[0] }) : label;
+      }
+      case "MODULEACTIVATION": {
+        const names = moduleNames(k);
+        return names.length === 1 ? t("Modul[{name}]", { name: names[0] }) : label;
+      }
       case "PHONEDTMF": return t("Tastentöne[{dtmf}]", { dtmf: k.dtmf ?? "" });
       case "SEPARATOR": return "";
       default: return label;
@@ -84,6 +93,8 @@
         return k.functionKeyType === "FORWARDTOTARGET" && k.forwardTargetType === "PHONENUMBER" && !k.forwardTarget?.trim() ? t("Bitte ein Ziel eingeben.") : "";
       // Bestehende Doppel nur beim Ändern der Art bemängeln
       case "FORWARD": return fkeys.keys.find((x) => x.id === k.id)?.forwardType !== k.forwardType && usedForwardTypes(k.id).includes(k.forwardType ?? "ALWAYS") ? t("Für diese Art gibt es schon eine Umleitungstaste.") : "";
+      case "GROUPLOGIN": return k.groupIds.length ? "" : t("Bitte mindestens eine Gruppe wählen.");
+      case "MODULEACTIVATION": return k.activateModuleIds.length ? "" : t("Bitte mindestens ein Modul wählen.");
       case "SIGNALNUMBER": return k.displayNumberId === null ? t("Bitte eine Rufnummer wählen.") : "";
       case "PHONEDTMF": return k.dtmf?.trim() ? "" : t("Bitte Tastentöne eingeben.");
       case "PHONEGENERICURL": return k.genericURL?.trim() ? "" : t("Bitte eine URL eingeben.");
@@ -188,6 +199,18 @@
     if (!editing) return;
     const ids = editing.redirectNumberIds;
     editing.redirectNumberIds = ids.includes(id) ? ids.filter((x) => x !== id) : [...ids, id];
+  };
+
+  const toggleGroup = (id: number) => {
+    if (!editing) return;
+    const ids = editing.groupIds;
+    editing.groupIds = ids.includes(id) ? ids.filter((x) => x !== id) : [...ids, id];
+  };
+
+  const toggleModule = (id: string) => {
+    if (!editing) return;
+    const ids = editing.activateModuleIds;
+    editing.activateModuleIds = ids.includes(id) ? ids.filter((x) => x !== id) : [...ids, id];
   };
 </script>
 
@@ -325,8 +348,24 @@
       <label class="row"><span>{t("Liste")}</span>
         <select bind:value={k.callListRequest}><option value="INCOMING">{t("Eingehend")}</option><option value="OUTGOING">{t("Ausgehend")}</option><option value="MISSED">{t("Verpasst")}</option></select>
       </label>
-    {:else if k.functionKeyType === "GROUPLOGIN" || k.functionKeyType === "MODULEACTIVATION"}
-      <p class="small muted">{k.functionKeyType === "GROUPLOGIN" ? t("Die Auswahl der Gruppen folgt später; bis dahin bitte in der Web-App einstellen.") : t("Die Auswahl der Module folgt später; bis dahin bitte in der Web-App einstellen.")}</p>
+    {:else if k.functionKeyType === "GROUPLOGIN"}
+      <div class="row"><span>{t("Gruppen")}</span>
+        <span class="checks">
+          {#each fkeys.groupChoices as g}
+            <label><input type="checkbox" checked={k.groupIds.includes(g.id)} onchange={() => toggleGroup(g.id)} /> {g.name}</label>
+          {:else}<span class="muted small">{t("Keine Gruppen gefunden.")}</span>{/each}
+        </span>
+      </div>
+      <p class="small muted">{t("Ein Druck auf die Taste meldet bei den gewählten Gruppen an oder ab.")}</p>
+    {:else if k.functionKeyType === "MODULEACTIVATION"}
+      <div class="row"><span>{t("Module")}</span>
+        <span class="checks">
+          {#each fkeys.moduleChoices as m}
+            <label><input type="checkbox" checked={k.activateModuleIds.includes(m.id)} onchange={() => toggleModule(m.id)} /> {m.name}</label>
+          {:else}<span class="muted small">{t("Keine Module gefunden.")}</span>{/each}
+        </span>
+      </div>
+      <p class="small muted">{t("Ein Druck auf die Taste schaltet die gewählten Module ein oder aus.")}</p>
     {/if}
     {#if error}<p class="notice">{error}</p>{/if}
     <div class="actions">

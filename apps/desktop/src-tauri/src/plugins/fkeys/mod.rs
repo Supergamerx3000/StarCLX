@@ -296,10 +296,11 @@ pub fn fkey_modules(fk: State<'_, FkeyState>) -> Vec<Module> {
 pub async fn fkey_module_toggle(
     state: State<'_, AppState>,
     module_ids: Vec<String>,
+    module_names: Vec<String>,
 ) -> Result<bool, String> {
     let hub = hub(&state).await?;
     let list = sf_core::module::modules(&hub).await.map_err(module_error)?;
-    let targets: Vec<&Module> = list.iter().filter(|m| module_ids.contains(&m.id)).collect();
+    let targets = key_modules(&list, &module_ids, &module_names);
     if targets.is_empty() {
         return Err(crate::i18n::t("Modul nicht gefunden oder nicht freigegeben").into());
     }
@@ -315,6 +316,16 @@ pub async fn fkey_module_toggle(
     Ok(on)
 }
 
+/// Module einer Taste: über die IDs der Taste, sonst über die Namen der
+/// gewählten Module
+fn key_modules<'a>(list: &'a [Module], ids: &[String], names: &[String]) -> Vec<&'a Module> {
+    let by_id: Vec<_> = list.iter().filter(|m| ids.contains(&m.id)).collect();
+    if !by_id.is_empty() {
+        return by_id;
+    }
+    list.iter().filter(|m| names.contains(&m.name)).collect()
+}
+
 /// Fehlendes Recht als verständliche Meldung
 fn module_error(e: sf_onehub::Error) -> String {
     match e.permission_denied() {
@@ -323,15 +334,25 @@ fn module_error(e: sf_onehub::Error) -> String {
     }
 }
 
-/// Gruppen einer Taste: über die IDs der Taste, sonst über den Namen in
-/// `Gruppe[Name]`, wie ihn die Anlage für die Taste vergibt.
-fn key_groups<'a>(list: &'a [Membership], ids: &[i32], key_name: &str) -> Vec<&'a Membership> {
+/// Gruppen einer Taste: über die IDs der Taste, sonst über die Namen der
+/// gewählten Gruppen, sonst über den Namen in `Gruppe[Name]`, wie ihn die
+/// Anlage für die Taste vergibt.
+fn key_groups<'a>(
+    list: &'a [Membership],
+    ids: &[i32],
+    names: &[String],
+    key_name: &str,
+) -> Vec<&'a Membership> {
     let by_id: Vec<_> = list
         .iter()
         .filter(|m| ids.iter().any(|id| sf_core::group::matches(m, *id)))
         .collect();
     if !by_id.is_empty() {
         return by_id;
+    }
+    let by_name: Vec<_> = list.iter().filter(|m| names.contains(&m.name)).collect();
+    if !by_name.is_empty() {
+        return by_name;
     }
     let name = key_name
         .split_once('[')
@@ -346,13 +367,14 @@ fn key_groups<'a>(list: &'a [Membership], ids: &[i32], key_name: &str) -> Vec<&'
 pub async fn fkey_group_toggle(
     state: State<'_, AppState>,
     group_ids: Vec<i32>,
+    group_names: Vec<String>,
     key_name: String,
 ) -> Result<bool, String> {
     let hub = hub(&state).await?;
     let list = sf_core::group::memberships(&hub)
         .await
         .map_err(|e| e.to_string())?;
-    let targets = key_groups(&list, &group_ids, &key_name);
+    let targets = key_groups(&list, &group_ids, &group_names, &key_name);
     if targets.is_empty() {
         return Err(crate::i18n::t("Gruppe nicht gefunden oder kein Mitglied").into());
     }
@@ -572,11 +594,36 @@ mod tests {
     }
 
     #[test]
+    fn module_key_resolution() {
+        let mm = |id: &str, name: &str| Module {
+            id: id.into(),
+            name: name.into(),
+            ..Default::default()
+        };
+        let list = [mm("a", "Nacht"), mm("b", "Mittag")];
+        let s = |v: &[&str]| v.iter().map(|x| x.to_string()).collect::<Vec<_>>();
+        let ids = |v: Vec<&Module>| v.iter().map(|m| m.id.clone()).collect::<Vec<_>>();
+        assert_eq!(ids(key_modules(&list, &s(&["b"]), &s(&["Nacht"]))), ["b"]);
+        assert_eq!(ids(key_modules(&list, &s(&["x"]), &s(&["Nacht"]))), ["a"]);
+        assert!(key_modules(&list, &s(&["x"]), &[]).is_empty());
+    }
+
+    #[test]
     fn group_key_resolution() {
         let list = [m("a", "4711", "DSS Zentrale"), m("b", "4712", "Support")];
         let ids = |v: Vec<&Membership>| v.iter().map(|m| m.id.clone()).collect::<Vec<_>>();
-        assert_eq!(ids(key_groups(&list, &[4712], "egal")), ["b"]);
-        assert_eq!(ids(key_groups(&list, &[1], "Gruppe[DSS Zentrale]")), ["a"]);
-        assert!(key_groups(&list, &[1], "Gruppe[Fremd]").is_empty());
+        let none: &[String] = &[];
+        assert_eq!(ids(key_groups(&list, &[4712], none, "egal")), ["b"]);
+        assert_eq!(
+            ids(key_groups(&list, &[1], none, "Gruppe[DSS Zentrale]")),
+            ["a"]
+        );
+        assert!(key_groups(&list, &[1], none, "Gruppe[Fremd]").is_empty());
+        // Gewählte Gruppen über ihren Namen, wenn die ID nicht passt
+        let names = ["Support".to_string(), "DSS Zentrale".to_string()];
+        assert_eq!(
+            ids(key_groups(&list, &[1], &names, "Gruppe An-/Abmelden")),
+            ["a", "b"]
+        );
     }
 }
