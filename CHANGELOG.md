@@ -1,5 +1,45 @@
 # Änderungen
 
+## 1.3.8 – 2026-10-08
+
+Zwischenrelease zum Testen vor 1.4.0. Rückmeldungen gerne als Issue, besonders zu Gruppen,
+Modulen und Türsprechstellen.
+
+### Türsprechstellen
+- Ruft eine Türsprechstelle an, zeigt der Call Manager ihr Kamerabild; im Gespräch öffnet
+  „Tür öffnen“ die Tür per Tastenton
+- Kameras lassen sich mit Name und URL in den Einstellungen anlegen und als Kachel „Türkamera“
+  anzeigen (RTSP über ffmpeg, MJPEG oder Einzelbilder per HTTP(S))
+
+### Funktionstasten
+- Gruppe An-/Abmelden und Modul aktivieren mit Auswahl der Gruppen bzw. Module im Editor
+- „Umleitung (Art)“ fragt auf Wunsch beim Einschalten nach dem Ziel und stellt beim
+  Ausschalten die vorherige Umleitung wieder her; jede Art gibt es nur einmal als Taste
+- „Umleitung auf Ziel“ gilt nur noch als aktiv, wenn die Umleitung auch zu ihrem Ziel führt
+
+### Rufliste
+- Ein Klick auf einen Anruf zeigt Details: Rufnummer, Status, Dauer, Gruppe, angenommen von,
+  Zurückgerufen (markierbar) und Kommentar (bearbeitbar)
+
+### Einstellungen und Konto
+- Ein Reiter pro Bereich (Telefonie, Erreichbarkeit, Chat, Personalisierung, Konto) statt einer
+  langen Seite; die Funktionstasten stehen unter Personalisierung
+- Profilbild ändern oder entfernen und eigenes Passwort ändern
+- Im Menü am Profilbild heißt „Meine Immer-Umleitungen“ jetzt „Umleitungen“
+
+### Oberfläche
+- Kein versehentliches Zoomen mehr per Touchpad oder Strg+Mausrad
+
+### sfctl
+- `sfctl chat send` und `sfctl chat contacts` für Chat-Nachrichten, `sfctl status` für Nicht
+  stören und Statustext
+- `sfctl say`: Anruf mit Sprachansage und optionaler Tastenbestätigung
+- Eigene README mit allen Befehlen und Skript-Beispielen
+
+### Intern
+- Softphone, Busylight, Rufliste, Adressbuch, Funktionstasten, Voicemail, Erreichbarkeit und
+  Chat sind als Plugins neu geordnet
+
 ## 1.3.0 – 2026-10-07
 
 ### Funktionstasten wie in der STARFACE-App
