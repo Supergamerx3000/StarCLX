@@ -448,5 +448,20 @@ const dict: Record<string, string> = {
   "Beim Ausschalten gelten wieder die vorherigen Einstellungen der Umleitung.": "Alla disattivazione tornano le impostazioni precedenti della deviazione.",
   "Für jede Art gibt es schon eine Umleitungstaste.": "Esiste già un tasto di deviazione per ogni tipo.",
   "Für diese Art gibt es schon eine Umleitungstaste.": "Esiste già un tasto di deviazione per questo tipo.",
+  // Rufliste: Details
+  "Details": "Dettagli",
+  "Eingehend, verpasst": "In entrata, persa",
+  "Eingehend, angenommen": "In entrata, risposta",
+  "Ausgehend, nicht erreicht": "In uscita, non raggiunto",
+  "Ausgehend, verbunden": "In uscita, connessa",
+  "Anrufende Person": "Chiamante",
+  "Anrufstatus": "Stato della chiamata",
+  "Datum, Zeit": "Data, ora",
+  "Dauer": "Durata",
+  "Angenommen von": "Risposto da",
+  "Zurückgerufen": "Richiamato",
+  "Ja": "Sì",
+  "Nein": "No",
+  "Kommentar": "Commento",
 };
 export default dict;

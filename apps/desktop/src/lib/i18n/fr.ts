@@ -448,5 +448,20 @@ const dict: Record<string, string> = {
   "Beim Ausschalten gelten wieder die vorherigen Einstellungen der Umleitung.": "À la désactivation, les réglages précédents du renvoi s’appliquent de nouveau.",
   "Für jede Art gibt es schon eine Umleitungstaste.": "Il existe déjà une touche de renvoi pour chaque type.",
   "Für diese Art gibt es schon eine Umleitungstaste.": "Il existe déjà une touche de renvoi pour ce type.",
+  // Rufliste: Details
+  "Details": "Détails",
+  "Eingehend, verpasst": "Entrant, manqué",
+  "Eingehend, angenommen": "Entrant, répondu",
+  "Ausgehend, nicht erreicht": "Sortant, non joint",
+  "Ausgehend, verbunden": "Sortant, connecté",
+  "Anrufende Person": "Appelant",
+  "Anrufstatus": "Statut de l'appel",
+  "Datum, Zeit": "Date, heure",
+  "Dauer": "Durée",
+  "Angenommen von": "Répondu par",
+  "Zurückgerufen": "Rappelé",
+  "Ja": "Oui",
+  "Nein": "Non",
+  "Kommentar": "Commentaire",
 };
 export default dict;
