@@ -136,7 +136,7 @@ Türkameras mit RTSP-Strom (URL beginnt mit `rtsp://`, Video in H.264) entpackt 
 
 ```sh
 sudo apt install ffmpeg      # Debian, Ubuntu
-sudo dnf install ffmpeg      # Fedora (aus RPM Fusion; ffmpeg-free reicht ebenfalls)
+sudo dnf install ffmpeg      # Fedora, aus RPM Fusion (ffmpeg-free kann kein H.264)
 ```
 
 Ohne ffmpeg zeigt die Kamera „Für RTSP-Kameras wird ffmpeg benötigt“. Kameras mit Motion JPEG
