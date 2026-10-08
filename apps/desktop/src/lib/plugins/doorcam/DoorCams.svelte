@@ -26,11 +26,11 @@
 </div>
 
 <style>
-  .wrap { display: flex; flex-direction: column; gap: 0.5rem; height: 100%; min-height: 12rem; }
+  .wrap { flex: 1; display: flex; flex-direction: column; gap: 0.5rem; height: 100%; min-height: 0; }
   nav { display: flex; flex-wrap: wrap; gap: 0.4rem; }
   nav button { border-radius: 999px; padding: 0.25rem 0.8rem; }
   nav button.active { background: var(--accent); color: #111; border-color: var(--accent); }
   .view { flex: 1; min-height: 0; display: flex; flex-direction: column; }
-  .view :global(.cam) { flex: 1; }
+  .view :global(.cam) { flex: 1; min-height: 0; aspect-ratio: auto; }
   .empty { color: var(--muted); margin: 0.5rem; }
 </style>

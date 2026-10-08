@@ -46,13 +46,15 @@
 </div>
 
 <style>
+  /* Feste Fläche (16:9, im Reiter bzw. in der Kachel ausgefüllt); das Bild
+     passt sich ein, statt die Fläche mit seiner eigenen Grösse aufzublähen */
   .cam {
-    position: relative; display: grid; place-items: center; min-height: 6rem;
+    position: relative; display: grid; place-items: center; aspect-ratio: 16 / 9; min-height: 6rem;
     background: #000; border-radius: 6px; overflow: hidden;
   }
-  img { display: block; width: 100%; height: 100%; object-fit: contain; }
+  img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; }
   p {
-    margin: 0; padding: 0.4rem 0.7rem; font-size: 0.85rem; color: #ddd; text-align: center;
+    position: relative; margin: 0; padding: 0.4rem 0.7rem; font-size: 0.85rem; color: #ddd; text-align: center;
   }
   /* Fehler über dem letzten Bild einblenden */
   img + p { position: absolute; left: 0; right: 0; bottom: 0; background: #000b; }
