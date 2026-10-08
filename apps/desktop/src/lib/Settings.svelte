@@ -58,6 +58,20 @@
     { id: "hotkeys", icon: "dialpad", label: t("Hotkeys") },
     { id: "integration", icon: "call", label: t("Desktop-Integration") },
   ]);
+  const accountSections: { id: string; icon: IconName; label: string }[] = $derived([
+    { id: "account", icon: "account", label: t("Konto") },
+    { id: "log", icon: "list", label: t("Protokoll") },
+  ]);
+  type Tab = "phone" | "reach" | "chat" | "personal" | "account";
+  /** Ein Reiter pro Bereich; die Unterpunkte springen innerhalb des Reiters */
+  const tabs: { id: Tab; icon: IconName; label: string; items: { id: string; icon: IconName; label: string }[] }[] = $derived([
+    { id: "phone", icon: "call", label: t("Telefonie"), items: sections },
+    { id: "reach", icon: "forward", label: t("Erreichbarkeit"), items: reachSections },
+    { id: "chat", icon: "chat", label: "Chat", items: chatSections },
+    { id: "personal", icon: "workspace", label: t("Personalisierung"), items: personalSections },
+    { id: "account", icon: "account", label: t("Konto"), items: accountSections },
+  ]);
+  let tab = $state<Tab>("phone");
   const hotkeyRows: { key: Exclude<keyof Hotkeys, "enabled">; label: string }[] = $derived([
     { key: "dial_selection", label: t("Markierte Rufnummer wählen") },
     { key: "dial_clipboard", label: t("Rufnummer aus Zwischenablage wählen") },
@@ -200,6 +214,11 @@
     }
   }
 
+  function select(id: Tab) {
+    tab = id;
+    content.scrollTo({ top: 0 });
+  }
+
   function jump(id: string) {
     content.querySelector(`#${id}`)?.scrollIntoView({ behavior: "smooth", block: "start" });
   }
@@ -235,31 +254,24 @@
     <h1>{t("Einstellungen")}</h1>
   </header>
   <nav>
-    <h2>{t("Telefonie")}</h2>
-    {#each sections as s}
-      <button class="nav" onclick={() => jump(s.id)}><Icon name={s.icon} size={18} /><span>{s.label}</span></button>
+    {#each tabs as g}
+      <button class="tab" class:active={tab === g.id} aria-current={tab === g.id ? "page" : undefined} onclick={() => select(g.id)}>
+        <Icon name={g.icon} size={20} /><span>{g.label}</span>
+      </button>
+      {#if tab === g.id}
+        {#each g.items as s}
+          <button class="nav" onclick={() => jump(s.id)}><Icon name={s.icon} size={16} /><span>{s.label}</span></button>
+        {/each}
+      {/if}
     {/each}
-    <h2>{t("Erreichbarkeit")}</h2>
-    {#each reachSections as s}
-      <button class="nav" onclick={() => jump(s.id)}><Icon name={s.icon} size={18} /><span>{s.label}</span></button>
-    {/each}
-    <h2>Chat</h2>
-    {#each chatSections as s}
-      <button class="nav" onclick={() => jump(s.id)}><Icon name={s.icon} size={18} /><span>{s.label}</span></button>
-    {/each}
-    <h2>{t("Personalisierung")}</h2>
-    {#each personalSections as s}
-      <button class="nav" onclick={() => jump(s.id)}><Icon name={s.icon} size={18} /><span>{s.label}</span></button>
-    {/each}
-    <h2>{t("Konto")}</h2>
-    <button class="nav" onclick={() => jump("account")}><Icon name="account" size={18} /><span>{t("Konto")}</span></button>
-    <button class="nav" onclick={() => jump("log")}><Icon name="list" size={18} /><span>{t("Protokoll")}</span></button>
   </nav>
 
   <div class="content" bind:this={content}>
     {#if !draft}
       <p class="muted">{t("Lade …")}</p>
     {:else}
+      <!-- Alle Reiter bleiben gemountet, damit Eingaben beim Wechsel erhalten bleiben -->
+      <div class="page" hidden={tab !== "phone"}>
       <section id="softphone">
         <h3>Softphone</h3>
         <div class="card">
@@ -347,7 +359,9 @@
       <CallActionsSettings bind:draft onnotice={(n) => (notice = n)} />
 
       <BusylightSettings bind:draft />
+      </div>
 
+      <div class="page" hidden={tab !== "reach"}>
       <Reach {server} />
 
       <section id="fkeys">
@@ -358,6 +372,9 @@
         </div>
       </section>
 
+      </div>
+
+      <div class="page" hidden={tab !== "chat"}>
       <section id="chat-notify">
         <h3>{t("Chat: Benachrichtigungen")}</h3>
         <div class="card">
@@ -395,6 +412,9 @@
         </div>
       </section>
 
+      </div>
+
+      <div class="page" hidden={tab !== "personal"}>
       <section id="appearance">
         <h3>{t("Darstellung")}</h3>
         <div class="card">
@@ -469,6 +489,9 @@
         </div>
       </section>
 
+      </div>
+
+      <div class="page" hidden={tab !== "account"}>
       <section id="account">
         <h3>{t("Konto")}</h3>
         <div class="card">
@@ -489,6 +512,7 @@
           <p class="small muted">{t("Das Protokoll kann Namen und Rufnummern enthalten. Passwörter und Tokens stehen nicht darin.")}</p>
         </div>
       </section>
+      </div>
     {/if}
   </div>
 
@@ -509,9 +533,12 @@
   header h1 { flex: 1; text-align: center; margin: 0; font-size: 1rem; font-weight: 600; padding-right: 2.5rem; }
   .icon { background: none; border: none; padding: 0.3rem; display: grid; }
   nav { background: var(--panel); padding: 1rem 0.8rem; display: flex; flex-direction: column; gap: 0.1rem; overflow: auto; }
-  nav h2 { font-size: 1.05rem; margin: 0.4rem 0.5rem 0.9rem; }
-  .nav { display: flex; align-items: center; gap: 0.6rem; background: none; border: none; text-align: left; padding: 0.45rem 0.5rem; }
-  .nav:hover { background: var(--panel-2); }
+  .tab { display: flex; align-items: center; gap: 0.6rem; background: none; border: none; border-radius: 4px; text-align: left; padding: 0.55rem 0.5rem; font-weight: 600; }
+  .tab:hover { background: var(--panel-2); }
+  .tab.active { background: var(--panel-2); color: var(--accent); }
+  .nav { display: flex; align-items: center; gap: 0.6rem; background: none; border: none; border-radius: 4px; text-align: left; padding: 0.35rem 0.5rem 0.35rem 1.9rem; font-size: 0.92rem; color: var(--muted); }
+  .nav:hover { background: var(--panel-2); color: inherit; }
+  .page[hidden] { display: none; }
   .content { overflow: auto; padding: 0.5rem 1.2rem 2rem; scroll-behavior: smooth; }
   section { padding-top: 0.8rem; }
   h3 { font-size: 1.05rem; margin: 0.6rem 0 0.7rem; }
@@ -557,7 +584,9 @@
   footer button { min-width: 8rem; }
   .primary { background: var(--accent); border-color: var(--accent); color: #111; font-weight: 600; }
   @media (max-width: 700px) {
-    .settings { grid-template-columns: 1fr; }
-    nav { display: none; }
+    .settings { grid-template-columns: 1fr; grid-template-rows: auto auto 1fr auto; }
+    nav { flex-direction: row; padding: 0.4rem 0.6rem; gap: 0.3rem; overflow-x: auto; }
+    .tab { white-space: nowrap; }
+    .nav { display: none; }
   }
 </style>
