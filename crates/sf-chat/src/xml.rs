@@ -7,6 +7,7 @@ use tokio_xmpp::parsers::delay::Delay;
 use tokio_xmpp::parsers::forwarding::Forwarded;
 use tokio_xmpp::parsers::iq::{IqHeader, IqPayload};
 use tokio_xmpp::parsers::message::Message;
+use tokio_xmpp::parsers::presence::Presence;
 
 use crate::{ChatMessage, Contact};
 
@@ -17,6 +18,7 @@ const NS_ARCHIVE: &str = "urn:xmpp:archive";
 const NS_RSM: &str = "http://jabber.org/protocol/rsm";
 const NS_DISCO_INFO: &str = "http://jabber.org/protocol/disco#info";
 const NS_DISCO_ITEMS: &str = "http://jabber.org/protocol/disco#items";
+const NS_CAPS: &str = "http://jabber.org/protocol/caps";
 
 fn header(id: &str) -> IqHeader {
     IqHeader {
@@ -54,6 +56,16 @@ pub fn disco_item_jids(query: &Element) -> Vec<String> {
         .filter(|c| c.is("item", NS_DISCO_ITEMS))
         .filter_map(|c| c.attr("jid").map(str::to_owned))
         .collect()
+}
+
+/// Client-Kennung aus der Präsenz (XEP-0115) als „Node#Ver“
+pub fn caps_of(p: &Presence) -> Option<String> {
+    let c = p.payloads.iter().find(|e| e.is("c", NS_CAPS))?;
+    Some(format!(
+        "{}#{}",
+        c.attr("node").unwrap_or_default(),
+        c.attr("ver").unwrap_or_default()
+    ))
 }
 
 /// Identitäten und Features aus einer `disco#info`-Antwort, als
@@ -254,6 +266,20 @@ mod tests {
                 "urn:xmpp:http:upload:0",
                 "http://jabber.org/protocol/bytestreams"
             ]
+        );
+    }
+
+    #[test]
+    fn caps_are_read_from_presence() {
+        let p: Element = r#"<presence xmlns="jabber:client" from="bob@pbx.test/win">
+            <c xmlns="http://jabber.org/protocol/caps" hash="sha-1" node="http://www.igniterealtime.org/projects/smack" ver="abc="/>
+        </presence>"#
+            .parse()
+            .unwrap();
+        let p = Presence::try_from(p).unwrap();
+        assert_eq!(
+            caps_of(&p).as_deref(),
+            Some("http://www.igniterealtime.org/projects/smack#abc=")
         );
     }
 

@@ -12,15 +12,16 @@
 //! (XEP-0136) und ein lokaler Verlauf als JSON-Datei.
 //!
 //! Nach der ersten Anmeldung fragt der Client per Service Discovery
-//! (XEP-0030) ab, welche Dienste und Features die Anlage anbietet, und
-//! schreibt das ins Protokoll. Daran lässt sich ablesen, welches Verfahren
+//! (XEP-0030) ab, welche Dienste und Features die Anlage und die Clients der
+//! Kollegen (auch eigene andere Geräte) anbieten, und schreibt das ins
+//! Protokoll. Daran lässt sich ablesen, welches Verfahren
 //! für Dateiübertragung in Frage kommt.
 
 mod history;
 mod tls;
 mod xml;
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
@@ -46,6 +47,8 @@ use sf_backoff::Backoff;
 pub use history::History;
 
 const PORT: u16 = 5222;
+/// Höchstens so viele Clients je Programmstart per Discovery abfragen
+const MAX_CLIENT_DISCO: usize = 20;
 const MAX_BACKOFF: Duration = Duration::from_secs(60);
 /// Nach so langer Stille fragt der Client per Ping nach, ob die Verbindung
 /// noch steht; ohne Antwort in derselben Zeit gilt sie als tot. Der Standard
@@ -241,6 +244,8 @@ struct Conn {
     disco_requests: BTreeMap<String, Disco>,
     /// Discovery lief schon (einmal je Programmstart reicht)
     discovered: bool,
+    /// Schon abgefragte Client-Arten (Caps-Kennung oder volle JID)
+    clients_seen: BTreeSet<String>,
     history: History,
     events: mpsc::UnboundedSender<ChatEvent>,
 }
@@ -364,6 +369,7 @@ async fn run(
         roster_request: String::new(),
         disco_requests: BTreeMap::new(),
         discovered: false,
+        clients_seen: BTreeSet::new(),
         history,
         events: events.clone(),
     };
@@ -556,7 +562,7 @@ impl Conn {
     fn on_stanza(&mut self, stanza: Stanza) -> Vec<Stanza> {
         match stanza {
             Stanza::Message(m) => self.on_message(m),
-            Stanza::Presence(p) => self.on_presence(p),
+            Stanza::Presence(p) => return self.on_presence(p).into_iter().collect(),
             Stanza::Iq(iq) => return self.on_iq(iq),
         }
         Vec::new()
@@ -608,12 +614,14 @@ impl Conn {
         });
     }
 
-    fn on_presence(&mut self, p: Presence) {
+    /// Liefert ggf. eine Discovery-Anfrage an den Client des Absenders.
+    fn on_presence(&mut self, p: Presence) -> Option<Stanza> {
+        let disco = self.disco_client(&p);
         let Some(from) = p.from.as_ref().map(|j| j.to_bare().to_string()) else {
-            return;
+            return disco;
         };
         if from == self.own.to_string() {
-            return;
+            return disco;
         }
         let show = match p.type_ {
             PresenceType::None => match p.show {
@@ -624,7 +632,7 @@ impl Conn {
                 None => "online",
             },
             PresenceType::Unavailable => "offline",
-            _ => return,
+            _ => return disco,
         };
         let status = p.statuses.values().next().cloned().unwrap_or_default();
         let entry = self.roster.entry(from.clone()).or_insert_with(|| Contact {
@@ -636,6 +644,29 @@ impl Conn {
         entry.show = show.to_owned();
         entry.status = status;
         self.publish_roster();
+        disco
+    }
+
+    /// Fragt einen Client einmal je Client-Art (XEP-0115-Kennung) ab, was er
+    /// kann, z. B. welche Verfahren für Dateiübertragung.
+    fn disco_client(&mut self, p: &Presence) -> Option<Stanza> {
+        if p.type_ != PresenceType::None || self.clients_seen.len() >= MAX_CLIENT_DISCO {
+            return None;
+        }
+        let from = p
+            .from
+            .as_ref()
+            .filter(|j| j.resource().is_some())?
+            .to_string();
+        let caps = xml::caps_of(p);
+        if !self
+            .clients_seen
+            .insert(caps.clone().unwrap_or_else(|| from.clone()))
+        {
+            return None;
+        }
+        tracing::info!(jid = %from, caps = caps.as_deref().unwrap_or("-"), "Chat-Discovery: frage Client");
+        self.disco(Disco::Info(from.clone()), &from)
     }
 
     fn on_message(&mut self, m: Message) {
