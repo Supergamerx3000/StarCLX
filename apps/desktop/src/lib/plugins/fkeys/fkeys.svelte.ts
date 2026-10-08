@@ -475,11 +475,24 @@ export async function press(k: FunctionKey) {
 }
 
 /** Neue, leere Taste eines Typs mit den Vorgaben wie in Windows */
+const FORWARD_TYPES = ["ALWAYS", "BUSY", "TIMEOUT"];
+
+/** Arten, die schon eine „Umleitung (Art)“-Taste hat (außer `exceptId`).
+ *  Die Anlage lehnt eine zweite Taste derselben Art ab. */
+export function usedForwardTypes(exceptId = ""): string[] {
+  return fkeys.keys
+    .filter((k) => k.functionKeyType === "FORWARD" && k.id !== exceptId)
+    .map((k) => k.forwardType ?? "ALWAYS");
+}
+
+/** Keine Art mehr frei: „Umleitung (Art)“ lässt sich nicht mehr anlegen */
+export const forwardTypesExhausted = () => FORWARD_TYPES.every((x) => usedForwardTypes().includes(x));
+
 export function blank(type: string): FunctionKey {
   return {
     functionKeyType: type, id: "", accountId: fkeys.accountId, valid: true, name: "", position: fkeys.keys.length,
     blfAccountId: null, directCallTargetnumber: null, redirectNumberIds: [], forwardTarget: null, forwardTargetType: null,
-    forwardType: type === "FORWARD" ? "ALWAYS" : null, groupIds: [], poNumber: type === "PARKANDORBIT" ? "00" : null,
+    forwardType: type === "FORWARD" ? (FORWARD_TYPES.find((x) => !usedForwardTypes().includes(x)) ?? "ALWAYS") : null, groupIds: [], poNumber: type === "PARKANDORBIT" ? "00" : null,
     displayNumberId: null, activateModuleIds: [], addressbookRequest: type === "ADDRESSBOOK" ? "CONTACTLIST" : null,
     addressBookFolderName: null, callListRequest: type === "PHONECALLLIST" ? "INCOMING" : null, dtmf: null, genericURL: null,
   };

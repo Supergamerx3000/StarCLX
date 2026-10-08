@@ -438,5 +438,7 @@ const dict: Record<string, string> = {
   "Umleiten nach": "Divert after",
   "Beim Einschalten nach der Zielrufnummer fragen": "Ask for the destination number when switching on",
   "Beim Ausschalten gelten wieder die vorherigen Einstellungen der Umleitung.": "Switching off restores the previous diversion settings.",
+  "Für jede Art gibt es schon eine Umleitungstaste.": "There is already a diversion key for every type.",
+  "Für diese Art gibt es schon eine Umleitungstaste.": "There is already a diversion key for this type.",
 };
 export default dict;

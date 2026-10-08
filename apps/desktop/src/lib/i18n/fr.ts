@@ -438,5 +438,7 @@ const dict: Record<string, string> = {
   "Umleiten nach": "Renvoyer après",
   "Beim Einschalten nach der Zielrufnummer fragen": "Demander le numéro de destination à l’activation",
   "Beim Ausschalten gelten wieder die vorherigen Einstellungen der Umleitung.": "À la désactivation, les réglages précédents du renvoi s’appliquent de nouveau.",
+  "Für jede Art gibt es schon eine Umleitungstaste.": "Il existe déjà une touche de renvoi pour chaque type.",
+  "Für diese Art gibt es schon eine Umleitungstaste.": "Il existe déjà une touche de renvoi pour ce type.",
 };
 export default dict;

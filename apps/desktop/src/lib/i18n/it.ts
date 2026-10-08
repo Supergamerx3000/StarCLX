@@ -438,5 +438,7 @@ const dict: Record<string, string> = {
   "Umleiten nach": "Devia dopo",
   "Beim Einschalten nach der Zielrufnummer fragen": "Chiedi il numero di destinazione all’attivazione",
   "Beim Ausschalten gelten wieder die vorherigen Einstellungen der Umleitung.": "Alla disattivazione tornano le impostazioni precedenti della deviazione.",
+  "Für jede Art gibt es schon eine Umleitungstaste.": "Esiste già un tasto di deviazione per ogni tipo.",
+  "Für diese Art gibt es schon eine Umleitungstaste.": "Esiste già un tasto di deviazione per questo tipo.",
 };
 export default dict;
