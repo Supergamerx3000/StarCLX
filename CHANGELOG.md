@@ -1,5 +1,10 @@
 # Änderungen
 
+## 1.3.9 – 2026-10-08
+
+Wie 1.3.8, nur kommen die Pakete jetzt auch über die apt-, dnf- und Flatpak-Quelle; die standen
+noch auf 1.2.1, weil ihre Aktualisierung seit 1.3.0 fehlschlug.
+
 ## 1.3.8 – 2026-10-08
 
 Zwischenrelease zum Testen vor 1.4.0. Rückmeldungen gerne als Issue, besonders zu Gruppen,

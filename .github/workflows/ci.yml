@@ -287,6 +287,9 @@ jobs:
           R=flatpak/repo
           mkdir -p flatpak
           [ -f "$R/config" ] || ostree init --mode=archive-z2 --repo="$R"
+          # git speichert keine leeren Ordner; ohne sie bricht build-update-repo
+          # mit "opendir(refs/remotes)" ab
+          mkdir -p "$R"/refs/remotes "$R"/refs/mirrors "$R"/tmp "$R"/extensions "$R"/state
           flatpak build-import-bundle --gpg-sign="$FPR" "$R" ../flatpak-dl/starclx_${VERSION}_x86_64.flatpak
           flatpak build-update-repo --gpg-sign="$FPR" --generate-static-deltas --prune --prune-depth=1 \
             --title=StarCLX "$R"
