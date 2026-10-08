@@ -412,6 +412,14 @@ const TEXTS: &[(&str, [&str; 3])] = &[
         ],
     ),
     (
+        "Profilbild auswählen",
+        [
+            "Choose profile picture",
+            "Choisir une photo de profil",
+            "Scegli immagine del profilo",
+        ],
+    ),
+    (
         "Programm nicht gestartet: {e}",
         [
             "Program not started: {e}",

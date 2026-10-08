@@ -128,7 +128,7 @@ impl Rest {
         })
     }
 
-    fn req(
+    pub(crate) fn req(
         &self,
         method: reqwest::Method,
         path: &str,
@@ -296,7 +296,7 @@ impl Rest {
 }
 
 /// Fehlertext der Anlage mitgeben, statt nur den Statuscode
-async fn check(resp: reqwest::Response) -> Result<reqwest::Response, BoxError> {
+pub(crate) async fn check(resp: reqwest::Response) -> Result<reqwest::Response, BoxError> {
     let status = resp.status();
     if status.is_success() {
         return Ok(resp);
