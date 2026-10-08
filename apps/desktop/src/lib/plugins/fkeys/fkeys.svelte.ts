@@ -4,6 +4,7 @@ import { listen } from "@tauri-apps/api/event";
 import { action, phone, run, type Call } from "../call/phone.svelte";
 import { t } from "../../i18n.svelte";
 import { prefs } from "../../prefs.svelte";
+import { searchable } from "../../numbers";
 
 export type FunctionKey = {
   functionKeyType: string;
@@ -260,6 +261,22 @@ export function redirectsOf(k: FunctionKey): Redirect[] {
   }
 }
 
+/** Ob eine Umleitung zum Ziel einer „Umleitung auf Ziel“-Taste führt. Die
+ *  Anlage schreibt die Nummer nicht immer so wie in der Taste (+41…, 0041…,
+ *  076…), daher über die letzten Ziffern vergleichen. */
+function sameTarget(k: FunctionKey, r: Redirect): boolean {
+  if (k.forwardTargetType === "VOICEMAIL") return !!r.target.mailbox;
+  const want = searchable(k.forwardTarget ?? "");
+  return !!want && searchable(r.target.number ?? "") === want;
+}
+
+/** Umleitung zählt für die Taste als an: Taste mit festem Ziel nur, wenn sie
+ *  auch dorthin führt; sonst teilen sich mehrere Tasten für dieselbe Nummer
+ *  denselben Zustand. */
+function activeFor(k: FunctionKey, r: Redirect): boolean {
+  return r.enabled && (k.functionKeyType !== "FORWARDTOTARGET" || sameTarget(k, r));
+}
+
 /** Zustand für die Farbe: "on", "partial", "busy", "ringing", "dnd", "free", "off", "none" oder "" */
 export function keyState(k: FunctionKey): string {
   switch (k.functionKeyType) {
@@ -289,7 +306,7 @@ export function keyState(k: FunctionKey): string {
     case "FORWARDTOTARGET": {
       // Wie in der STARFACE-App: teilaktiv, wenn nur manche Umleitungen an sind
       const list = redirectsOf(k);
-      const on = list.filter((r) => r.enabled).length;
+      const on = list.filter((r) => activeFor(k, r)).length;
       return !on ? "" : on === list.length ? "on" : "partial";
     }
     case "COMPLETIONOFCALLSTOBUSYSUBSCRIBER":
@@ -370,15 +387,17 @@ export async function press(k: FunctionKey) {
     case "FORWARDTOTARGET": {
       const list = redirectsOf(k);
       if (!list.length) return void (fkeys.notice = t("Keine passende Umleitung gefunden."));
-      const enable = !list.some((r) => r.enabled);
+      // Führt eine Umleitung woandershin, schaltet eine Taste mit festem
+      // Ziel sie auf ihr Ziel um, statt sie abzuschalten.
+      const enable = !list.some((r) => activeFor(k, r));
       for (const r of list) {
-        if (enable && k.functionKeyType === "FORWARDTOTARGET") {
+        if (enable && k.functionKeyType === "FORWARDTOTARGET" && !sameTarget(k, r)) {
           const target = k.forwardTargetType === "VOICEMAIL"
             ? { number: null, mailbox: r.mailboxes[0]?.id ?? null }
             : { number: k.forwardTarget, mailbox: null };
           await call("redirect_update", { id: r.id, target, timeoutSecs: null });
         }
-        await call("redirect_enable", { id: r.id, enabled: enable });
+        if (enable ? !r.enabled : activeFor(k, r)) await call("redirect_enable", { id: r.id, enabled: enable });
       }
       return loadRedirects();
     }
