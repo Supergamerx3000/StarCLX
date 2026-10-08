@@ -101,6 +101,8 @@ Unterschiede:
   Systemeinstellungen unter Standardanwendungen.
 - **Busylight** braucht die udev-Regel auf dem System, einmalig:
   `flatpak run --command=cat ch.crazmoe.StarCLX /app/share/starclx/60-starclx-busylight.rules | sudo tee /etc/udev/rules.d/60-starclx-busylight.rules`
+- **Türkameras mit RTSP** nutzen das `ffmpeg` des Systems (siehe unten), es muss also dort
+  installiert sein.
 - Eine eigene Firmen-CA, die nur im System hinterlegt ist, kann im Flatpak fehlen;
   selbstsignierte Zertifikate lokaler Anlagen bestätigt man wie gewohnt in StarCLX.
 - Als einzelne Datei installiert kommen Updates nicht automatisch, sondern mit dem nächsten
@@ -126,6 +128,21 @@ Einreichen (einmalig):
 
 Danach liegt die App in einem eigenen Repo `github.com/flathub/io.github.crazmoe.StarCLX`; neue
 Versionen: dort Tag, Commit und die neu erzeugten `*-sources.json` per Pull Request eintragen.
+
+### Türkameras mit RTSP
+
+Türkameras mit RTSP-Strom (URL beginnt mit `rtsp://`, Video in H.264) entpackt StarCLX mit
+`ffmpeg`. Die Pakete ziehen es nicht automatisch mit, einmalig installieren:
+
+```sh
+sudo apt install ffmpeg      # Debian, Ubuntu
+sudo dnf install ffmpeg      # Fedora (aus RPM Fusion; ffmpeg-free reicht ebenfalls)
+```
+
+Ohne ffmpeg zeigt die Kamera „Für RTSP-Kameras wird ffmpeg benötigt“. Kameras mit Motion JPEG
+oder Einzelbild brauchen es nicht. In der Flathub-Variante geht RTSP nicht, weil sie kein
+Programm des Systems starten darf. Eine Kamera lässt sich ohne App prüfen:
+`cargo run -p sf-doorcam --example probe -- <URL>`.
 
 ### Voraussetzungen auf der Anlage
 
@@ -154,6 +171,7 @@ Tag `v<Version>` von Hand bewirkt dasselbe.
 | `crates/sf-audio` | Audiogeräte, Klingeltöne, Testton (PulseAudio/PipeWire) |
 | `crates/sf-chat` | XMPP-Chat |
 | `crates/sf-busylight` | Kuando Busylight über hidraw |
+| `crates/sf-doorcam` | Türkameras: RTSP (über ffmpeg), Motion JPEG, Einzelbild |
 | `apps/desktop` | Desktop-App: Tauri 2, Oberfläche in Svelte 5 / TypeScript |
 | `apps/sfctl` | Kommandozeile für Skripte, siehe [README](apps/sfctl/README.md) |
 
