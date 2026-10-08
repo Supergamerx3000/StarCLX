@@ -448,5 +448,20 @@ const dict: Record<string, string> = {
   "Beim Ausschalten gelten wieder die vorherigen Einstellungen der Umleitung.": "Switching off restores the previous diversion settings.",
   "Für jede Art gibt es schon eine Umleitungstaste.": "There is already a diversion key for every type.",
   "Für diese Art gibt es schon eine Umleitungstaste.": "There is already a diversion key for this type.",
+  // Rufliste: Details
+  "Details": "Details",
+  "Eingehend, verpasst": "Incoming, missed",
+  "Eingehend, angenommen": "Incoming, answered",
+  "Ausgehend, nicht erreicht": "Outgoing, not reached",
+  "Ausgehend, verbunden": "Outgoing, connected",
+  "Anrufende Person": "Caller",
+  "Anrufstatus": "Call status",
+  "Datum, Zeit": "Date, time",
+  "Dauer": "Duration",
+  "Angenommen von": "Answered by",
+  "Zurückgerufen": "Called back",
+  "Ja": "Yes",
+  "Nein": "No",
+  "Kommentar": "Comment",
 };
 export default dict;

@@ -28,7 +28,8 @@
   let filter = $state<"all" | "missed" | "in" | "out">("all");
   let term = $state("");
   let error = $state("");
-  let editing = $state<string | null>(null);
+  /** Ausgewählter Eintrag, dessen Details aufgeklappt sind */
+  let selected = $state<string | null>(null);
   let commentText = $state("");
   // Löschen braucht einen zweiten Klick
   let confirmDelete = $state<string | null>(null);
@@ -131,15 +132,25 @@
     }
   }
 
-  function startComment(e: Entry) {
-    editing = e.id;
+  function select(e: Entry) {
+    if (selected === e.id) {
+      selected = null;
+      return;
+    }
+    selected = e.id;
     commentText = e.comment;
   }
   async function saveComment(event: Event, id: string) {
     event.preventDefault();
     await act("comment", id, commentText);
-    editing = null;
   }
+
+  function status(e: Entry) {
+    if (e.incoming) return e.missed ? t("Eingehend, verpasst") : t("Eingehend, angenommen");
+    return e.missed ? t("Ausgehend, nicht erreicht") : t("Ausgehend, verbunden");
+  }
+  const fullDate = (ms: number) =>
+    new Date(ms).toLocaleString(locale(), { weekday: "short", day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit", second: "2-digit" });
 
   const filters = $derived([
     { id: "all", label: t("Alle") },
@@ -164,28 +175,22 @@
     {#each days as day (day.label)}
       <h3>{day.label}</h3>
       {#each day.items as e (e.id)}
-        <div class="row" class:missed={e.missed && e.incoming}>
+        <div class="row" class:missed={e.missed && e.incoming} class:selected={selected === e.id}>
+          <button class="open" title={t("Details")} aria-expanded={selected === e.id} onclick={() => select(e)}>
           <span class="dir" title={e.missed ? t("Verpasst") : e.incoming ? t("Eingehend") : t("Ausgehend")}>
             <Icon name={e.missed && e.incoming ? "missed" : e.incoming ? "incoming" : "outgoing"} size={20} />
           </span>
-          <div class="who">
+          <span class="who">
             <strong>{e.name || e.number || t("Unbekannt")}</strong>
             <small>
               {#if e.name && e.number}{e.number}{/if}
               {#if e.group} · {t("Gruppe {name}", { name: e.group })}{#if e.answered_by}, {t("angenommen von {name}", { name: e.answered_by })}{/if}{/if}
               {#if e.voicemail} · Voicemail{/if}
             </small>
-            {#if editing === e.id}
-              <form class="comment" onsubmit={(ev) => saveComment(ev, e.id)}>
-                <input bind:value={commentText} placeholder={t("Notiz")} />
-                <button type="submit">{t("Speichern")}</button>
-                <button type="button" onclick={() => (editing = null)}>{t("Abbrechen")}</button>
-              </form>
-            {:else if e.comment}
-              <button class="note" onclick={() => startComment(e)}>📝 {e.comment}</button>
-            {/if}
-          </div>
+            {#if e.comment && selected !== e.id}<span class="note">📝 {e.comment}</span>{/if}
+          </span>
           <span class="when">{time(e.start)}<small>{dur(e.duration_secs)}</small></span>
+          </button>
           <div class="acts">
             {#if e.missed && e.incoming}
               <button
@@ -198,7 +203,7 @@
             {#if external(e.number) && !e.name && !known[e.number]}
               <button class="icon" title={t("Ins Adressbuch übernehmen")} onclick={() => newContact({ number: e.number })}><Icon name="person" size={18} /></button>
             {/if}
-            <button class="icon" title={t("Notiz")} onclick={() => startComment(e)}>✎</button>
+            <button class="icon" title={t("Notiz")} onclick={() => selected !== e.id && select(e)}>✎</button>
             <button class="icon" title={t("Weitergeben (Chat oder E-Mail)")} onclick={() => (sharing = e)}><Icon name="send" size={18} /></button>
             <button
               class="icon"
@@ -212,6 +217,31 @@
             {/if}
           </div>
         </div>
+        {#if selected === e.id}
+          <dl class="details">
+            <dt>{t("Anrufende Person")}</dt><dd>{e.name || "---"}</dd>
+            <dt>{t("Rufnummer")}</dt><dd>{e.number || "---"}</dd>
+            <dt>{t("Anrufstatus")}</dt><dd>{status(e)}{#if e.voicemail} · Voicemail{/if}</dd>
+            <dt>{t("Datum, Zeit")}</dt><dd>{fullDate(e.start)}</dd>
+            <dt>{t("Dauer")}</dt><dd>{dur(e.duration_secs) || "---"}</dd>
+            <dt>{t("Gruppe")}</dt><dd>{e.group || "---"}</dd>
+            <dt>{t("Angenommen von")}</dt><dd>{e.answered_by || "---"}</dd>
+            <dt>{t("Zurückgerufen")}</dt>
+            <dd>
+              <label class="check">
+                <input type="checkbox" checked={e.called_back} onchange={(ev) => act(ev.currentTarget.checked ? "called_back" : "not_called_back", e.id)} />
+                {e.called_back ? t("Ja") : t("Nein")}
+              </label>
+            </dd>
+            <dt>{t("Kommentar")}</dt>
+            <dd>
+              <form class="comment" onsubmit={(ev) => saveComment(ev, e.id)}>
+                <textarea bind:value={commentText} rows="2" placeholder={t("Notiz")}></textarea>
+                <button type="submit" disabled={commentText.trim() === e.comment.trim()}>{t("Speichern")}</button>
+              </form>
+            </dd>
+          </dl>
+        {/if}
       {/each}
     {:else}
       <p class="muted">{entries.length ? t("Keine passenden Einträge.") : t("Die Rufliste ist leer.")}</p>
@@ -233,6 +263,8 @@
   .list { flex: 1; overflow: auto; background: var(--panel); border-radius: 4px; padding: 0.2rem 0.8rem 0.8rem; }
   h3 { font-size: 0.85rem; color: var(--muted); font-weight: 600; margin: 0.9rem 0 0.3rem; text-transform: uppercase; letter-spacing: 0.04em; }
   .row { display: flex; align-items: center; gap: 0.8rem; padding: 0.45rem 0.3rem; border-top: 1px solid var(--line); }
+  .row.selected { background: var(--accent-soft); }
+  .open { flex: 1; min-width: 0; display: flex; align-items: center; gap: 0.8rem; padding: 0; background: none; border: none; color: inherit; text-align: left; cursor: pointer; }
   .dir { display: grid; color: var(--green); }
   .row:not(.missed) .dir { color: var(--muted); }
   .row.missed .dir, .row.missed .who strong { color: #ff6b6b; }
@@ -248,9 +280,13 @@
   .icon.done { color: var(--green); border-color: var(--green); }
   .call { width: 2.1rem; height: 2.1rem; padding: 0; border-radius: 50%; display: grid; place-items: center; background: var(--green); border: none; color: #fff; }
   .call:disabled { opacity: 0.4; }
-  .note { align-self: flex-start; background: none; border: none; padding: 0.1rem 0; color: var(--text); font-size: 0.85rem; text-align: left; }
-  .comment { display: flex; gap: 0.3rem; margin-top: 0.3rem; }
-  .comment input { flex: 1; padding: 0.3rem 0.5rem; }
+  .note { padding: 0.1rem 0; color: var(--text); font-size: 0.85rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .details { display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: 0.35rem 1rem; margin: 0; padding: 0.6rem 0.8rem 0.8rem 2.6rem; background: var(--accent-soft); }
+  .details dt { color: var(--muted); font-size: 0.9rem; }
+  .details dd { margin: 0; overflow-wrap: anywhere; }
+  .check { display: inline-flex; align-items: center; gap: 0.4rem; }
+  .comment { display: flex; gap: 0.3rem; align-items: flex-start; }
+  .comment textarea { flex: 1; padding: 0.3rem 0.5rem; resize: vertical; font: inherit; }
   .comment button { padding: 0.3rem 0.6rem; }
   .muted { color: var(--muted); }
   .error { color: var(--accent); margin: 0; }
