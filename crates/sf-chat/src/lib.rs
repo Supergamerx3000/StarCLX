@@ -773,9 +773,12 @@ impl Conn {
             .iter()
             .map(|(full, (key, _))| {
                 let info = self.client_info.get(key);
+                let resource = full.split_once('/').map_or("", |(_, r)| r);
                 Client {
-                    resource: full.split_once('/').map_or("", |(_, r)| r).to_owned(),
-                    name: info.and_then(|i| i.name.clone()).unwrap_or_default(),
+                    resource: resource.to_owned(),
+                    name: xml::starface_client(resource)
+                        .or_else(|| info.and_then(|i| i.name.clone()))
+                        .unwrap_or_default(),
                     files: info.and_then(|i| i.files),
                 }
             })
@@ -803,6 +806,11 @@ impl Conn {
             PresenceType::Unavailable => "offline",
             _ => return disco,
         };
+        // Meldet sich nur eines von mehreren Geräten ab, bleibt der Kontakt online.
+        if show == "offline" && self.resources.get(&from).is_some_and(|r| !r.is_empty()) {
+            self.publish_roster();
+            return disco;
+        }
         let status = p.statuses.values().next().cloned().unwrap_or_default();
         let entry = self.roster.entry(from.clone()).or_insert_with(|| Contact {
             name: from.split('@').next().unwrap_or_default().to_owned(),
@@ -1076,6 +1084,27 @@ mod tests {
         let t = transfers(&mut brx).pop().unwrap();
         assert_eq!(t.state, TransferState::Failed);
         let _ = std::fs::remove_dir_all(dir);
+    }
+
+    #[test]
+    fn contact_stays_online_while_another_device_is() {
+        let (mut bob, _brx) = conn(BOB);
+        bob.on_stanza(online("alice@pbx.test/StarfaceWindows-v9.0.2.7-alice-PC"));
+        bob.on_stanza(online("alice@pbx.test/StarfaceAndroidClient-0c1a"));
+        let mut gone = Presence::unavailable();
+        gone.from = Some(
+            "alice@pbx.test/StarfaceWindows-v9.0.2.7-alice-PC"
+                .parse()
+                .unwrap(),
+        );
+        bob.on_stanza(gone.into());
+        assert_eq!(bob.roster["alice@pbx.test"].show, "online");
+        let names: Vec<_> = bob
+            .clients_of("alice@pbx.test")
+            .into_iter()
+            .map(|c| c.name)
+            .collect();
+        assert_eq!(names, ["STARFACE Android"]);
     }
 
     #[test]

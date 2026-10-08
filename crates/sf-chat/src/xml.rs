@@ -114,6 +114,36 @@ pub fn version_of(query: &Element) -> Option<String> {
     })
 }
 
+/// Name eines STARFACE-Clients aus seiner Ressource, z. B.
+/// „StarfaceWindows-v9.0.2.7-…“ → „STARFACE Windows 9.0.2.7“. Die Apps melden
+/// sich per Version und Identität alle nur als „Smack“, die Ressource verrät
+/// dagegen Plattform und Version.
+pub fn starface_client(resource: &str) -> Option<String> {
+    let rest = resource
+        .get(..8)
+        .filter(|p| p.eq_ignore_ascii_case("starface"))
+        .map(|_| &resource[8..])?;
+    let mut parts = rest.split('-');
+    let word = parts.next()?;
+    let word = word.strip_suffix("Client").unwrap_or(word);
+    let platform = match word.to_ascii_lowercase().as_str() {
+        "" => return None,
+        "android" => "Android",
+        "windows" | "win" => "Windows",
+        "ios" | "iphone" | "ipad" => "iPhone",
+        "mac" | "macos" | "osx" => "macOS",
+        _ => word,
+    };
+    let version = parts.find_map(|p| {
+        p.strip_prefix(['v', 'V'])
+            .filter(|v| v.starts_with(|c: char| c.is_ascii_digit()))
+    });
+    Some(match version {
+        Some(v) => format!("STARFACE {platform} {v}"),
+        None => format!("STARFACE {platform}"),
+    })
+}
+
 /// Name der ersten Identität aus einer `disco#info`-Antwort
 pub fn identity_name(query: &Element) -> Option<String> {
     query
@@ -307,6 +337,20 @@ pub fn chat_message(
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn starface_client_from_resource() {
+        assert_eq!(
+            starface_client("StarfaceWindows-v9.0.2.7-uspitzer-PA-PF423RH0").as_deref(),
+            Some("STARFACE Windows 9.0.2.7")
+        );
+        assert_eq!(
+            starface_client("StarfaceAndroidClient-0c1afba2088b6660").as_deref(),
+            Some("STARFACE Android")
+        );
+        assert_eq!(starface_client("f3891580"), None);
+        assert_eq!(starface_client("Starface"), None);
+    }
+
     use super::*;
 
     #[test]
