@@ -54,10 +54,10 @@
     { id: "voicemail", icon: "voicemail", label: "Voicemail" },
     { id: "redirects", icon: "forward", label: t("Umleitungen") },
     { id: "fmc", icon: "call2go", label: t("Parallelruf") },
-    { id: "fkeys", icon: "dialpad", label: t("Funktionstasten") },
   ]);
   const personalSections: { id: string; icon: IconName; label: string }[] = $derived([
     { id: "appearance", icon: "workspace", label: t("Darstellung") },
+    { id: "fkeys", icon: "dialpad", label: t("Funktionstasten") },
     { id: "hotkeys", icon: "dialpad", label: t("Hotkeys") },
     { id: "integration", icon: "call", label: t("Desktop-Integration") },
   ]);
@@ -450,15 +450,6 @@
 
       <div class="page" hidden={tab !== "reach"}>
       <Reach {server} />
-
-      <section id="fkeys">
-        <h3>{t("Funktionstasten")}</h3>
-        <div class="card">
-          <FkeyEditor bind:columns={draft.fkey_columns} />
-          <p class="small muted">{t("Tasten werden sofort auf der Anlage gespeichert; die Spaltenzahl mit „Speichern“.")}</p>
-        </div>
-      </section>
-
       </div>
 
       <div class="page" hidden={tab !== "chat"}>
@@ -540,6 +531,14 @@
           {#if desktop.wayland && draft.always_on_top}
             <p class="small muted">{t("Unter Wayland bestimmt der Desktop, ob ein Fenster oben bleibt. Bei GNOME geht es über Alt+Leertaste → „Immer im Vordergrund“.")}</p>
           {/if}
+        </div>
+      </section>
+
+      <section id="fkeys">
+        <h3>{t("Funktionstasten")}</h3>
+        <div class="card">
+          <FkeyEditor bind:columns={draft.fkey_columns} />
+          <p class="small muted">{t("Tasten werden sofort auf der Anlage gespeichert; die Spaltenzahl mit „Speichern“.")}</p>
         </div>
       </section>
 
