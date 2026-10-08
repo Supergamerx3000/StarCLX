@@ -10,6 +10,11 @@
 //! Unterstützt: Kontaktliste mit Präsenz, Einzelchats, Nachrichten anderer
 //! Geräte (Carbons), verzögerte Zustellung, Verlauf aus dem Serverarchiv
 //! (XEP-0136) und ein lokaler Verlauf als JSON-Datei.
+//!
+//! Nach der ersten Anmeldung fragt der Client per Service Discovery
+//! (XEP-0030) ab, welche Dienste und Features die Anlage anbietet, und
+//! schreibt das ins Protokoll. Daran lässt sich ablesen, welches Verfahren
+//! für Dateiübertragung in Frage kommt.
 
 mod history;
 mod tls;
@@ -27,9 +32,11 @@ use tokio::task::JoinHandle;
 use tokio_xmpp::connect::ServerConnector;
 use tokio_xmpp::jid::{BareJid, Jid};
 use tokio_xmpp::minidom::Element;
+use tokio_xmpp::parsers::iq::{Iq, IqPayload};
 use tokio_xmpp::parsers::message::{Lang, Message, MessageType};
 use tokio_xmpp::parsers::ns;
 use tokio_xmpp::parsers::presence::{Presence, Show, Type as PresenceType};
+use tokio_xmpp::parsers::stanza_error::StanzaError;
 use tokio_xmpp::stanzastream::{Connection, Event, StanzaStream, StreamEvent};
 use tokio_xmpp::xmlstream::{StreamHeader, Timeouts};
 use tokio_xmpp::{Stanza, client_login};
@@ -230,6 +237,10 @@ struct Conn {
     /// Offene Archiv-Anfragen: IQ-ID → Gesprächspartner
     archive_requests: BTreeMap<String, String>,
     roster_request: String,
+    /// Offene Discovery-Anfragen: IQ-ID → Abfrage
+    disco_requests: BTreeMap<String, Disco>,
+    /// Discovery lief schon (einmal je Programmstart reicht)
+    discovered: bool,
     history: History,
     events: mpsc::UnboundedSender<ChatEvent>,
 }
@@ -324,6 +335,13 @@ fn connector(
     })
 }
 
+enum Disco {
+    /// `disco#items` an die Domain der Anlage
+    Items,
+    /// `disco#info` an diese Adresse
+    Info(String),
+}
+
 struct Pacing {
     backoff: Backoff,
     /// Zeitpunkt der letzten gelungenen Anmeldung
@@ -344,6 +362,8 @@ async fn run(
         roster: BTreeMap::new(),
         archive_requests: BTreeMap::new(),
         roster_request: String::new(),
+        disco_requests: BTreeMap::new(),
+        discovered: false,
         history,
         events: events.clone(),
     };
@@ -378,7 +398,11 @@ async fn run(
                         tracing::warn!("Chat getrennt, verbinde neu");
                         let _ = events.send(ChatEvent::State { online: false, detail: "Verbindung unterbrochen, verbinde neu …".into() });
                     }
-                    Some(Event::Stanza(s)) => conn.on_stanza(s),
+                    Some(Event::Stanza(s)) => {
+                        for stanza in conn.on_stanza(s) {
+                            stream.send(Box::new(stanza)).await;
+                        }
+                    }
                 },
                 cmd = commands.recv() => match cmd {
                     None => return stream.close().await,
@@ -435,11 +459,64 @@ fn new_id() -> String {
 impl Conn {
     fn on_online(&mut self, own: &Own) -> Vec<Stanza> {
         self.roster_request = new_id();
-        vec![
+        let mut out = vec![
             xml::iq_get(&self.roster_request, xml::roster_query()),
             xml::iq_set(&new_id(), xml::carbons_enable()),
             own.presence().into(),
-        ]
+        ];
+        if !self.discovered {
+            self.discovered = true;
+            let domain = self.own.domain().to_string();
+            out.extend(self.disco(Disco::Items, &domain));
+            out.extend(self.disco(Disco::Info(domain.clone()), &domain));
+        }
+        out
+    }
+
+    fn disco(&mut self, request: Disco, to: &str) -> Option<Stanza> {
+        let id = new_id();
+        let payload = match request {
+            Disco::Items => xml::disco_items(),
+            Disco::Info(_) => xml::disco_info(),
+        };
+        let stanza = xml::iq_get_to(&id, to, payload)?;
+        self.disco_requests.insert(id, request);
+        Some(stanza)
+    }
+
+    /// Antwort auf eine Discovery-Anfrage; liefert Folgeanfragen an die
+    /// gefundenen Dienste.
+    fn on_disco(
+        &mut self,
+        request: Disco,
+        result: Result<Option<Element>, StanzaError>,
+    ) -> Vec<Stanza> {
+        let el = match result {
+            Ok(Some(el)) => el,
+            Ok(None) => return Vec::new(),
+            Err(error) => {
+                let what = match &request {
+                    Disco::Items => self.own.domain().to_string(),
+                    Disco::Info(jid) => jid.clone(),
+                };
+                tracing::info!(%what, error = ?error.defined_condition, "Chat-Discovery abgelehnt");
+                return Vec::new();
+            }
+        };
+        match request {
+            Disco::Items => {
+                let jids = xml::disco_item_jids(&el);
+                tracing::info!(services = ?jids, "Chat-Discovery: Dienste der Anlage");
+                jids.iter()
+                    .filter_map(|jid| self.disco(Disco::Info(jid.clone()), jid))
+                    .collect()
+            }
+            Disco::Info(jid) => {
+                let (identities, features) = xml::disco_info_summary(&el);
+                tracing::info!(%jid, ?identities, ?features, "Chat-Discovery: Features");
+                Vec::new()
+            }
+        }
     }
 
     fn on_command(&mut self, cmd: Command) -> Option<Stanza> {
@@ -476,33 +553,46 @@ impl Conn {
         }
     }
 
-    fn on_stanza(&mut self, stanza: Stanza) {
+    fn on_stanza(&mut self, stanza: Stanza) -> Vec<Stanza> {
         match stanza {
             Stanza::Message(m) => self.on_message(m),
             Stanza::Presence(p) => self.on_presence(p),
-            Stanza::Iq(iq) => {
-                let id = iq.id().to_owned();
-                let el: Option<Element> = match iq.into_payload() {
-                    tokio_xmpp::parsers::iq::IqPayload::Result(el) => el,
-                    _ => None,
-                };
-                if id == self.roster_request {
-                    if let Some(el) = el {
-                        self.on_roster(&el);
-                    }
-                } else if let Some(peer) = self.archive_requests.remove(&id)
-                    && let Some(el) = el
-                {
-                    let messages = xml::parse_archive(&el, &peer);
-                    if self.history.merge(&peer, messages) {
-                        let _ = self.events.send(ChatEvent::History {
-                            messages: self.history.get(&peer),
-                            peer,
-                        });
-                    }
-                }
+            Stanza::Iq(iq) => return self.on_iq(iq),
+        }
+        Vec::new()
+    }
+
+    fn on_iq(&mut self, iq: Iq) -> Vec<Stanza> {
+        let id = iq.id().to_owned();
+        let payload = iq.into_payload();
+        if let Some(request) = self.disco_requests.remove(&id) {
+            let result = match payload {
+                IqPayload::Result(el) => Ok(el),
+                IqPayload::Error(e) => Err(e),
+                _ => return Vec::new(),
+            };
+            return self.on_disco(request, result);
+        }
+        let el: Option<Element> = match payload {
+            IqPayload::Result(el) => el,
+            _ => None,
+        };
+        if id == self.roster_request {
+            if let Some(el) = el {
+                self.on_roster(&el);
+            }
+        } else if let Some(peer) = self.archive_requests.remove(&id)
+            && let Some(el) = el
+        {
+            let messages = xml::parse_archive(&el, &peer);
+            if self.history.merge(&peer, messages) {
+                let _ = self.events.send(ChatEvent::History {
+                    messages: self.history.get(&peer),
+                    peer,
+                });
             }
         }
+        Vec::new()
     }
 
     fn on_roster(&mut self, query: &Element) {

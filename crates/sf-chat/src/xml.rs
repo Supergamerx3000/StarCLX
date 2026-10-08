@@ -15,6 +15,8 @@ const NS_CARBONS: &str = "urn:xmpp:carbons:2";
 const NS_DELAY: &str = "urn:xmpp:delay";
 const NS_ARCHIVE: &str = "urn:xmpp:archive";
 const NS_RSM: &str = "http://jabber.org/protocol/rsm";
+const NS_DISCO_INFO: &str = "http://jabber.org/protocol/disco#info";
+const NS_DISCO_ITEMS: &str = "http://jabber.org/protocol/disco#items";
 
 fn header(id: &str) -> IqHeader {
     IqHeader {
@@ -26,6 +28,58 @@ fn header(id: &str) -> IqHeader {
 
 pub fn iq_get(id: &str, payload: Element) -> Stanza {
     header(id).assemble(IqPayload::Get(payload)).into()
+}
+
+/// IQ-Abfrage an eine bestimmte Adresse, z. B. einen Dienst der Anlage
+pub fn iq_get_to(id: &str, to: &str, payload: Element) -> Option<Stanza> {
+    let mut h = header(id);
+    h.to = Some(to.parse().ok()?);
+    Some(h.assemble(IqPayload::Get(payload)).into())
+}
+
+/// Service Discovery (XEP-0030): Was kann diese Adresse?
+pub fn disco_info() -> Element {
+    Element::builder("query", NS_DISCO_INFO).build()
+}
+
+/// Service Discovery (XEP-0030): Welche Dienste gibt es unter dieser Adresse?
+pub fn disco_items() -> Element {
+    Element::builder("query", NS_DISCO_ITEMS).build()
+}
+
+/// Adressen der Dienste aus einer `disco#items`-Antwort
+pub fn disco_item_jids(query: &Element) -> Vec<String> {
+    query
+        .children()
+        .filter(|c| c.is("item", NS_DISCO_ITEMS))
+        .filter_map(|c| c.attr("jid").map(str::to_owned))
+        .collect()
+}
+
+/// Identitäten und Features aus einer `disco#info`-Antwort, als
+/// („Kategorie/Typ Name“, Feature-Namensräume)
+pub fn disco_info_summary(query: &Element) -> (Vec<String>, Vec<String>) {
+    let identities = query
+        .children()
+        .filter(|c| c.is("identity", NS_DISCO_INFO))
+        .map(|c| {
+            let kind = format!(
+                "{}/{}",
+                c.attr("category").unwrap_or_default(),
+                c.attr("type").unwrap_or_default()
+            );
+            match c.attr("name").filter(|n| !n.is_empty()) {
+                Some(name) => format!("{kind} \"{name}\""),
+                None => kind,
+            }
+        })
+        .collect();
+    let features = query
+        .children()
+        .filter(|c| c.is("feature", NS_DISCO_INFO))
+        .filter_map(|c| c.attr("var").map(str::to_owned))
+        .collect();
+    (identities, features)
 }
 
 pub fn iq_set(id: &str, payload: Element) -> Stanza {
@@ -168,6 +222,48 @@ pub fn chat_message(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn disco_items_and_info_are_parsed() {
+        let items: Element = r#"<query xmlns="http://jabber.org/protocol/disco#items">
+            <item jid="proxy.pbx.test" name="Socks 5 Bytestreams Proxy"/>
+            <item jid="httpfileupload.pbx.test"/>
+        </query>"#
+            .parse()
+            .unwrap();
+        assert_eq!(
+            disco_item_jids(&items),
+            ["proxy.pbx.test", "httpfileupload.pbx.test"]
+        );
+        let info: Element = r#"<query xmlns="http://jabber.org/protocol/disco#info">
+            <identity category="store" type="file" name="HTTP File Upload"/>
+            <identity category="proxy" type="bytestreams"/>
+            <feature var="urn:xmpp:http:upload:0"/>
+            <feature var="http://jabber.org/protocol/bytestreams"/>
+        </query>"#
+            .parse()
+            .unwrap();
+        let (identities, features) = disco_info_summary(&info);
+        assert_eq!(
+            identities,
+            ["store/file \"HTTP File Upload\"", "proxy/bytestreams"]
+        );
+        assert_eq!(
+            features,
+            [
+                "urn:xmpp:http:upload:0",
+                "http://jabber.org/protocol/bytestreams"
+            ]
+        );
+    }
+
+    #[test]
+    fn disco_request_goes_to_service() {
+        let Stanza::Iq(iq) = iq_get_to("d1", "proxy.pbx.test", disco_info()).unwrap() else {
+            panic!("kein IQ");
+        };
+        assert_eq!(iq.to().unwrap().to_string(), "proxy.pbx.test");
+    }
 
     #[test]
     fn archive_request_escapes_peer() {
