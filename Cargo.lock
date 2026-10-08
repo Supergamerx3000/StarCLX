@@ -4861,6 +4861,7 @@ dependencies = [
 name = "sf-chat"
 version = "1.3.9"
 dependencies = [
+ "base64 0.22.1",
  "chrono",
  "futures",
  "sasl",

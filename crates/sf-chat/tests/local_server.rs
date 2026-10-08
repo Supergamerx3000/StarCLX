@@ -83,3 +83,71 @@ async fn two_users_exchange_messages() {
     assert!(conv[1].outgoing);
     assert_eq!(alice.recent()[0].body, "Grüezi Bob");
 }
+
+#[tokio::test]
+#[ignore = "braucht einen lokalen XMPP-Server"]
+async fn file_goes_from_bob_to_alice() {
+    let host = std::env::var("SF_CHAT_TEST_HOST").expect("SF_CHAT_TEST_HOST");
+    let dir = std::env::temp_dir().join(format!("sf-chat-server-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&dir);
+    std::fs::create_dir_all(&dir).unwrap();
+    let src = dir.join("Bericht.pdf");
+    let data: Vec<u8> = (0..300_000u32).map(|i| (i * 13) as u8).collect();
+    std::fs::write(&src, &data).unwrap();
+
+    let (atx, mut arx) = tokio::sync::mpsc::unbounded_channel();
+    let (btx, mut brx) = tokio::sync::mpsc::unbounded_channel();
+    let alice = Chat::start(
+        &format!("alice@{host}"),
+        &host,
+        || "token-a".into(),
+        None,
+        atx,
+    )
+    .unwrap();
+    let bob = Chat::start(
+        &format!("bob@{host}"),
+        &host,
+        || "token-b".into(),
+        None,
+        btx,
+    )
+    .unwrap();
+    let online = |e: &ChatEvent| matches!(e, ChatEvent::State { online: true, .. });
+    wait(&mut arx, "alice online", online).await;
+    wait(&mut brx, "bob online", online).await;
+    // Bob muss Alice online sehen, damit das Angebot an ihren Client geht
+    wait(&mut brx, "bob sieht alice", |e| {
+        matches!(e, ChatEvent::Roster { contacts } if contacts.iter().any(|c| c.jid.starts_with("alice@") && c.show == "online"))
+    })
+    .await;
+
+    bob.send_file(&format!("alice@{host}"), src);
+    let ChatEvent::Transfer { transfer } = wait(&mut arx, "alice bekommt Angebot", |e| {
+        matches!(e, ChatEvent::Transfer { transfer } if transfer.state == sf_chat::TransferState::Offered)
+    })
+    .await
+    else {
+        unreachable!()
+    };
+    alice.accept_file(&transfer.id, dir.join("in"));
+    let ChatEvent::Transfer { transfer } = wait(
+        &mut arx,
+        "alice fertig",
+        |e| matches!(e, ChatEvent::Transfer { transfer } if !transfer.state.active()),
+    )
+    .await
+    else {
+        unreachable!()
+    };
+    assert_eq!(transfer.state, sf_chat::TransferState::Done, "{transfer:?}");
+    assert_eq!(std::fs::read(&transfer.path).unwrap(), data);
+    wait(&mut brx, "bob fertig", |e| {
+        matches!(e, ChatEvent::Transfer { transfer } if transfer.state == sf_chat::TransferState::Done)
+    })
+    .await;
+    // Sauber abmelden, sonst hält der Server die Sitzungen noch eine Weile
+    alice.shutdown("").await;
+    bob.shutdown("").await;
+    let _ = std::fs::remove_dir_all(dir);
+}

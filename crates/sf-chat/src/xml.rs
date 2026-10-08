@@ -16,9 +16,14 @@ const NS_CARBONS: &str = "urn:xmpp:carbons:2";
 const NS_DELAY: &str = "urn:xmpp:delay";
 const NS_ARCHIVE: &str = "urn:xmpp:archive";
 const NS_RSM: &str = "http://jabber.org/protocol/rsm";
-const NS_DISCO_INFO: &str = "http://jabber.org/protocol/disco#info";
+pub const NS_DISCO_INFO: &str = "http://jabber.org/protocol/disco#info";
 const NS_DISCO_ITEMS: &str = "http://jabber.org/protocol/disco#items";
 const NS_CAPS: &str = "http://jabber.org/protocol/caps";
+
+/// Attributname für den Element-Builder
+pub fn n(name: &'static str) -> tokio_xmpp::minidom::rxml::NcName {
+    name.try_into().expect("gültiger Attributname")
+}
 
 fn header(id: &str) -> IqHeader {
     IqHeader {
@@ -47,6 +52,25 @@ pub fn disco_info() -> Element {
 /// Service Discovery (XEP-0030): Welche Dienste gibt es unter dieser Adresse?
 pub fn disco_items() -> Element {
     Element::builder("query", NS_DISCO_ITEMS).build()
+}
+
+/// Antwort auf `disco#info` an uns: StarCLX mit diesen Features
+pub fn own_disco_info(features: &[&str]) -> Element {
+    let mut b = Element::builder("query", NS_DISCO_INFO).append(
+        Element::builder("identity", NS_DISCO_INFO)
+            .attr(n("category"), "client")
+            .attr(n("type"), "pc")
+            .attr(n("name"), "StarCLX")
+            .build(),
+    );
+    for f in features {
+        b = b.append(
+            Element::builder("feature", NS_DISCO_INFO)
+                .attr(n("var"), *f)
+                .build(),
+        );
+    }
+    b.build()
 }
 
 /// Adressen der Dienste aus einer `disco#items`-Antwort

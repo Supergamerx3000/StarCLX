@@ -14,17 +14,23 @@
 //! Nach der ersten Anmeldung fragt der Client per Service Discovery
 //! (XEP-0030) ab, welche Dienste und Features die Anlage und die Clients der
 //! Kollegen (auch eigene andere Geräte) anbieten, und schreibt das ins
-//! Protokoll. Daran lässt sich ablesen, welches Verfahren
-//! für Dateiübertragung in Frage kommt.
+//! Protokoll.
+//!
+//! Dateien gehen wie beim Windows-Client per Stream Initiation und In-Band
+//! über den Chat-Server (siehe [`transfer`]).
 
+mod files;
 mod history;
 mod tls;
+pub mod transfer;
 mod xml;
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::path::PathBuf;
+
 use std::sync::Arc;
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
+use transfer::{Incoming, Outgoing};
 
 use futures::StreamExt;
 use serde::Serialize;
@@ -33,6 +39,8 @@ use tokio::task::JoinHandle;
 use tokio_xmpp::connect::ServerConnector;
 use tokio_xmpp::jid::{BareJid, Jid};
 use tokio_xmpp::minidom::Element;
+#[cfg(test)]
+use tokio_xmpp::parsers::iq::IqHeader;
 use tokio_xmpp::parsers::iq::{Iq, IqPayload};
 use tokio_xmpp::parsers::message::{Lang, Message, MessageType};
 use tokio_xmpp::parsers::ns;
@@ -45,6 +53,7 @@ use tokio_xmpp::{Stanza, client_login};
 use sf_backoff::Backoff;
 
 pub use history::History;
+pub use transfer::{Transfer, TransferState};
 
 const PORT: u16 = 5222;
 /// Höchstens so viele Clients je Programmstart per Discovery abfragen
@@ -107,6 +116,10 @@ pub enum ChatEvent {
         peer: String,
         messages: Vec<ChatMessage>,
     },
+    /// Neue oder geänderte Dateiübertragung
+    Transfer {
+        transfer: Transfer,
+    },
 }
 
 enum Command {
@@ -118,6 +131,20 @@ enum Command {
         peer: String,
     },
     Presence(Own),
+    SendFile {
+        to: String,
+        path: PathBuf,
+    },
+    AcceptFile {
+        id: String,
+        dir: PathBuf,
+    },
+    DeclineFile {
+        id: String,
+    },
+    CancelFile {
+        id: String,
+    },
     /// Abmelden mit Statustext, danach endet die Verbindung
     Offline {
         status: String,
@@ -198,6 +225,35 @@ impl Chat {
         });
     }
 
+    /// Bietet `to` (bare JID) eine Datei an.
+    pub fn send_file(&self, to: &str, path: PathBuf) {
+        let _ = self.commands.send(Command::SendFile {
+            to: to.to_owned(),
+            path,
+        });
+    }
+
+    /// Nimmt eine angebotene Datei an und speichert sie in `dir`.
+    pub fn accept_file(&self, id: &str, dir: PathBuf) {
+        let _ = self.commands.send(Command::AcceptFile {
+            id: id.to_owned(),
+            dir,
+        });
+    }
+
+    pub fn decline_file(&self, id: &str) {
+        let _ = self
+            .commands
+            .send(Command::DeclineFile { id: id.to_owned() });
+    }
+
+    /// Bricht eine Übertragung ab (in beide Richtungen).
+    pub fn cancel_file(&self, id: &str) {
+        let _ = self
+            .commands
+            .send(Command::CancelFile { id: id.to_owned() });
+    }
+
     /// Lokaler Verlauf eines Gesprächs; lädt zusätzlich das Serverarchiv nach.
     pub fn conversation(&self, peer: &str) -> Vec<ChatMessage> {
         let _ = self.commands.send(Command::LoadArchive {
@@ -240,12 +296,19 @@ struct Conn {
     /// Offene Archiv-Anfragen: IQ-ID → Gesprächspartner
     archive_requests: BTreeMap<String, String>,
     roster_request: String,
-    /// Offene Discovery-Anfragen: IQ-ID → Abfrage
-    disco_requests: BTreeMap<String, Disco>,
+    /// Offene eigene IQ-Anfragen: IQ-ID → wozu
+    pending: BTreeMap<String, Pending>,
     /// Discovery lief schon (einmal je Programmstart reicht)
     discovered: bool,
     /// Schon abgefragte Client-Arten (Caps-Kennung oder volle JID)
     clients_seen: BTreeSet<String>,
+    /// Clients der Kollegen, die online sind: bare JID → volle JID →
+    /// (Kennung, letzte Präsenz)
+    resources: BTreeMap<String, BTreeMap<String, (String, Instant)>>,
+    /// Client-Art (Kennung wie in `clients_seen`) → kann Dateien empfangen
+    file_capable: BTreeMap<String, bool>,
+    outgoing: BTreeMap<String, Outgoing>,
+    incoming: BTreeMap<String, Incoming>,
     history: History,
     events: mpsc::UnboundedSender<ChatEvent>,
 }
@@ -345,6 +408,20 @@ enum Disco {
     Items,
     /// `disco#info` an diese Adresse
     Info(String),
+    /// `disco#info` an einen Client; Ergebnis gilt für die Client-Art `key`
+    Client { jid: String, key: String },
+}
+
+/// Wozu eine eigene IQ-Anfrage gehört
+enum Pending {
+    Disco(Disco),
+    /// Dateiangebot (Übertragungs-ID)
+    Offer(String),
+    /// IBB öffnen
+    Open(String),
+    /// Datenblock mit Länge
+    Data(String, usize),
+    Close(String),
 }
 
 struct Pacing {
@@ -367,9 +444,13 @@ async fn run(
         roster: BTreeMap::new(),
         archive_requests: BTreeMap::new(),
         roster_request: String::new(),
-        disco_requests: BTreeMap::new(),
+        pending: BTreeMap::new(),
         discovered: false,
         clients_seen: BTreeSet::new(),
+        resources: BTreeMap::new(),
+        file_capable: BTreeMap::new(),
+        outgoing: BTreeMap::new(),
+        incoming: BTreeMap::new(),
         history,
         events: events.clone(),
     };
@@ -430,17 +511,18 @@ async fn run(
                         return stream.close().await;
                     }
                     Some(cmd) if online => {
-                        if let Some(stanza) = conn.on_command(cmd) {
+                        for stanza in conn.on_command(cmd) {
                             stream.send(Box::new(stanza)).await;
                         }
                     }
+                    Some(Command::SendFile { to, path }) => conn.offline_file(&to, &path),
                     Some(Command::Send { .. }) => {
                         let _ = events.send(ChatEvent::State {
                             online: false,
                             detail: "Nicht verbunden; Nachricht nicht gesendet".into(),
                         });
                     }
-                    Some(Command::LoadArchive { .. }) => {}
+                    Some(Command::LoadArchive { .. } | Command::AcceptFile { .. } | Command::DeclineFile { .. } | Command::CancelFile { .. }) => {}
                 },
             }
         }
@@ -465,6 +547,9 @@ fn new_id() -> String {
 impl Conn {
     fn on_online(&mut self, own: &Own) -> Vec<Stanza> {
         self.roster_request = new_id();
+        // Laufende Übertragungen überleben keine neue Verbindung
+        self.drop_transfers();
+        self.resources.clear();
         let mut out = vec![
             xml::iq_get(&self.roster_request, xml::roster_query()),
             xml::iq_set(&new_id(), xml::carbons_enable()),
@@ -483,10 +568,10 @@ impl Conn {
         let id = new_id();
         let payload = match request {
             Disco::Items => xml::disco_items(),
-            Disco::Info(_) => xml::disco_info(),
+            Disco::Info(_) | Disco::Client { .. } => xml::disco_info(),
         };
         let stanza = xml::iq_get_to(&id, to, payload)?;
-        self.disco_requests.insert(id, request);
+        self.pending.insert(id, Pending::Disco(request));
         Some(stanza)
     }
 
@@ -503,7 +588,7 @@ impl Conn {
             Err(error) => {
                 let what = match &request {
                     Disco::Items => self.own.domain().to_string(),
-                    Disco::Info(jid) => jid.clone(),
+                    Disco::Info(jid) | Disco::Client { jid, .. } => jid.clone(),
                 };
                 tracing::info!(%what, error = ?error.defined_condition, "Chat-Discovery abgelehnt");
                 return Vec::new();
@@ -522,13 +607,22 @@ impl Conn {
                 tracing::info!(%jid, ?identities, ?features, "Chat-Discovery: Features");
                 Vec::new()
             }
+            Disco::Client { jid, key } => {
+                let (identities, features) = xml::disco_info_summary(&el);
+                tracing::info!(%jid, ?identities, ?features, "Chat-Discovery: Features");
+                self.file_capable
+                    .insert(key, features.iter().any(|f| f == transfer::NS_FT));
+                Vec::new()
+            }
         }
     }
 
-    fn on_command(&mut self, cmd: Command) -> Option<Stanza> {
+    fn on_command(&mut self, cmd: Command) -> Vec<Stanza> {
         match cmd {
             Command::Send { to, body } => {
-                let to_jid: BareJid = to.parse().ok()?;
+                let Ok(to_jid) = to.parse::<BareJid>() else {
+                    return Vec::new();
+                };
                 let id = new_id();
                 let mut msg = Message::new_with_type(MessageType::Chat, Some(Jid::from(to_jid)))
                     .with_body(Lang::default(), body.clone());
@@ -541,15 +635,19 @@ impl Conn {
                     ts: now_ms(),
                 };
                 self.store(message, false);
-                Some(msg.into())
+                vec![msg.into()]
             }
             Command::LoadArchive { peer } => {
                 let id = new_id();
                 self.archive_requests.insert(id.clone(), peer.clone());
-                Some(xml::iq_get(&id, xml::archive_retrieve(&peer, 50)))
+                vec![xml::iq_get(&id, xml::archive_retrieve(&peer, 50))]
             }
+            Command::SendFile { to, path } => self.send_file(&to, &path).into_iter().collect(),
+            Command::AcceptFile { id, dir } => self.accept_file(&id, &dir),
+            Command::DeclineFile { id } => self.decline_file(&id).into_iter().collect(),
+            Command::CancelFile { id } => self.cancel_file(&id).into_iter().collect(),
             // werden in `run` behandelt
-            Command::Presence(_) | Command::Offline { .. } => None,
+            Command::Presence(_) | Command::Offline { .. } => Vec::new(),
         }
     }
 
@@ -569,15 +667,23 @@ impl Conn {
     }
 
     fn on_iq(&mut self, iq: Iq) -> Vec<Stanza> {
-        let id = iq.id().to_owned();
-        let payload = iq.into_payload();
-        if let Some(request) = self.disco_requests.remove(&id) {
+        let (header, payload) = iq.split();
+        let id = header.id;
+        let payload = match payload {
+            IqPayload::Get(el) => return self.on_iq_get(header.from, id, el),
+            IqPayload::Set(el) => return self.on_iq_set(header.from, id, el),
+            other => other,
+        };
+        if let Some(request) = self.pending.remove(&id) {
             let result = match payload {
                 IqPayload::Result(el) => Ok(el),
                 IqPayload::Error(e) => Err(e),
                 _ => return Vec::new(),
             };
-            return self.on_disco(request, result);
+            return match request {
+                Pending::Disco(request) => self.on_disco(request, result),
+                other => self.on_transfer_result(other, result),
+            };
         }
         let el: Option<Element> = match payload {
             IqPayload::Result(el) => el,
@@ -616,6 +722,7 @@ impl Conn {
 
     /// Liefert ggf. eine Discovery-Anfrage an den Client des Absenders.
     fn on_presence(&mut self, p: Presence) -> Option<Stanza> {
+        self.track_resource(&p);
         let disco = self.disco_client(&p);
         let Some(from) = p.from.as_ref().map(|j| j.to_bare().to_string()) else {
             return disco;
@@ -659,14 +766,19 @@ impl Conn {
             .filter(|j| j.resource().is_some())?
             .to_string();
         let caps = xml::caps_of(p);
-        if !self
-            .clients_seen
-            .insert(caps.clone().unwrap_or_else(|| from.clone()))
-        {
+        // Kennung, unter der das Discovery-Ergebnis gemerkt wird
+        let key = caps.clone().unwrap_or_else(|| from.clone());
+        if !self.clients_seen.insert(key.clone()) {
             return None;
         }
         tracing::info!(jid = %from, caps = caps.as_deref().unwrap_or("-"), "Chat-Discovery: frage Client");
-        self.disco(Disco::Info(from.clone()), &from)
+        self.disco(
+            Disco::Client {
+                jid: from.clone(),
+                key,
+            },
+            &from,
+        )
     }
 
     fn on_message(&mut self, m: Message) {
@@ -689,5 +801,220 @@ impl Conn {
         if let Some(msg) = xml::chat_message(&m, delay.as_ref(), &own, false) {
             self.store(msg, delay.is_none());
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    const ALICE: &str = "alice@pbx.test/linux";
+    const BOB: &str = "bob@pbx.test/StarfaceWindows";
+
+    fn conn(jid: &str) -> (Conn, mpsc::UnboundedReceiver<ChatEvent>) {
+        let (events, rx) = mpsc::unbounded_channel();
+        let own: Jid = jid.parse().unwrap();
+        let conn = Conn {
+            own: own.to_bare(),
+            roster: BTreeMap::new(),
+            archive_requests: BTreeMap::new(),
+            roster_request: String::new(),
+            pending: BTreeMap::new(),
+            discovered: true,
+            clients_seen: BTreeSet::new(),
+            resources: BTreeMap::new(),
+            file_capable: BTreeMap::new(),
+            outgoing: BTreeMap::new(),
+            incoming: BTreeMap::new(),
+            history: History::open(None),
+            events,
+        };
+        (conn, rx)
+    }
+
+    fn online(from: &str) -> Stanza {
+        let mut p = Presence::available();
+        p.from = Some(from.parse().unwrap());
+        p.into()
+    }
+
+    /// Stellt Stanzas zu wie der Server (mit Absender), bis nichts mehr
+    /// unterwegs ist. Liefert die Zahl der zugestellten Stanzas.
+    fn deliver(a: &mut Conn, b: &mut Conn, mut queue: Vec<(bool, Stanza)>) -> usize {
+        let mut n = 0;
+        while !queue.is_empty() {
+            let mut next = Vec::new();
+            for (from_a, stanza) in queue {
+                n += 1;
+                let (from, to) = if from_a {
+                    (ALICE, &mut *b)
+                } else {
+                    (BOB, &mut *a)
+                };
+                let Stanza::Iq(mut iq) = stanza else {
+                    panic!("nur IQs erwartet")
+                };
+                *iq.from_mut() = Some(from.parse().unwrap());
+                next.extend(to.on_stanza(iq.into()).into_iter().map(|s| (!from_a, s)));
+            }
+            queue = next;
+        }
+        n
+    }
+
+    fn transfers(rx: &mut mpsc::UnboundedReceiver<ChatEvent>) -> Vec<Transfer> {
+        std::iter::from_fn(|| rx.try_recv().ok())
+            .filter_map(|e| match e {
+                ChatEvent::Transfer { transfer } => Some(transfer),
+                _ => None,
+            })
+            .collect()
+    }
+
+    fn temp_dir(tag: &str) -> PathBuf {
+        let dir = std::env::temp_dir().join(format!("sf-chat-conn-{tag}-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        dir
+    }
+
+    #[test]
+    fn file_is_offered_accepted_and_transferred() {
+        let (mut alice, mut arx) = conn(ALICE);
+        let (mut bob, mut brx) = conn(BOB);
+        bob.on_stanza(online(ALICE));
+        let dir = temp_dir("ok");
+        let src = dir.join("Bericht.pdf");
+        let data: Vec<u8> = (0..200_000u32).map(|i| (i * 7) as u8).collect();
+        std::fs::write(&src, &data).unwrap();
+
+        // Bob bietet an, Alice sieht das Angebot
+        let offer = bob.on_command(Command::SendFile {
+            to: "alice@pbx.test".into(),
+            path: src,
+        });
+        deliver(
+            &mut alice,
+            &mut bob,
+            offer.into_iter().map(|s| (false, s)).collect(),
+        );
+        let offered = transfers(&mut arx).pop().unwrap();
+        assert_eq!(offered.state, TransferState::Offered);
+        assert_eq!(
+            (offered.name.as_str(), offered.size, offered.peer.as_str()),
+            ("Bericht.pdf", 200_000, "bob@pbx.test")
+        );
+        assert_eq!(
+            transfers(&mut brx).pop().unwrap().state,
+            TransferState::Waiting
+        );
+
+        // Alice nimmt an, der Rest läuft von selbst
+        let inbox = dir.join("in");
+        let accept = alice.on_command(Command::AcceptFile {
+            id: offered.id.clone(),
+            dir: inbox.clone(),
+        });
+        let n = deliver(
+            &mut alice,
+            &mut bob,
+            accept.into_iter().map(|s| (true, s)).collect(),
+        );
+        // Annahme, dann Öffnen, 13 Blöcke à 16 KiB und Schließen mit je einer Antwort
+        assert_eq!(n, 1 + 2 * (1 + 13 + 1));
+
+        let got = transfers(&mut arx).pop().unwrap();
+        assert_eq!(got.state, TransferState::Done);
+        assert_eq!(std::fs::read(&got.path).unwrap(), data);
+        assert_eq!(got.path, inbox.join("Bericht.pdf").to_string_lossy());
+        let sent = transfers(&mut brx).pop().unwrap();
+        assert_eq!((sent.state, sent.done), (TransferState::Done, 200_000));
+        assert!(alice.incoming.is_empty(), "alice");
+        assert!(bob.outgoing.is_empty(), "bob out");
+        assert!(bob.pending.values().all(|p| matches!(p, Pending::Disco(_))));
+        let _ = std::fs::remove_dir_all(dir);
+    }
+
+    #[test]
+    fn declined_offer_reaches_sender() {
+        let (mut alice, mut arx) = conn(ALICE);
+        let (mut bob, mut brx) = conn(BOB);
+        bob.on_stanza(online(ALICE));
+        let dir = temp_dir("decline");
+        let src = dir.join("a.txt");
+        std::fs::write(&src, "hallo").unwrap();
+        let offer = bob.on_command(Command::SendFile {
+            to: "alice@pbx.test".into(),
+            path: src,
+        });
+        deliver(
+            &mut alice,
+            &mut bob,
+            offer.into_iter().map(|s| (false, s)).collect(),
+        );
+        let id = transfers(&mut arx).pop().unwrap().id;
+        let decline = alice.on_command(Command::DeclineFile { id });
+        deliver(
+            &mut alice,
+            &mut bob,
+            decline.into_iter().map(|s| (true, s)).collect(),
+        );
+        assert_eq!(
+            transfers(&mut arx).pop().unwrap().state,
+            TransferState::Declined
+        );
+        assert_eq!(
+            transfers(&mut brx).pop().unwrap().state,
+            TransferState::Declined
+        );
+        let _ = std::fs::remove_dir_all(dir);
+    }
+
+    #[test]
+    fn offline_contact_cannot_get_files() {
+        let (mut bob, mut brx) = conn(BOB);
+        let dir = temp_dir("offline");
+        let src = dir.join("a.txt");
+        std::fs::write(&src, "hallo").unwrap();
+        let out = bob.on_command(Command::SendFile {
+            to: "alice@pbx.test".into(),
+            path: src,
+        });
+        assert!(out.is_empty());
+        let t = transfers(&mut brx).pop().unwrap();
+        assert_eq!(
+            (t.state, t.error.as_str()),
+            (TransferState::Failed, "Kontakt ist nicht online")
+        );
+        let _ = std::fs::remove_dir_all(dir);
+    }
+
+    #[test]
+    fn disco_and_ping_are_answered() {
+        let (mut alice, _rx) = conn(ALICE);
+        let get = |payload: Element| {
+            let mut iq = IqHeader {
+                from: Some(BOB.parse().unwrap()),
+                to: None,
+                id: "q1".into(),
+            }
+            .assemble(IqPayload::Get(payload));
+            *iq.from_mut() = Some(BOB.parse().unwrap());
+            Stanza::Iq(iq)
+        };
+        let answer = alice.on_stanza(get(xml::disco_info()));
+        let Some(Stanza::Iq(iq)) = answer.into_iter().next() else {
+            panic!("keine Antwort")
+        };
+        let IqPayload::Result(Some(info)) = iq.into_payload() else {
+            panic!("kein Ergebnis")
+        };
+        let (_, features) = xml::disco_info_summary(&info);
+        assert!(features.iter().any(|f| f == transfer::NS_FT));
+        let ping: Element = "<ping xmlns='urn:xmpp:ping'/>".parse().unwrap();
+        let Some(Stanza::Iq(iq)) = alice.on_stanza(get(ping)).into_iter().next() else {
+            panic!("keine Antwort")
+        };
+        assert!(matches!(iq.into_payload(), IqPayload::Result(None)));
     }
 }
