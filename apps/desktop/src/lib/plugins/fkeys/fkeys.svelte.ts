@@ -37,6 +37,7 @@ export type UserState = { telephony: string; dnd: boolean; chat: string; chat_me
 export type Redirect = {
   id: string; kind: string; called_number: string; called_number_id: string; group: boolean; enabled: boolean;
   target: { number: string | null; mailbox: string | null }; mailboxes: { id: string; name: string }[];
+  timeout_secs: number; last_number: string;
 };
 export type Module = { id: string; name: string; active: boolean; read_only: boolean };
 export type SignalingNumber = { id: string; number: string; suppressed: boolean; read_only: boolean; selected: boolean; group: string };
@@ -78,6 +79,12 @@ export const fkeys = $state({
   /** Benutzerbilder als data:-URL; null = keins, undefined = noch nicht geladen */
   avatars: {} as Record<string, string | null>,
   redirects: [] as Redirect[],
+  /** „Umleitung (Art)“-Tasten, die beim Einschalten nach dem Ziel fragen */
+  askKeys: [] as string[],
+  /** Umleitungen, die gerade über eine solche Taste programmiert sind */
+  programmed: [] as string[],
+  /** Offene Zielabfrage */
+  program: null as Program | null,
   /** Wählbare signalisierte Rufnummern, für „Rufnummer anzeigen“ */
   signaling: [] as SignalingNumber[],
   groups: [] as Membership[],
@@ -88,6 +95,9 @@ export const fkeys = $state({
   notice: "",
   loaded: false,
 });
+
+/** Zielabfrage einer Umleitungstaste: Nummer und bei Zeitüberschreitung die Wartezeit */
+export type Program = { key: FunctionKey; ids: string[]; number: string; timeout: number | null };
 
 /** Gruppe, in der man Mitglied ist (für „Gruppe An-/Abmelden“) */
 export type Membership = { id: string; name: string; logon_id: string; logged_on: boolean; read_only: boolean };
@@ -162,10 +172,32 @@ const numberOf = (k: FunctionKey) =>
 
 async function loadRedirects() {
   try {
+    const o = await invoke<{ ask: string[]; programmed: string[] }>("fkey_redirect_options");
+    fkeys.askKeys = o.ask;
+    fkeys.programmed = o.programmed;
     fkeys.redirects = await invoke<Redirect[]>("redirects");
   } catch {
     // Umleitungen sind für die Anzeige nicht zwingend
   }
+}
+
+/** „Umleitung (Art)“ mit Zielabfrage: fragt beim Einschalten nach der Nummer
+ *  und stellt beim Ausschalten wieder her, was vorher eingestellt war. */
+export const asksTarget = (k: FunctionKey) => k.functionKeyType === "FORWARD" && fkeys.askKeys.includes(k.id);
+
+export async function setAsksTarget(keyId: string, ask: boolean) {
+  await invoke("fkey_set_ask", { keyId, ask });
+  await loadRedirects();
+}
+
+/** Zielabfrage bestätigt: Umleitungen auf die Nummer umstellen und einschalten */
+export async function programRedirect() {
+  const p = fkeys.program;
+  if (!p) return;
+  if (!p.number.trim()) return void (fkeys.notice = t("Bitte eine Zielrufnummer eingeben."));
+  fkeys.program = null;
+  await call("fkey_redirect_program", { ids: p.ids, number: p.number, timeoutSecs: p.timeout });
+  return loadRedirects();
 }
 
 export const account = (k: FunctionKey) => fkeys.accounts.find((a) => a.account_id === k.blfAccountId);
@@ -274,6 +306,8 @@ function sameTarget(k: FunctionKey, r: Redirect): boolean {
  *  auch dorthin führt; sonst teilen sich mehrere Tasten für dieselbe Nummer
  *  denselben Zustand. */
 function activeFor(k: FunctionKey, r: Redirect): boolean {
+  // Mit Zielabfrage an, solange die Taste die Umleitung programmiert hat
+  if (asksTarget(k)) return r.enabled && fkeys.programmed.includes(r.id);
   return r.enabled && (k.functionKeyType !== "FORWARDTOTARGET" || sameTarget(k, r));
 }
 
@@ -387,6 +421,22 @@ export async function press(k: FunctionKey) {
     case "FORWARDTOTARGET": {
       const list = redirectsOf(k);
       if (!list.length) return void (fkeys.notice = t("Keine passende Umleitung gefunden."));
+      if (asksTarget(k)) {
+        // Aus: alles zurückstellen, was die Taste programmiert hat
+        const programmed = list.filter((r) => fkeys.programmed.includes(r.id)).map((r) => r.id);
+        if (list.some((r) => activeFor(k, r))) {
+          await call("fkey_redirect_restore", { ids: programmed });
+          return loadRedirects();
+        }
+        const timeout = list.find((r) => r.kind === "timeout");
+        fkeys.program = {
+          key: k,
+          ids: list.map((r) => r.id),
+          number: list.find((r) => r.last_number)?.last_number ?? "",
+          timeout: timeout ? timeout.timeout_secs || 20 : null,
+        };
+        return;
+      }
       // Führt eine Umleitung woandershin, schaltet eine Taste mit festem
       // Ziel sie auf ihr Ziel um, statt sie abzuschalten.
       const enable = !list.some((r) => activeFor(k, r));
@@ -425,11 +475,24 @@ export async function press(k: FunctionKey) {
 }
 
 /** Neue, leere Taste eines Typs mit den Vorgaben wie in Windows */
+const FORWARD_TYPES = ["ALWAYS", "BUSY", "TIMEOUT"];
+
+/** Arten, die schon eine „Umleitung (Art)“-Taste hat (außer `exceptId`).
+ *  Die Anlage lehnt eine zweite Taste derselben Art ab. */
+export function usedForwardTypes(exceptId = ""): string[] {
+  return fkeys.keys
+    .filter((k) => k.functionKeyType === "FORWARD" && k.id !== exceptId)
+    .map((k) => k.forwardType ?? "ALWAYS");
+}
+
+/** Keine Art mehr frei: „Umleitung (Art)“ lässt sich nicht mehr anlegen */
+export const forwardTypesExhausted = () => FORWARD_TYPES.every((x) => usedForwardTypes().includes(x));
+
 export function blank(type: string): FunctionKey {
   return {
     functionKeyType: type, id: "", accountId: fkeys.accountId, valid: true, name: "", position: fkeys.keys.length,
     blfAccountId: null, directCallTargetnumber: null, redirectNumberIds: [], forwardTarget: null, forwardTargetType: null,
-    forwardType: type === "FORWARD" ? "ALWAYS" : null, groupIds: [], poNumber: type === "PARKANDORBIT" ? "00" : null,
+    forwardType: type === "FORWARD" ? (FORWARD_TYPES.find((x) => !usedForwardTypes().includes(x)) ?? "ALWAYS") : null, groupIds: [], poNumber: type === "PARKANDORBIT" ? "00" : null,
     displayNumberId: null, activateModuleIds: [], addressbookRequest: type === "ADDRESSBOOK" ? "CONTACTLIST" : null,
     addressBookFolderName: null, callListRequest: type === "PHONECALLLIST" ? "INCOMING" : null, dtmf: null, genericURL: null,
   };

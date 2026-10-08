@@ -6,7 +6,7 @@
   import { onMount } from "svelte";
   import FkeyTile from "./FkeyTile.svelte";
   import Icon from "../../Icon.svelte";
-  import { types, blank, fkeys, keyAt, loadFkeys, placeAt, saveOrder, typeInfo, type FunctionKey, type SignalingNumber } from "./fkeys.svelte";
+  import { types, blank, fkeys, forwardTypesExhausted, setAsksTarget, usedForwardTypes, keyAt, loadFkeys, placeAt, saveOrder, typeInfo, type FunctionKey, type SignalingNumber } from "./fkeys.svelte";
   import { t } from "../../i18n.svelte";
 
   let { columns = $bindable(3) }: { columns: number } = $props();
@@ -26,6 +26,9 @@
   let target: number | null = null;
   let over = $state<number | null>(null);
   let signaling = $state<SignalingNumber[]>([]);
+  /** „Umleitung (Art)“: beim Einschalten nach dem Ziel fragen (nur lokal) */
+  let ask = $state(false);
+  $effect(() => { ask = !!editing?.id && fkeys.askKeys.includes(editing.id); });
 
   onMount(() => {
     loadFkeys();
@@ -79,6 +82,8 @@
       case "FORWARDTOTARGET":
         if (!k.redirectNumberIds.length) return t("Bitte mindestens eine Rufnummer wählen.");
         return k.functionKeyType === "FORWARDTOTARGET" && k.forwardTargetType === "PHONENUMBER" && !k.forwardTarget?.trim() ? t("Bitte ein Ziel eingeben.") : "";
+      // Bestehende Doppel nur beim Ändern der Art bemängeln
+      case "FORWARD": return fkeys.keys.find((x) => x.id === k.id)?.forwardType !== k.forwardType && usedForwardTypes(k.id).includes(k.forwardType ?? "ALWAYS") ? t("Für diese Art gibt es schon eine Umleitungstaste.") : "";
       case "SIGNALNUMBER": return k.displayNumberId === null ? t("Bitte eine Rufnummer wählen.") : "";
       case "PHONEDTMF": return k.dtmf?.trim() ? "" : t("Bitte Tastentöne eingeben.");
       case "PHONEGENERICURL": return k.genericURL?.trim() ? "" : t("Bitte eine URL eingeben.");
@@ -89,6 +94,7 @@
   async function save() {
     if (!editing) return;
     const k = $state.snapshot(editing) as FunctionKey;
+    const wantAsk = ask;
     error = validate(k);
     if (error) return;
     if (k.functionKeyType === "FORWARDTOTARGET" && k.forwardTargetType === "VOICEMAIL") k.forwardTarget = `destination:${fkeys.accountId}`;
@@ -104,6 +110,10 @@
     target = null;
     // Neue Taste auf den Platz legen, auf den sie gezogen wurde
     const added = fkeys.keys.find((x) => !before.has(x.id));
+    const id = k.id || added?.id;
+    if (id && k.functionKeyType === "FORWARD" && wantAsk !== fkeys.askKeys.includes(id)) {
+      await setAsksTarget(id, wantAsk).catch((e) => (error = String(e)));
+    }
     if (added && slot !== null) await reorder(placeAt(fkeys.order, added.id, slot));
   }
 
@@ -155,6 +165,7 @@
     const slot = slotAt(e.clientX, e.clientY);
     if (slot === null) return;
     if (d.kind === "type") {
+      if (d.type === "FORWARD" && forwardTypesExhausted()) return void (error = t("Für jede Art gibt es schon eine Umleitungstaste."));
       target = slot;
       editing = blank(d.type);
     } else if (fkeys.order[slot] !== d.id) {
@@ -228,6 +239,8 @@
         <button
           class="type"
           class:unusable={!ty.usable}
+          disabled={ty.type === "FORWARD" && forwardTypesExhausted()}
+          title={ty.type === "FORWARD" && forwardTypesExhausted() ? t("Für jede Art gibt es schon eine Umleitungstaste.") : undefined}
           onpointerdown={(e) => startDrag(e, { kind: "type", type: ty.type, label: ty.label })}
           onclick={click(() => { target = null; editing = blank(ty.type); })}
         >{ty.label}</button>
@@ -262,9 +275,16 @@
     {:else if k.functionKeyType === "FORWARD"}
       <label class="row"><span>{t("Art")}</span>
         <select bind:value={k.forwardType}>
-          <option value="ALWAYS">{t("Immer")}</option><option value="BUSY">{t("Besetzt")}</option><option value="TIMEOUT">{t("Zeitüberschreitung")}</option>
+          {#each [["ALWAYS", t("Immer")], ["BUSY", t("Besetzt")], ["TIMEOUT", t("Zeitüberschreitung")]] as [v, label]}
+            <!-- Jede Art nur einmal: die Anlage lehnt eine zweite Taste ab -->
+            <option value={v} disabled={usedForwardTypes(k.id).includes(v)}>{label}</option>
+          {/each}
         </select>
       </label>
+      <label class="check"><input type="checkbox" bind:checked={ask} /> {t("Beim Einschalten nach der Zielrufnummer fragen")}</label>
+      {#if ask}
+        <p class="small muted">{t("Beim Ausschalten gelten wieder die vorherigen Einstellungen der Umleitung.")}</p>
+      {/if}
     {:else if k.functionKeyType === "FORWARDNUMBER" || k.functionKeyType === "FORWARDTOTARGET"}
       <div class="row"><span>{t("Rufnummern")}</span>
         <span class="checks">
@@ -344,6 +364,7 @@
   .types h5 { margin: 0.6rem 0 0.1rem; font-size: 0.8rem; color: var(--muted); font-weight: 600; }
   .type { text-align: left; padding: 0.35rem 0.6rem; cursor: grab; touch-action: none; }
   .type.unusable { opacity: 0.55; }
+  .type:disabled { opacity: 0.4; cursor: not-allowed; }
   .small { font-size: 0.85rem; }
   .muted { color: var(--muted); margin: 0.2rem 0; }
   .notice { color: var(--accent); margin: 0.3rem 0; }
@@ -354,6 +375,7 @@
   }
   .dialog h4 { margin: 0 0 0.2rem; }
   .row { display: grid; grid-template-columns: 7.5rem minmax(0, 1fr); align-items: center; gap: 0.6rem; }
+  .check { display: flex; align-items: center; gap: 0.4rem; }
   .checks { display: flex; flex-wrap: wrap; gap: 0.3rem 0.9rem; }
   .actions { display: flex; gap: 0.6rem; margin-top: 0.4rem; }
   .spacer { flex: 1; }

@@ -15,6 +15,10 @@ pub struct Settings {
     /// Vom Benutzer bestätigte Zertifikate (SHA-256) je Anlage
     #[serde(default)]
     pub trusted_certs: BTreeMap<String, BTreeSet<String>>,
+    /// Umleitungstasten mit Zielabfrage und die Einstellungen, die beim
+    /// Ausschalten wiederkommen
+    #[serde(default)]
+    pub fkey_redirects: crate::plugins::fkeys::FkeyRedirects,
 }
 
 /// Ein gespeicherter eigener Status

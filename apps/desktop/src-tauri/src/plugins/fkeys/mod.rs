@@ -2,11 +2,13 @@
 //! (Besetztlampenfeld, Ruhe) über die OneHub-Präsenz, Gruppen-Anmeldung über
 //! den GroupService.
 
-use std::collections::HashMap;
+use std::collections::{BTreeMap, BTreeSet, HashMap};
 
+use serde::{Deserialize, Serialize};
 use sf_core::fkeys::{FunctionKey, Keys, Presence, Rest, UserState};
 use sf_core::group::{Groups, Membership};
 use sf_core::module::{Module, Modules};
+use sf_core::redirect::RedirectTarget;
 use tauri::{AppHandle, Emitter, Manager, State};
 use tokio::sync::{Mutex, mpsc};
 
@@ -402,9 +404,163 @@ pub async fn fkey_grab(
         .map_err(|e| e.to_string())
 }
 
+/// Einstellungen einer Umleitung, bevor eine Taste sie programmiert hat
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct SavedRedirect {
+    pub target: RedirectTarget,
+    pub timeout_secs: i64,
+    pub enabled: bool,
+}
+
+/// Umleitung (Art) mit Zielabfrage. Die Anlage kennt das nicht; der Client
+/// merkt sich, welche Tasten fragen und was vorher eingestellt war.
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct FkeyRedirects {
+    /// Tasten-IDs, die beim Einschalten nach dem Ziel fragen
+    pub ask: BTreeSet<String>,
+    /// Umleitungs-ID → Einstellungen vor dem Programmieren
+    pub saved: BTreeMap<String, SavedRedirect>,
+}
+
+#[derive(Serialize)]
+pub struct RedirectOptions {
+    ask: Vec<String>,
+    /// Umleitungen, die gerade über eine Taste programmiert sind
+    programmed: Vec<String>,
+}
+
+#[tauri::command]
+pub fn fkey_redirect_options(app: AppHandle) -> RedirectOptions {
+    let r = crate::settings::load(&app).fkey_redirects;
+    RedirectOptions {
+        ask: r.ask.into_iter().collect(),
+        programmed: r.saved.into_keys().collect(),
+    }
+}
+
+#[tauri::command]
+pub fn fkey_set_ask(app: AppHandle, key_id: String, ask: bool) {
+    crate::settings::update(&app, |s| {
+        if ask {
+            s.fkey_redirects.ask.insert(key_id);
+        } else {
+            s.fkey_redirects.ask.remove(&key_id);
+        }
+    });
+}
+
+/// Leitet die Umleitungen `ids` auf `number` um und schaltet sie ein. Was
+/// vorher eingestellt war, bleibt für [`fkey_redirect_restore`] gespeichert;
+/// beim erneuten Programmieren gilt weiter der erste Stand.
+#[tauri::command]
+pub async fn fkey_redirect_program(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    ids: Vec<String>,
+    number: String,
+    timeout_secs: Option<i64>,
+) -> Result<(), String> {
+    let number = number.trim().to_owned();
+    if number.is_empty() {
+        return Err(crate::i18n::t("Bitte eine Zielrufnummer eingeben.").into());
+    }
+    let hub = hub(&state).await?;
+    let list = sf_core::redirect::redirects(&hub)
+        .await
+        .map_err(|e| e.to_string())?;
+    let targets: Vec<_> = list.iter().filter(|r| ids.contains(&r.id)).collect();
+    // Erst merken, dann ändern: bricht etwas ab, lässt sich trotzdem
+    // zurückstellen.
+    crate::settings::update(&app, |s| {
+        for r in &targets {
+            s.fkey_redirects
+                .saved
+                .entry(r.id.clone())
+                .or_insert_with(|| SavedRedirect {
+                    target: r.target.clone(),
+                    timeout_secs: r.timeout_secs,
+                    enabled: r.enabled,
+                });
+        }
+    });
+    let target = RedirectTarget {
+        number: Some(number),
+        mailbox: None,
+    };
+    for r in targets {
+        let timeout = timeout_secs.filter(|_| r.kind == "timeout");
+        sf_core::redirect::update_redirect(&hub, &r.id, &target, timeout)
+            .await
+            .map_err(|e| e.to_string())?;
+        if !r.enabled {
+            sf_core::redirect::set_redirect_enabled(&hub, &r.id, true)
+                .await
+                .map_err(|e| e.to_string())?;
+        }
+    }
+    Ok(())
+}
+
+/// Stellt die Umleitungen `ids` wieder so ein wie vor dem Programmieren;
+/// ohne gespeicherten Stand werden sie nur ausgeschaltet.
+#[tauri::command]
+pub async fn fkey_redirect_restore(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    ids: Vec<String>,
+) -> Result<(), String> {
+    let hub = hub(&state).await?;
+    let list = sf_core::redirect::redirects(&hub)
+        .await
+        .map_err(|e| e.to_string())?;
+    for r in list.iter().filter(|r| ids.contains(&r.id)) {
+        let saved = crate::settings::load(&app)
+            .fkey_redirects
+            .saved
+            .get(&r.id)
+            .cloned();
+        let enabled = match &saved {
+            Some(s) => {
+                if s.target != RedirectTarget::default() {
+                    let timeout =
+                        (r.kind == "timeout" && s.timeout_secs > 0).then_some(s.timeout_secs);
+                    sf_core::redirect::update_redirect(&hub, &r.id, &s.target, timeout)
+                        .await
+                        .map_err(|e| e.to_string())?;
+                }
+                s.enabled
+            }
+            None => false,
+        };
+        if r.enabled != enabled {
+            sf_core::redirect::set_redirect_enabled(&hub, &r.id, enabled)
+                .await
+                .map_err(|e| e.to_string())?;
+        }
+        crate::settings::update(&app, |s| {
+            s.fkey_redirects.saved.remove(&r.id);
+        });
+    }
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn redirect_options_survive_old_settings() {
+        let s: crate::settings::Settings = serde_json::from_str(r#"{"last_server":"x"}"#).unwrap();
+        assert_eq!(s.fkey_redirects, FkeyRedirects::default());
+        let r: FkeyRedirects = serde_json::from_str(
+            r#"{"ask":["1001"],"saved":{"r1":{"target":{"number":"0791234567","mailbox":null},"timeout_secs":20,"enabled":false}}}"#,
+        )
+        .unwrap();
+        assert!(r.ask.contains("1001"));
+        assert_eq!(r.saved["r1"].target.number.as_deref(), Some("0791234567"));
+    }
 
     fn m(id: &str, logon: &str, name: &str) -> Membership {
         Membership {
