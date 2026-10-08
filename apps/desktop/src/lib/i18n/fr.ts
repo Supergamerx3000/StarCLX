@@ -434,5 +434,9 @@ const dict: Record<string, string> = {
   "teilaktiv": "partiellement actif",
   "Teilaktiv": "Partiellement actif",
   "Modul nicht gefunden oder nicht freigegeben": "Module introuvable ou non partagé",
+  "Einschalten": "Activer",
+  "Umleiten nach": "Renvoyer après",
+  "Beim Einschalten nach der Zielrufnummer fragen": "Demander le numéro de destination à l’activation",
+  "Beim Ausschalten gelten wieder die vorherigen Einstellungen der Umleitung.": "À la désactivation, les réglages précédents du renvoi s’appliquent de nouveau.",
 };
 export default dict;

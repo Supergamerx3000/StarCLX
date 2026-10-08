@@ -6,7 +6,7 @@
   import { onMount } from "svelte";
   import FkeyTile from "./FkeyTile.svelte";
   import Icon from "../../Icon.svelte";
-  import { types, blank, fkeys, keyAt, loadFkeys, placeAt, saveOrder, typeInfo, type FunctionKey, type SignalingNumber } from "./fkeys.svelte";
+  import { types, blank, fkeys, setAsksTarget, keyAt, loadFkeys, placeAt, saveOrder, typeInfo, type FunctionKey, type SignalingNumber } from "./fkeys.svelte";
   import { t } from "../../i18n.svelte";
 
   let { columns = $bindable(3) }: { columns: number } = $props();
@@ -26,6 +26,9 @@
   let target: number | null = null;
   let over = $state<number | null>(null);
   let signaling = $state<SignalingNumber[]>([]);
+  /** „Umleitung (Art)“: beim Einschalten nach dem Ziel fragen (nur lokal) */
+  let ask = $state(false);
+  $effect(() => { ask = !!editing?.id && fkeys.askKeys.includes(editing.id); });
 
   onMount(() => {
     loadFkeys();
@@ -89,6 +92,7 @@
   async function save() {
     if (!editing) return;
     const k = $state.snapshot(editing) as FunctionKey;
+    const wantAsk = ask;
     error = validate(k);
     if (error) return;
     if (k.functionKeyType === "FORWARDTOTARGET" && k.forwardTargetType === "VOICEMAIL") k.forwardTarget = `destination:${fkeys.accountId}`;
@@ -104,6 +108,10 @@
     target = null;
     // Neue Taste auf den Platz legen, auf den sie gezogen wurde
     const added = fkeys.keys.find((x) => !before.has(x.id));
+    const id = k.id || added?.id;
+    if (id && k.functionKeyType === "FORWARD" && wantAsk !== fkeys.askKeys.includes(id)) {
+      await setAsksTarget(id, wantAsk).catch((e) => (error = String(e)));
+    }
     if (added && slot !== null) await reorder(placeAt(fkeys.order, added.id, slot));
   }
 
@@ -265,6 +273,10 @@
           <option value="ALWAYS">{t("Immer")}</option><option value="BUSY">{t("Besetzt")}</option><option value="TIMEOUT">{t("Zeitüberschreitung")}</option>
         </select>
       </label>
+      <label class="check"><input type="checkbox" bind:checked={ask} /> {t("Beim Einschalten nach der Zielrufnummer fragen")}</label>
+      {#if ask}
+        <p class="small muted">{t("Beim Ausschalten gelten wieder die vorherigen Einstellungen der Umleitung.")}</p>
+      {/if}
     {:else if k.functionKeyType === "FORWARDNUMBER" || k.functionKeyType === "FORWARDTOTARGET"}
       <div class="row"><span>{t("Rufnummern")}</span>
         <span class="checks">
@@ -354,6 +366,7 @@
   }
   .dialog h4 { margin: 0 0 0.2rem; }
   .row { display: grid; grid-template-columns: 7.5rem minmax(0, 1fr); align-items: center; gap: 0.6rem; }
+  .check { display: flex; align-items: center; gap: 0.4rem; }
   .checks { display: flex; flex-wrap: wrap; gap: 0.3rem 0.9rem; }
   .actions { display: flex; gap: 0.6rem; margin-top: 0.4rem; }
   .spacer { flex: 1; }

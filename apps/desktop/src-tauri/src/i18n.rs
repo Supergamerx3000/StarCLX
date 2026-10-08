@@ -404,6 +404,14 @@ const TEXTS: &[(&str, [&str; 3])] = &[
         ],
     ),
     (
+        "Bitte eine Zielrufnummer eingeben.",
+        [
+            "Please enter a destination number.",
+            "Veuillez saisir un numéro de destination.",
+            "Inserisci un numero di destinazione.",
+        ],
+    ),
+    (
         "Programm nicht gestartet: {e}",
         [
             "Program not started: {e}",
