@@ -477,5 +477,17 @@ const dict: Record<string, string> = {
   "Ja": "Oui",
   "Nein": "Non",
   "Kommentar": "Commentaire",
+  "Türkameras": "Caméras de porte",
+  "Tür öffnen": "Ouvrir la porte",
+  "Türkamera": "Caméra de porte",
+  "Kamera wird verbunden …": "Connexion à la caméra …",
+  "Kamera {n}": "Caméra {n}",
+  "Noch keine Türkamera angelegt. Kameras fügst du in den Einstellungen unter Telefonie → Türkameras hinzu.": "Aucune caméra de porte pour l'instant. Ajoutez des caméras dans les paramètres sous Téléphonie → Caméras de porte.",
+  "Ruft eine Türsprechstelle mit Kamera an, zeigt der Call Manager ihr Bild automatisch und bietet „Tür öffnen“ an. Kamera und Türöffner-Code kommen aus der Anlage. Hier legst du zusätzlich Kameras an, die du jederzeit als Kachel „Türkamera“ siehst.": "Lorsqu'un portier avec caméra appelle, le Call Manager affiche automatiquement son image et propose « Ouvrir la porte ». La caméra et le code d'ouverture proviennent du PBX. Ici, vous pouvez ajouter d'autres caméras, visibles à tout moment dans la tuile « Caméra de porte ».",
+  "Name, z. B. Haupteingang": "Nom, p. ex. Entrée principale",
+  "Vorschau": "Aperçu",
+  "rtsp://kamera/live oder https://benutzer:passwort@kamera/video.mjpg": "rtsp://camera/live ou https://utilisateur:motdepasse@camera/video.mjpg",
+  "Kamera hinzufügen": "Ajouter une caméra",
+  "Möglich sind RTSP-Ströme mit H.264 (URL beginnt mit rtsp://), Motion JPEG (URL endet auf mjpg oder enthält motionjpeg, mjpg, stream= oder fps=) und Einzelbilder, die laufend neu geladen werden. Zugangsdaten gehören in die URL (https://benutzer:passwort@kamera/…). Für RTSP muss ffmpeg installiert sein.": "Sont pris en charge les flux RTSP en H.264 (l'URL commence par rtsp://), le Motion JPEG (l'URL se termine par mjpg ou contient motionjpeg, mjpg, stream= ou fps=) et les images fixes rechargées en continu. Les identifiants se placent dans l'URL (https://utilisateur:motdepasse@camera/…). Le RTSP nécessite ffmpeg.",
 };
 export default dict;

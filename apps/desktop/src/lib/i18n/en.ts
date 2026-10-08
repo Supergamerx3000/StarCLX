@@ -477,5 +477,17 @@ const dict: Record<string, string> = {
   "Ja": "Yes",
   "Nein": "No",
   "Kommentar": "Comment",
+  "Türkameras": "Door cameras",
+  "Tür öffnen": "Open door",
+  "Türkamera": "Door camera",
+  "Kamera wird verbunden …": "Connecting camera …",
+  "Kamera {n}": "Camera {n}",
+  "Noch keine Türkamera angelegt. Kameras fügst du in den Einstellungen unter Telefonie → Türkameras hinzu.": "No door camera yet. Add cameras in the settings under Telephony → Door cameras.",
+  "Ruft eine Türsprechstelle mit Kamera an, zeigt der Call Manager ihr Bild automatisch und bietet „Tür öffnen“ an. Kamera und Türöffner-Code kommen aus der Anlage. Hier legst du zusätzlich Kameras an, die du jederzeit als Kachel „Türkamera“ siehst.": "When a door intercom with a camera calls, the Call Manager shows its picture automatically and offers “Open door”. Camera and door opener code come from the PBX. Here you can add further cameras that you can view at any time in the “Door camera” tile.",
+  "Name, z. B. Haupteingang": "Name, e.g. Main entrance",
+  "Vorschau": "Preview",
+  "rtsp://kamera/live oder https://benutzer:passwort@kamera/video.mjpg": "rtsp://camera/live or https://user:password@camera/video.mjpg",
+  "Kamera hinzufügen": "Add camera",
+  "Möglich sind RTSP-Ströme mit H.264 (URL beginnt mit rtsp://), Motion JPEG (URL endet auf mjpg oder enthält motionjpeg, mjpg, stream= oder fps=) und Einzelbilder, die laufend neu geladen werden. Zugangsdaten gehören in die URL (https://benutzer:passwort@kamera/…). Für RTSP muss ffmpeg installiert sein.": "Supported are RTSP streams with H.264 (URL starts with rtsp://), Motion JPEG (URL ends with mjpg or contains motionjpeg, mjpg, stream= or fps=) and still images that are reloaded continuously. Credentials go into the URL (https://user:password@camera/…). RTSP requires ffmpeg to be installed.",
 };
 export default dict;

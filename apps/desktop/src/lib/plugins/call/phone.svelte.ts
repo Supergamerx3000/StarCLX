@@ -16,6 +16,10 @@ export type Call = {
   consultation_of: string | null;
   recording: boolean;
   connected_since: number | null;
+  /** Anruf einer Türsprechstelle mit Kamera */
+  door_cam: boolean;
+  /** Tür lässt sich per DTMF öffnen */
+  door_open: boolean;
 };
 export type PhoneStatus = {
   state: "off" | "starting" | "ready" | "error";

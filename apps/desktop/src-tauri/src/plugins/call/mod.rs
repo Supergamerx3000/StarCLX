@@ -41,6 +41,27 @@ pub async fn softphone_id(app: &AppHandle) -> Option<String> {
         .map(|p| p.phone_id().to_owned())
 }
 
+/// Kamera-URL der Türsprechstelle, von der dieser Anruf kommt
+pub async fn door_cam_url(app: &AppHandle, call_id: &str) -> Option<String> {
+    app.state::<CallState>()
+        .phone
+        .lock()
+        .await
+        .as_ref()?
+        .door_cam_url(call_id)
+}
+
+/// Läuft dieser Anruf noch?
+pub fn has_call(app: &AppHandle, call_id: &str) -> bool {
+    app.state::<CallState>()
+        .status
+        .lock()
+        .unwrap()
+        .calls
+        .iter()
+        .any(|c| c.id == call_id)
+}
+
 /// Nach dem Aufwachen neu registrieren
 pub async fn resume(app: &AppHandle) {
     if let Some(phone) = app.state::<CallState>().phone.lock().await.as_ref() {
@@ -292,6 +313,7 @@ pub async fn phone_action(
         "forward" => p.forward(&call_id, &number).await,
         "voicemail" => p.to_voicemail(&call_id).await,
         "record" => p.record(&call_id).await,
+        "open_door" => p.open_door(&call_id).await,
         "switch_phone" => p.switch_phone(&call_id).await,
         "consult" => p.consult(&call_id, &number).await,
         "transfer_consultation" => p.transfer_consultation(&call_id).await,

@@ -477,5 +477,17 @@ const dict: Record<string, string> = {
   "Ja": "Sì",
   "Nein": "No",
   "Kommentar": "Commento",
+  "Türkameras": "Telecamere porta",
+  "Tür öffnen": "Apri porta",
+  "Türkamera": "Telecamera porta",
+  "Kamera wird verbunden …": "Connessione alla telecamera …",
+  "Kamera {n}": "Telecamera {n}",
+  "Noch keine Türkamera angelegt. Kameras fügst du in den Einstellungen unter Telefonie → Türkameras hinzu.": "Nessuna telecamera porta ancora. Aggiungi le telecamere nelle impostazioni in Telefonia → Telecamere porta.",
+  "Ruft eine Türsprechstelle mit Kamera an, zeigt der Call Manager ihr Bild automatisch und bietet „Tür öffnen“ an. Kamera und Türöffner-Code kommen aus der Anlage. Hier legst du zusätzlich Kameras an, die du jederzeit als Kachel „Türkamera“ siehst.": "Quando chiama un citofono con telecamera, il Call Manager mostra automaticamente la sua immagine e offre «Apri porta». Telecamera e codice apriporta arrivano dal centralino. Qui puoi aggiungere altre telecamere da vedere in qualsiasi momento nel riquadro «Telecamera porta».",
+  "Name, z. B. Haupteingang": "Nome, ad es. Ingresso principale",
+  "Vorschau": "Anteprima",
+  "rtsp://kamera/live oder https://benutzer:passwort@kamera/video.mjpg": "rtsp://telecamera/live o https://utente:password@telecamera/video.mjpg",
+  "Kamera hinzufügen": "Aggiungi telecamera",
+  "Möglich sind RTSP-Ströme mit H.264 (URL beginnt mit rtsp://), Motion JPEG (URL endet auf mjpg oder enthält motionjpeg, mjpg, stream= oder fps=) und Einzelbilder, die laufend neu geladen werden. Zugangsdaten gehören in die URL (https://benutzer:passwort@kamera/…). Für RTSP muss ffmpeg installiert sein.": "Sono supportati flussi RTSP con H.264 (l'URL inizia con rtsp://), Motion JPEG (l'URL termina con mjpg o contiene motionjpeg, mjpg, stream= o fps=) e immagini fisse ricaricate di continuo. Le credenziali vanno nell'URL (https://utente:password@telecamera/…). Per RTSP serve ffmpeg.",
 };
 export default dict;

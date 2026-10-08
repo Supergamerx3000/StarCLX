@@ -10,6 +10,7 @@
   import Toggle from "./Toggle.svelte";
   import BusylightSettings from "./plugins/busylight/Settings.svelte";
   import CallActionsSettings from "./plugins/callactions/Settings.svelte";
+  import DoorCamSettings from "./plugins/doorcam/Settings.svelte";
   import { type Hotkeys, loadPrefs, prefs, savePrefs, type Prefs } from "./prefs.svelte";
   import { setLanguage, t } from "./i18n.svelte";
   import { avatarOf, fkeys } from "./plugins/fkeys/fkeys.svelte";
@@ -42,6 +43,7 @@
     { id: "signaling", icon: "numbers", label: t("Rufnummer signalisieren") },
     { id: "callmanager", icon: "forward", label: "Call Manager" },
     { id: "callactions", icon: "call2go", label: t("URL oder Programm bei Anruf") },
+    { id: "doorcams", icon: "door", label: t("Türkameras") },
     { id: "busylight", icon: "light", label: "Busylight" },
   ]);
   const chatSections: { id: string; icon: IconName; label: string }[] = $derived([
@@ -444,6 +446,7 @@
       </section>
 
       <CallActionsSettings bind:draft onnotice={(n) => (notice = n)} />
+      <DoorCamSettings bind:draft />
 
       <BusylightSettings bind:draft />
       </div>

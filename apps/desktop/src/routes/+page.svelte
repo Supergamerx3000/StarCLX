@@ -12,6 +12,7 @@
   import Chat from "$lib/plugins/chat/Chat.svelte";
   import Voicemail from "$lib/plugins/voicemail/Voicemail.svelte";
   import FunctionKeys from "$lib/plugins/fkeys/FunctionKeys.svelte";
+  import DoorCams from "$lib/plugins/doorcam/DoorCams.svelte";
   import { initVoicemail, loadVoicemails, unheard, voicemail } from "$lib/plugins/voicemail/voicemail.svelte";
   import { initChat, unreadTotal } from "$lib/plugins/chat/chat.svelte";
   import Icon, { type IconName } from "$lib/Icon.svelte";
@@ -145,17 +146,24 @@
 
   let menuOpen = $state(false);
   let settingsOpen = $state(false);
-  type Tab = "journal" | "voicemail" | "contacts" | "chat" | "fkeys";
+  type Tab = "journal" | "voicemail" | "contacts" | "chat" | "fkeys" | "doorcam";
   let tab = $state<Tab>("journal");
-  const tabs: { id: Tab; icon: IconName; label: string }[] = $derived([
+  const allTabs: { id: Tab; icon: IconName; label: string }[] = $derived([
     { id: "journal", icon: "history", label: t("Rufliste") },
     { id: "voicemail", icon: "voicemail", label: "Voicemail" },
     { id: "contacts", icon: "contacts", label: t("Adressbuch") },
     { id: "chat", icon: "chat", label: "Chat" },
     { id: "fkeys", icon: "dialpad", label: t("Funktionstasten") },
+    { id: "doorcam", icon: "videocam", label: t("Türkamera") },
   ]);
+  /** Türkamera nur mit angelegten Kameras anbieten */
+  const hasDoorCams = $derived(!!prefs.value?.door_cams?.some((c) => c.url.trim()));
+  const tabs = $derived(allTabs.filter((x) => x.id !== "doorcam" || hasDoorCams));
+  $effect(() => {
+    if (tab === "doorcam" && !hasDoorCams) tab = "journal";
+  });
 
-  const meta = $derived(Object.fromEntries(tabs.map((x) => [x.id, x])));
+  const meta = $derived(Object.fromEntries(allTabs.map((x) => [x.id, x])));
   const free = $derived(prefs.value?.workspace === "free");
   let tiles = $state<Tile[]>([]);
   /** Zähler, die sonst am Reiter stehen, für die Kachel-Titelleiste */
@@ -280,6 +288,8 @@
           <Voicemail />
         {:else if id === "contacts"}
           <Contacts />
+        {:else if id === "doorcam"}
+          <DoorCams />
         {:else}
           <Chat />
         {/if}

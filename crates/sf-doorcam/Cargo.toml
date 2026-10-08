@@ -1,0 +1,18 @@
+[package]
+name = "sf-doorcam"
+description = "Türkameras: Bilder von Türsprechstellen als JPEG (MJPEG, Einzelbild, RTSP über ffmpeg)"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+sf-tls.workspace = true
+reqwest.workspace = true
+thiserror.workspace = true
+tracing.workspace = true
+url.workspace = true
+percent-encoding = "2"
+tokio = { workspace = true, features = ["process", "io-util", "time"] }
+
+[dev-dependencies]
+tokio = { workspace = true, features = ["rt", "macros", "net", "io-util"] }

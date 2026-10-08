@@ -3,6 +3,7 @@
   import { backToFirst, callDrag, startCallDrag, transfersOnHangup } from "../fkeys/fkeys.svelte";
   import { action, duration, isRingingIn, phone, run, who, type Call } from "./phone.svelte";
   import { t } from "../../i18n.svelte";
+  import DoorCamView from "../doorcam/DoorCamView.svelte";
 
   let { call }: { call: Call } = $props();
 
@@ -55,11 +56,21 @@
     <span class="time">{duration(call, phone.now)}</span>
   </header>
 
+  <!-- Türsprechstelle: Kamerabild, sobald sie anruft (wie im Windows-Client) -->
+  {#if call.door_cam}
+    <DoorCamView callId={call.id} />
+  {/if}
+  {#if call.door_open && connected}
+    <button class="door" onclick={() => action("open_door", call.id)}>
+      <Icon name="door" size={20} /><span>{t("Tür öffnen")}</span>
+    </button>
+  {/if}
+
   <!-- Karte und Aktionsleiste liegen wie im Original in einer gemeinsamen Schale -->
   <div class="shell">
   <!-- Gespräch lässt sich auf ein Besetztlampenfeld ziehen (Vermitteln) -->
   <div class="pill" class:draggable={(connected || held) && !call.consultation_of} role="group" onpointerdown={(e) => startCallDrag(e, call)}>
-    <div class="avatar"><Icon name="person" size={34} /></div>
+    <div class="avatar"><Icon name={call.door_cam || call.door_open ? "door" : "person"} size={34} /></div>
     <div class="who">
       <strong>{who(call)}</strong>
       {#if call.remote_name && call.remote_number}<span>{call.remote_number}</span>{/if}
@@ -197,6 +208,10 @@
 {/if}
 
 <style>
+  .door {
+    display: flex; align-items: center; justify-content: center; gap: 0.5rem;
+    background: var(--green); color: #fff; border: none; border-radius: 999px; padding: 0.55rem 1rem; font-weight: 600; cursor: pointer;
+  }
   .pill.draggable { cursor: grab; touch-action: none; }
   .back { padding: 0.3rem 0.7rem; border-radius: 999px; }
   .ghost {
