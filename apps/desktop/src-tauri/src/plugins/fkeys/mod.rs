@@ -231,6 +231,75 @@ fn data_url(data: &[u8]) -> String {
     format!("data:{mime};base64,{b64}")
 }
 
+/// Bild für das eigene Profil auswählen; liefert es als data:-URL, damit
+/// die Oberfläche es zuschneiden kann. `None` bei Abbruch.
+#[tauri::command]
+pub async fn account_pick_avatar(app: AppHandle) -> Result<Option<String>, String> {
+    use tauri_plugin_dialog::DialogExt;
+    let (tx, rx) = tokio::sync::oneshot::channel();
+    app.dialog()
+        .file()
+        .set_title(crate::i18n::t("Profilbild auswählen"))
+        .add_filter("Bild", &["png", "jpg", "jpeg", "gif", "webp"])
+        .pick_file(move |f| {
+            let _ = tx.send(f);
+        });
+    let Some(file) = rx.await.map_err(|e| e.to_string())? else {
+        return Ok(None);
+    };
+    let path = file.into_path().map_err(|e| e.to_string())?;
+    let data = tokio::fs::read(&path).await.map_err(|e| e.to_string())?;
+    Ok(Some(data_url(&data)))
+}
+
+/// Setzt das eigene Profilbild (JPEG, Base64) auf der Anlage.
+#[tauri::command]
+pub async fn account_set_avatar(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    jpeg: String,
+) -> Result<(), String> {
+    use base64::Engine;
+    let data = base64::engine::general_purpose::STANDARD
+        .decode(jpeg)
+        .map_err(|e| e.to_string())?;
+    let (rest, _, me) = rest(&state).await?;
+    rest.set_avatar(data, "image/jpeg")
+        .await
+        .map_err(|e| e.to_string())?;
+    avatar_changed(&app, &me);
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn account_delete_avatar(
+    app: AppHandle,
+    state: State<'_, AppState>,
+) -> Result<(), String> {
+    let (rest, _, me) = rest(&state).await?;
+    rest.delete_avatar().await.map_err(|e| e.to_string())?;
+    avatar_changed(&app, &me);
+    Ok(())
+}
+
+/// Eigenes Bild neu laden lassen, ohne auf das Ereignis der Anlage zu warten.
+fn avatar_changed(app: &AppHandle, me: &str) {
+    app.state::<FkeyState>().avatars.lock().unwrap().remove(me);
+    let _ = app.emit("me-avatar", ());
+}
+
+#[tauri::command]
+pub async fn account_change_password(
+    state: State<'_, AppState>,
+    current: String,
+    new: String,
+) -> Result<sf_core::profile::PasswordChange, String> {
+    let (rest, _, _) = rest(&state).await?;
+    rest.change_password(&current, &new)
+        .await
+        .map_err(|e| e.to_string())
+}
+
 /// Letzter bekannter Zustand (User-ID → Telefon, Ruhe, Chat, Umleitung)
 #[tauri::command]
 pub fn fkey_presence(fk: State<'_, FkeyState>) -> HashMap<String, UserState> {

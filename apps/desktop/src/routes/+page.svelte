@@ -295,7 +295,7 @@
     {#key contactEdit.id + contactEdit.number}<ContactForm />{/key}
   {/if}
   {#if settingsOpen}
-    <Settings onclose={() => (settingsOpen = false)} onlogout={logout} server={session.server} />
+    <Settings onclose={() => (settingsOpen = false)} onlogout={logout} server={session.server} userId={session.user_id} displayName={session.display_name} />
   {/if}
 {:else}
 <main class="login">

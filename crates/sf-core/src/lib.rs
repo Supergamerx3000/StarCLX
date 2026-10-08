@@ -12,6 +12,7 @@ pub mod group;
 pub mod journal;
 pub mod module;
 pub mod phone;
+pub mod profile;
 pub mod reconnect;
 pub mod redirect;
 pub mod voicemail;

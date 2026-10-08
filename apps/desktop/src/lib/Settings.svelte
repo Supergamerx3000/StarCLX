@@ -12,10 +12,13 @@
   import CallActionsSettings from "./plugins/callactions/Settings.svelte";
   import { type Hotkeys, loadPrefs, prefs, savePrefs, type Prefs } from "./prefs.svelte";
   import { setLanguage, t } from "./i18n.svelte";
+  import { avatarOf, fkeys } from "./plugins/fkeys/fkeys.svelte";
 
   type SignalingNumber = { id: string; number: string; suppressed: boolean; read_only: boolean; selected: boolean };
 
-  let { onclose, onlogout, server = "" }: { onclose: () => void; onlogout: () => void; server?: string } = $props();
+  let { onclose, onlogout, server = "", userId = "", displayName = "" }: {
+    onclose: () => void; onlogout: () => void; server?: string; userId?: string; displayName?: string;
+  } = $props();
 
   let draft = $state<Prefs | null>(null);
   let numbers = $state<SignalingNumber[]>([]);
@@ -60,6 +63,7 @@
   ]);
   const accountSections: { id: string; icon: IconName; label: string }[] = $derived([
     { id: "account", icon: "account", label: t("Konto") },
+    { id: "password", icon: "lock", label: t("Passwort") },
     { id: "log", icon: "list", label: t("Protokoll") },
   ]);
   type Tab = "phone" | "reach" | "chat" | "personal" | "account";
@@ -163,6 +167,89 @@
     draft.custom_ringtones = draft.custom_ringtones.filter((p) => p !== path);
     if (draft.ringtone_internal === path) draft.ringtone_internal = builtinTones[0];
     if (draft.ringtone_external === path) draft.ringtone_external = builtinTones[0];
+  }
+
+  const avatar = $derived(userId ? avatarOf(userId) : null);
+  const initials = $derived(displayName.split(/\s+/).filter(Boolean).slice(0, 2).map((w) => w[0]).join("").toUpperCase() || "?");
+  let avatarBusy = $state(false);
+  let avatarError = $state("");
+
+  /** Bild mittig quadratisch zuschneiden und als JPEG (256 px) liefern */
+  function squareJpeg(src: string): Promise<string> {
+    return new Promise((resolve, reject) => {
+      const img = new Image();
+      img.onload = () => {
+        const side = Math.min(img.naturalWidth, img.naturalHeight);
+        const size = Math.min(256, side);
+        const canvas = document.createElement("canvas");
+        canvas.width = canvas.height = size;
+        const ctx = canvas.getContext("2d")!;
+        ctx.fillStyle = "#fff"; // Transparenz gibt es in JPEG nicht
+        ctx.fillRect(0, 0, size, size);
+        ctx.drawImage(img, (img.naturalWidth - side) / 2, (img.naturalHeight - side) / 2, side, side, 0, 0, size, size);
+        resolve(canvas.toDataURL("image/jpeg", 0.9).split(",")[1]);
+      };
+      img.onerror = () => reject(t("Die Datei ist kein lesbares Bild."));
+      img.src = src;
+    });
+  }
+
+  async function changeAvatar() {
+    avatarError = "";
+    try {
+      const src = await invoke<string | null>("account_pick_avatar");
+      if (!src) return;
+      avatarBusy = true;
+      await invoke("account_set_avatar", { jpeg: await squareJpeg(src) });
+      delete fkeys.avatars[userId];
+    } catch (e) {
+      avatarError = t("Profilbild nicht geändert: {e}", { e: String(e) });
+    } finally {
+      avatarBusy = false;
+    }
+  }
+
+  async function removeAvatar() {
+    avatarError = "";
+    avatarBusy = true;
+    try {
+      await invoke("account_delete_avatar");
+      delete fkeys.avatars[userId];
+    } catch (e) {
+      avatarError = t("Profilbild nicht entfernt: {e}", { e: String(e) });
+    } finally {
+      avatarBusy = false;
+    }
+  }
+
+  type PasswordChange = { kind: "changed" } | { kind: "wrong_current" } | { kind: "policy"; message: string; violations: string[] };
+  let pw = $state({ current: "", next: "", repeat: "" });
+  let pwBusy = $state(false);
+  let pwError = $state<string[]>([]);
+  let pwDone = $state(false);
+  const pwMismatch = $derived(pw.repeat !== "" && pw.next !== pw.repeat);
+
+  async function changePassword(e: SubmitEvent) {
+    e.preventDefault();
+    if (!pw.current || !pw.next || pw.next !== pw.repeat) return;
+    pwBusy = true;
+    pwError = [];
+    pwDone = false;
+    try {
+      const r = await invoke<PasswordChange>("account_change_password", { current: pw.current, new: pw.next });
+      if (r.kind === "changed") {
+        pwDone = true;
+        pw = { current: "", next: "", repeat: "" };
+      } else if (r.kind === "wrong_current") {
+        pwError = [t("Das aktuelle Passwort stimmt nicht.")];
+      } else {
+        pwError = [...(r.message ? [r.message] : []), ...r.violations];
+      }
+    } catch (err) {
+      pwError = [t("Passwort nicht geändert: {e}", { e: String(err) })];
+    } finally {
+      pwBusy = false;
+    }
   }
 
   async function init() {
@@ -495,9 +582,42 @@
       <section id="account">
         <h3>{t("Konto")}</h3>
         <div class="card">
+          <div class="profile">
+            <div class="pic">{#if avatar}<img src={avatar} alt="" />{:else}{initials}{/if}</div>
+            <div class="who">
+              {#if displayName}<strong>{displayName}</strong>{/if}
+              <div class="buttons">
+                <button onclick={changeAvatar} disabled={avatarBusy || !userId}><Icon name="edit" size={18} /> {t("Profilbild ändern …")}</button>
+                {#if avatar}<button onclick={removeAvatar} disabled={avatarBusy}><Icon name="trash" size={18} /> {t("Entfernen")}</button>{/if}
+              </div>
+            </div>
+          </div>
+          {#if avatarError}<p class="error">{avatarError}</p>{/if}
+          <hr />
           <button class="logout" onclick={onlogout}><Icon name="logout" size={18} /> {t("Abmelden")}</button>
           {#if version}<p class="version">{t("Version {v}", { v: version })}</p>{/if}
         </div>
+      </section>
+
+      <section id="password">
+        <h3>{t("Passwort ändern")}</h3>
+        <form class="card" onsubmit={changePassword}>
+          <label class="field">{t("Aktuelles Passwort")}
+            <input type="password" autocomplete="current-password" bind:value={pw.current} />
+          </label>
+          <label class="field">{t("Neues Passwort")}
+            <input type="password" autocomplete="new-password" bind:value={pw.next} />
+          </label>
+          <label class="field">{t("Neues Passwort wiederholen")}
+            <input type="password" autocomplete="new-password" bind:value={pw.repeat} />
+          </label>
+          {#if pwMismatch}<p class="error">{t("Die beiden neuen Passwörter sind nicht gleich.")}</p>{/if}
+          {#each pwError as line}<p class="error">{line}</p>{/each}
+          {#if pwDone}<p class="ok">{t("Passwort geändert. Beim nächsten Anmelden gilt das neue Passwort.")}</p>{/if}
+          <div class="buttons">
+            <button type="submit" disabled={pwBusy || !pw.current || !pw.next || pw.next !== pw.repeat}><Icon name="lock" size={18} /> {pwBusy ? t("Ändere …") : t("Passwort ändern")}</button>
+          </div>
+        </form>
       </section>
 
       <section id="log">
@@ -574,6 +694,15 @@
   .key { padding: 0.3rem 0.6rem; text-align: center; }
   .key.rec { border-color: var(--accent); color: var(--accent); }
   code { background: var(--panel-2); padding: 0.4rem 0.6rem; border-radius: 4px; font-size: 0.85rem; overflow-wrap: anywhere; }
+  .profile { display: flex; align-items: center; gap: 1rem; }
+  .profile .pic {
+    width: 4.5rem; height: 4.5rem; border-radius: 50%; flex: none; overflow: hidden;
+    display: grid; place-items: center; background: var(--panel-2); font-size: 1.5rem; font-weight: 600;
+  }
+  .profile .pic img { width: 100%; height: 100%; object-fit: cover; }
+  .who { display: flex; flex-direction: column; gap: 0.2rem; min-width: 0; }
+  .error { color: var(--red); margin: 0.3rem 0; }
+  .ok { color: var(--green); margin: 0.3rem 0; }
   .logout { align-self: flex-start; display: flex; align-items: center; gap: 0.5rem; }
   .buttons { display: flex; flex-wrap: wrap; gap: 0.6rem; margin: 0.4rem 0 0.6rem; }
   .buttons button { display: flex; align-items: center; gap: 0.4rem; }
