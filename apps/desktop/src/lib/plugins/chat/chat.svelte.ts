@@ -3,7 +3,8 @@ import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { locale } from "../../i18n.svelte";
 
-export type ChatContact = { jid: string; name: string; show: string; status: string };
+export type ChatClient = { resource: string; name: string; files: boolean | null };
+export type ChatContact = { jid: string; name: string; show: string; status: string; clients: ChatClient[] };
 export type ChatMessage = { id: string; peer: string; outgoing: boolean; body: string; ts: number };
 export type ChatStatus = { online: boolean; detail: string; own: string; contacts: ChatContact[] };
 export type TransferState = "offered" | "waiting" | "running" | "done" | "declined" | "cancelled" | "failed";
@@ -96,6 +97,11 @@ export const unreadTotal = () => Object.values(chat.unread).reduce((a, b) => a +
 
 export function nameOf(jid: string) {
   return chat.status.contacts.find((c) => c.jid === jid)?.name || jid.split("@")[0];
+}
+
+/** Ein Client des Kontakts nimmt Dateien an */
+export function acceptsFiles(jid: string) {
+  return !!chat.status.contacts.find((c) => c.jid === jid)?.clients.some((k) => k.files === true);
 }
 
 /** Dateien an das offene Gespräch senden */

@@ -20,6 +20,7 @@ use crate::{ChatEvent, Conn, Pending, new_id, now_ms, xml};
 
 const NS_PING: &str = "urn:xmpp:ping";
 const NS_ROSTER: &str = "jabber:iq:roster";
+const NS_VERSION: &str = "jabber:iq:version";
 
 fn iq(to: Option<Jid>, id: String, payload: IqPayload) -> Stanza {
     IqHeader { from: None, to, id }.assemble(payload).into()
@@ -77,9 +78,10 @@ impl Conn {
         }
     }
 
-    /// Client des Kontakts, der Dateien annehmen kann: zuerst die, die das
-    /// per Discovery melden, dann die ohne Ergebnis; jeweils der mit der
-    /// jüngsten Präsenz (ältere können verwaiste Sitzungen sein).
+    /// Client des Kontakts, der per Discovery meldet, dass er Dateien annimmt;
+    /// bei mehreren der mit der jüngsten Präsenz (ältere können verwaiste
+    /// Sitzungen sein). Clients ohne Antwort (z. B. die Android-App) zählen
+    /// nicht: Sie lassen ein Angebot unbeantwortet.
     fn file_target(&self, peer: &str) -> Result<String, &'static str> {
         let clients = self
             .resources
@@ -88,13 +90,9 @@ impl Conn {
             .ok_or("Kontakt ist nicht online")?;
         clients
             .iter()
-            .filter_map(|(full, (key, seen))| match self.file_capable.get(key) {
-                Some(true) => Some((1, *seen, full)),
-                None => Some((0, *seen, full)),
-                Some(false) => None,
-            })
-            .max()
-            .map(|(_, _, full)| full.clone())
+            .filter(|(_, (key, _))| self.client_info.get(key).and_then(|i| i.files) == Some(true))
+            .max_by_key(|(_, (_, seen))| *seen)
+            .map(|(full, _)| full.clone())
             .ok_or("Der Client des Kontakts kann keine Dateien empfangen")
     }
 
@@ -368,6 +366,7 @@ impl Conn {
                             IqPayload::Set(transfer::ibb_open(&sid, SMALL_BLOCK)),
                         )];
                     }
+                    tracing::warn!(error = ?e.defined_condition, "IBB nicht geöffnet");
                     self.fail_outgoing(&sid, reason(&e), false)
                 }
             },
@@ -382,7 +381,10 @@ impl Conn {
                     }
                     self.pump(&sid)
                 }
-                Err(e) => self.fail_outgoing(&sid, reason(&e), true),
+                Err(e) => {
+                    tracing::warn!(error = ?e.defined_condition, "Datenblock abgelehnt");
+                    self.fail_outgoing(&sid, reason(&e), true)
+                }
             },
             Pending::Close(sid) => {
                 if let Some(mut out) = self.outgoing.remove(&sid) {
@@ -394,7 +396,7 @@ impl Conn {
                 }
                 Vec::new()
             }
-            Pending::Disco(_) => Vec::new(),
+            Pending::Disco(_) | Pending::Version(_) => Vec::new(),
         }
     }
 
@@ -404,10 +406,13 @@ impl Conn {
             IqPayload::Result(Some(xml::own_disco_info(&[
                 xml::NS_DISCO_INFO,
                 NS_PING,
+                NS_VERSION,
                 NS_SI,
                 NS_FT,
                 NS_IBB,
             ])))
+        } else if el.is("query", NS_VERSION) {
+            IqPayload::Result(Some(xml::own_version(env!("CARGO_PKG_VERSION"))))
         } else if el.is("ping", NS_PING) {
             IqPayload::Result(None)
         } else {

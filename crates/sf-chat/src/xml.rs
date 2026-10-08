@@ -73,6 +73,55 @@ pub fn own_disco_info(features: &[&str]) -> Element {
     b.build()
 }
 
+const NS_VERSION: &str = "jabber:iq:version";
+
+/// Name und Version eines Clients abfragen (XEP-0092)
+pub fn version_query() -> Element {
+    Element::builder("query", NS_VERSION).build()
+}
+
+/// Antwort auf [`version_query`] an uns
+pub fn own_version(version: &str) -> Element {
+    Element::builder("query", NS_VERSION)
+        .append(
+            Element::builder("name", NS_VERSION)
+                .append("StarCLX")
+                .build(),
+        )
+        .append(
+            Element::builder("version", NS_VERSION)
+                .append(version)
+                .build(),
+        )
+        .build()
+}
+
+/// „Name Version“ aus der Antwort auf [`version_query`]
+pub fn version_of(query: &Element) -> Option<String> {
+    if !query.is("query", NS_VERSION) {
+        return None;
+    }
+    let field = |n: &str| {
+        query
+            .get_child(n, NS_VERSION)
+            .map(|e| e.text().trim().to_owned())
+            .filter(|t| !t.is_empty())
+    };
+    let name = field("name")?;
+    Some(match field("version") {
+        Some(v) => format!("{name} {v}"),
+        None => name,
+    })
+}
+
+/// Name der ersten Identität aus einer `disco#info`-Antwort
+pub fn identity_name(query: &Element) -> Option<String> {
+    query
+        .children()
+        .filter(|c| c.is("identity", NS_DISCO_INFO))
+        .find_map(|c| c.attr("name").filter(|n| !n.is_empty()).map(str::to_owned))
+}
+
 /// Adressen der Dienste aus einer `disco#items`-Antwort
 pub fn disco_item_jids(query: &Element) -> Vec<String> {
     query
@@ -158,6 +207,7 @@ pub fn roster_items(query: &Element) -> Vec<Contact> {
                 name,
                 show: "offline".into(),
                 status: String::new(),
+                clients: Vec::new(),
             })
         })
         .collect()

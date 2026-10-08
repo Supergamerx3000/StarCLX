@@ -57,7 +57,7 @@ pub use transfer::{Transfer, TransferState};
 
 const PORT: u16 = 5222;
 /// Höchstens so viele Clients je Programmstart per Discovery abfragen
-const MAX_CLIENT_DISCO: usize = 20;
+const MAX_CLIENT_DISCO: usize = 200;
 const MAX_BACKOFF: Duration = Duration::from_secs(60);
 /// Nach so langer Stille fragt der Client per Ping nach, ob die Verbindung
 /// noch steht; ohne Antwort in derselben Zeit gilt sie als tot. Der Standard
@@ -82,6 +82,25 @@ pub struct Contact {
     /// "online", "chat", "away", "xa", "dnd" oder "offline"
     pub show: String,
     pub status: String,
+    /// Angemeldete Clients (Geräte) des Kontakts
+    pub clients: Vec<Client>,
+}
+
+/// Ein angemeldeter Client eines Kontakts
+#[derive(Debug, Clone, Serialize, PartialEq, Eq)]
+pub struct Client {
+    pub resource: String,
+    /// Name und Version, wie der Client sie meldet; leer, wenn er nicht antwortet
+    pub name: String,
+    /// Kann Dateien empfangen; `None`, solange (oder weil) er nicht antwortet
+    pub files: Option<bool>,
+}
+
+/// Was ein Client über sich meldet (je Client-Art)
+#[derive(Debug, Default)]
+struct ClientInfo {
+    name: Option<String>,
+    files: Option<bool>,
 }
 
 #[derive(Debug, Clone, Serialize, serde::Deserialize, PartialEq, Eq)]
@@ -305,8 +324,8 @@ struct Conn {
     /// Clients der Kollegen, die online sind: bare JID → volle JID →
     /// (Kennung, letzte Präsenz)
     resources: BTreeMap<String, BTreeMap<String, (String, Instant)>>,
-    /// Client-Art (Kennung wie in `clients_seen`) → kann Dateien empfangen
-    file_capable: BTreeMap<String, bool>,
+    /// Client-Art (Kennung wie in `clients_seen`) → was sie über sich meldet
+    client_info: BTreeMap<String, ClientInfo>,
     outgoing: BTreeMap<String, Outgoing>,
     incoming: BTreeMap<String, Incoming>,
     history: History,
@@ -422,6 +441,8 @@ enum Pending {
     /// Datenblock mit Länge
     Data(String, usize),
     Close(String),
+    /// Name und Version eines Clients (XEP-0092) für die Client-Art
+    Version(String),
 }
 
 struct Pacing {
@@ -448,7 +469,7 @@ async fn run(
         discovered: false,
         clients_seen: BTreeSet::new(),
         resources: BTreeMap::new(),
-        file_capable: BTreeMap::new(),
+        client_info: BTreeMap::new(),
         outgoing: BTreeMap::new(),
         incoming: BTreeMap::new(),
         history,
@@ -591,6 +612,10 @@ impl Conn {
                     Disco::Info(jid) | Disco::Client { jid, .. } => jid.clone(),
                 };
                 tracing::info!(%what, error = ?error.defined_condition, "Chat-Discovery abgelehnt");
+                if let Disco::Client { key, .. } = request {
+                    self.client_info.entry(key).or_default().files = Some(false);
+                    self.publish_roster();
+                }
                 return Vec::new();
             }
         };
@@ -610,8 +635,12 @@ impl Conn {
             Disco::Client { jid, key } => {
                 let (identities, features) = xml::disco_info_summary(&el);
                 tracing::info!(%jid, ?identities, ?features, "Chat-Discovery: Features");
-                self.file_capable
-                    .insert(key, features.iter().any(|f| f == transfer::NS_FT));
+                let info = self.client_info.entry(key).or_default();
+                info.files = Some(features.iter().any(|f| f == transfer::NS_FT));
+                if info.name.is_none() {
+                    info.name = xml::identity_name(&el);
+                }
+                self.publish_roster();
                 Vec::new()
             }
         }
@@ -660,7 +689,7 @@ impl Conn {
     fn on_stanza(&mut self, stanza: Stanza) -> Vec<Stanza> {
         match stanza {
             Stanza::Message(m) => self.on_message(m),
-            Stanza::Presence(p) => return self.on_presence(p).into_iter().collect(),
+            Stanza::Presence(p) => return self.on_presence(p),
             Stanza::Iq(iq) => return self.on_iq(iq),
         }
         Vec::new()
@@ -682,6 +711,16 @@ impl Conn {
             };
             return match request {
                 Pending::Disco(request) => self.on_disco(request, result),
+                Pending::Version(key) => {
+                    if let Ok(Some(el)) = result
+                        && let Some(version) = xml::version_of(&el)
+                    {
+                        tracing::info!(client = %key, %version, "Chat-Discovery: Version");
+                        self.client_info.entry(key).or_default().name = Some(version);
+                        self.publish_roster();
+                    }
+                    Vec::new()
+                }
                 other => self.on_transfer_result(other, result),
             };
         }
@@ -715,13 +754,36 @@ impl Conn {
     }
 
     fn publish_roster(&self) {
-        let _ = self.events.send(ChatEvent::Roster {
-            contacts: self.roster.values().cloned().collect(),
-        });
+        let contacts = self
+            .roster
+            .values()
+            .map(|c| Contact {
+                clients: self.clients_of(&c.jid),
+                ..c.clone()
+            })
+            .collect();
+        let _ = self.events.send(ChatEvent::Roster { contacts });
+    }
+
+    fn clients_of(&self, bare: &str) -> Vec<Client> {
+        let Some(resources) = self.resources.get(bare) else {
+            return Vec::new();
+        };
+        resources
+            .iter()
+            .map(|(full, (key, _))| {
+                let info = self.client_info.get(key);
+                Client {
+                    resource: full.split_once('/').map_or("", |(_, r)| r).to_owned(),
+                    name: info.and_then(|i| i.name.clone()).unwrap_or_default(),
+                    files: info.and_then(|i| i.files),
+                }
+            })
+            .collect()
     }
 
     /// Liefert ggf. eine Discovery-Anfrage an den Client des Absenders.
-    fn on_presence(&mut self, p: Presence) -> Option<Stanza> {
+    fn on_presence(&mut self, p: Presence) -> Vec<Stanza> {
         self.track_resource(&p);
         let disco = self.disco_client(&p);
         let Some(from) = p.from.as_ref().map(|j| j.to_bare().to_string()) else {
@@ -747,6 +809,7 @@ impl Conn {
             jid: from,
             show: String::new(),
             status: String::new(),
+            clients: Vec::new(),
         });
         entry.show = show.to_owned();
         entry.status = status;
@@ -756,29 +819,34 @@ impl Conn {
 
     /// Fragt einen Client einmal je Client-Art (XEP-0115-Kennung) ab, was er
     /// kann, z. B. welche Verfahren für Dateiübertragung.
-    fn disco_client(&mut self, p: &Presence) -> Option<Stanza> {
+    fn disco_client(&mut self, p: &Presence) -> Vec<Stanza> {
         if p.type_ != PresenceType::None || self.clients_seen.len() >= MAX_CLIENT_DISCO {
-            return None;
+            return Vec::new();
         }
-        let from = p
-            .from
-            .as_ref()
-            .filter(|j| j.resource().is_some())?
-            .to_string();
+        let Some(from) = p.from.as_ref().filter(|j| j.resource().is_some()) else {
+            return Vec::new();
+        };
+        let from = from.to_string();
         let caps = xml::caps_of(p);
-        // Kennung, unter der das Discovery-Ergebnis gemerkt wird
+        // Kennung, unter der das Ergebnis gemerkt wird
         let key = caps.clone().unwrap_or_else(|| from.clone());
         if !self.clients_seen.insert(key.clone()) {
-            return None;
+            return Vec::new();
         }
         tracing::info!(jid = %from, caps = caps.as_deref().unwrap_or("-"), "Chat-Discovery: frage Client");
-        self.disco(
+        let version = new_id();
+        let mut out: Vec<Stanza> = xml::iq_get_to(&version, &from, xml::version_query())
+            .into_iter()
+            .collect();
+        self.pending.insert(version, Pending::Version(key.clone()));
+        out.extend(self.disco(
             Disco::Client {
                 jid: from.clone(),
                 key,
             },
             &from,
-        )
+        ));
+        out
     }
 
     fn on_message(&mut self, m: Message) {
@@ -823,7 +891,7 @@ mod tests {
             discovered: true,
             clients_seen: BTreeSet::new(),
             resources: BTreeMap::new(),
-            file_capable: BTreeMap::new(),
+            client_info: BTreeMap::new(),
             outgoing: BTreeMap::new(),
             incoming: BTreeMap::new(),
             history: History::open(None),
@@ -882,7 +950,18 @@ mod tests {
     fn file_is_offered_accepted_and_transferred() {
         let (mut alice, mut arx) = conn(ALICE);
         let (mut bob, mut brx) = conn(BOB);
-        bob.on_stanza(online(ALICE));
+        let hello = bob.on_stanza(online(ALICE));
+        deliver(
+            &mut alice,
+            &mut bob,
+            hello.into_iter().map(|s| (false, s)).collect(),
+        );
+        let alice_client = &bob.clients_of("alice@pbx.test")[0];
+        assert_eq!(alice_client.files, Some(true));
+        assert!(
+            alice_client.name.starts_with("StarCLX "),
+            "{alice_client:?}"
+        );
         let dir = temp_dir("ok");
         let src = dir.join("Bericht.pdf");
         let data: Vec<u8> = (0..200_000u32).map(|i| (i * 7) as u8).collect();
@@ -920,8 +999,8 @@ mod tests {
             &mut bob,
             accept.into_iter().map(|s| (true, s)).collect(),
         );
-        // Annahme, dann Öffnen, 13 Blöcke à 16 KiB und Schließen mit je einer Antwort
-        assert_eq!(n, 1 + 2 * (1 + 13 + 1));
+        // Annahme, dann Öffnen, 7 Blöcke à 32 KiB und Schließen mit je einer Antwort
+        assert_eq!(n, 1 + 2 * (1 + 7 + 1));
 
         let got = transfers(&mut arx).pop().unwrap();
         assert_eq!(got.state, TransferState::Done);
@@ -939,7 +1018,12 @@ mod tests {
     fn declined_offer_reaches_sender() {
         let (mut alice, mut arx) = conn(ALICE);
         let (mut bob, mut brx) = conn(BOB);
-        bob.on_stanza(online(ALICE));
+        let hello = bob.on_stanza(online(ALICE));
+        deliver(
+            &mut alice,
+            &mut bob,
+            hello.into_iter().map(|s| (false, s)).collect(),
+        );
         let dir = temp_dir("decline");
         let src = dir.join("a.txt");
         std::fs::write(&src, "hallo").unwrap();
@@ -967,6 +1051,30 @@ mod tests {
             transfers(&mut brx).pop().unwrap().state,
             TransferState::Declined
         );
+        let _ = std::fs::remove_dir_all(dir);
+    }
+
+    #[test]
+    fn client_must_announce_file_transfer() {
+        let (mut bob, mut brx) = conn(BOB);
+        // Präsenz ohne Antwort auf Discovery, wie die Android-App
+        bob.on_stanza(online(ALICE));
+        let clients = bob.clients_of("alice@pbx.test");
+        assert_eq!(clients.len(), 1);
+        assert_eq!(
+            (clients[0].resource.as_str(), clients[0].files),
+            ("linux", None)
+        );
+        let dir = temp_dir("silent");
+        let src = dir.join("a.txt");
+        std::fs::write(&src, "hallo").unwrap();
+        let out = bob.on_command(Command::SendFile {
+            to: "alice@pbx.test".into(),
+            path: src,
+        });
+        assert!(out.is_empty());
+        let t = transfers(&mut brx).pop().unwrap();
+        assert_eq!(t.state, TransferState::Failed);
         let _ = std::fs::remove_dir_all(dir);
     }
 

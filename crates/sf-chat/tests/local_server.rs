@@ -116,9 +116,9 @@ async fn file_goes_from_bob_to_alice() {
     let online = |e: &ChatEvent| matches!(e, ChatEvent::State { online: true, .. });
     wait(&mut arx, "alice online", online).await;
     wait(&mut brx, "bob online", online).await;
-    // Bob muss Alice online sehen, damit das Angebot an ihren Client geht
+    // Bob muss Alices Client kennen, der Dateien annimmt
     wait(&mut brx, "bob sieht alice", |e| {
-        matches!(e, ChatEvent::Roster { contacts } if contacts.iter().any(|c| c.jid.starts_with("alice@") && c.show == "online"))
+        matches!(e, ChatEvent::Roster { contacts } if contacts.iter().any(|c| c.jid.starts_with("alice@") && c.clients.iter().any(|k| k.files == Some(true))))
     })
     .await;
 

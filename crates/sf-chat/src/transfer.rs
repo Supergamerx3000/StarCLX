@@ -23,12 +23,14 @@ const NS_DATA: &str = "jabber:x:data";
 
 /// Blockgröße beim Senden (vor Base64). Lehnt die Gegenseite ab, gilt
 /// [`SMALL_BLOCK`], der Standard von Smack.
-pub const BLOCK: usize = 16 * 1024;
+pub const BLOCK: usize = 32 * 1024;
 pub const SMALL_BLOCK: usize = 4096;
 /// Größter Block, den wir beim Empfang annehmen
 const MAX_BLOCK: usize = 64 * 1024;
-/// So viele Datenblöcke dürfen gleichzeitig unbestätigt unterwegs sein
-const WINDOW: usize = 8;
+/// So viele Datenblöcke dürfen gleichzeitig unbestätigt unterwegs sein. Nur
+/// einer: Smack bearbeitet eingehende IQs parallel, mehrere Blöcke kämen dort
+/// außer der Reihe an und würden mit `unexpected-request` abgelehnt.
+const WINDOW: usize = 1;
 
 #[derive(Debug, Clone, Copy, Serialize, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
@@ -572,15 +574,24 @@ mod tests {
         );
         inc.create(&dir.join("in")).unwrap();
 
-        let blocks = out.fill().unwrap();
-        assert_eq!(blocks.len(), 3);
-        for (el, len) in blocks {
-            let Some(Ibb::Data { seq, bytes, .. }) = parse_ibb(&el) else {
-                panic!("kein Datenblock")
-            };
-            inc.data(seq, &bytes).unwrap();
-            out.acked(len);
+        // Immer nur ein Block unterwegs, der nächste erst nach der Bestätigung
+        let mut rounds = 0;
+        loop {
+            let blocks = out.fill().unwrap();
+            if blocks.is_empty() {
+                break;
+            }
+            assert_eq!(blocks.len(), 1);
+            rounds += 1;
+            for (el, len) in blocks {
+                let Some(Ibb::Data { seq, bytes, .. }) = parse_ibb(&el) else {
+                    panic!("kein Datenblock")
+                };
+                inc.data(seq, &bytes).unwrap();
+                out.acked(len);
+            }
         }
+        assert_eq!(rounds, 3);
         assert!(out.fill().unwrap().is_empty());
         assert!(out.finished());
         assert_eq!(out.t.done, 10_000);

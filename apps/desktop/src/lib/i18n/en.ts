@@ -508,5 +508,6 @@ const dict: Record<string, string> = {
   "Der Client des Kontakts kann keine Dateien empfangen": "The contact’s client cannot receive files",
   "Übertragung unvollständig": "Transfer incomplete",
   "Gegenseite unterstützt die Übertragung nicht": "The other side does not support this transfer",
+  "unbekannter Client": "unknown client",
 };
 export default dict;

@@ -4,7 +4,7 @@
   import { getCurrentWebview } from "@tauri-apps/api/webview";
   import { onMount, tick } from "svelte";
   import Icon from "../../Icon.svelte";
-  import { chat, fileSize, nameOf, openConversation, sendFiles, type ChatContact, type ChatMessage, type ChatTransfer } from "./chat.svelte";
+  import { acceptsFiles, chat, fileSize, nameOf, openConversation, sendFiles, type ChatContact, type ChatMessage, type ChatTransfer } from "./chat.svelte";
   import { initials } from "../contacts/contacts";
   import { numberParts } from "../../numbers";
   import { phone, run } from "../call/phone.svelte";
@@ -37,7 +37,7 @@
     };
   });
 
-  const canDrop = () => !!chat.open && chat.status.online;
+  const canDrop = () => !!chat.open && chat.status.online && acceptsFiles(chat.open);
 
   function overConv(x: number, y: number) {
     const r = conv?.getBoundingClientRect();
@@ -104,7 +104,7 @@
     const q = term.trim().toLowerCase();
     const known = new Map<string, ChatContact>(chat.status.contacts.map((c) => [c.jid, c]));
     for (const peer of Object.keys(chat.last)) {
-      if (!known.has(peer)) known.set(peer, { jid: peer, name: peer.split("@")[0], show: "offline", status: "" });
+      if (!known.has(peer)) known.set(peer, { jid: peer, name: peer.split("@")[0], show: "offline", status: "", clients: [] });
     }
     return [...known.values()]
       .filter((c) => !q || c.name.toLowerCase().includes(q) || c.jid.includes(q))
@@ -141,6 +141,20 @@
       : d.toLocaleString(locale(), { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" });
   };
   const openContact = $derived(chat.status.contacts.find((c) => c.jid === chat.open));
+  const filesOk = $derived(!!chat.open && acceptsFiles(chat.open));
+  // Angemeldete Geräte, z. B. „STARFACE Windows · unbekannter Client“
+  const clientNames = $derived(
+    (openContact?.clients ?? []).map((k) => k.name || t("unbekannter Client")).join(" · "),
+  );
+  const attachTitle = $derived(
+    !chat.status.online
+      ? t("Chat nicht verbunden")
+      : filesOk
+        ? t("Datei senden (oder hierher ziehen)")
+        : (openContact?.clients.length ?? 0)
+          ? t("Der Client des Kontakts kann keine Dateien empfangen")
+          : t("Kontakt ist nicht online"),
+  );
 </script>
 
 <div class="chat">
@@ -176,6 +190,7 @@
         <div>
           <strong>{nameOf(chat.open)}</strong>
           <small>{openContact?.status || showText[openContact?.show ?? "offline"]}</small>
+          {#if clientNames}<small class="clients" title={(openContact?.clients ?? []).map((k) => k.resource).join("\n")}>{clientNames}</small>{/if}
         </div>
       </header>
       <div class="messages" bind:this={scroller}>
@@ -216,7 +231,7 @@
         {/each}
       </div>
       <form class="compose" onsubmit={send}>
-        <button class="attach" type="button" title={t("Datei senden (oder hierher ziehen)")} onclick={pickFiles} disabled={!chat.status.online}><Icon name="attach" size={20} /></button>
+        <button class="attach" type="button" title={attachTitle} onclick={pickFiles} disabled={!chat.status.online || !filesOk}><Icon name="attach" size={20} /></button>
         <textarea bind:value={draft} {onkeydown} rows="2" placeholder={chat.status.online ? t("Nachricht schreiben (Enter sendet, Umschalt+Enter neue Zeile)") : t("Chat nicht verbunden")} disabled={!chat.status.online}></textarea>
         <button class="send" type="submit" title={t("Senden")} disabled={!draft.trim() || !chat.status.online}><Icon name="send" size={20} /></button>
       </form>
@@ -271,6 +286,7 @@
   header { display: flex; align-items: center; gap: 0.7rem; padding: 0.6rem 0.9rem; border-bottom: 1px solid var(--line); }
   header div { display: flex; flex-direction: column; }
   header small { color: var(--muted); }
+  header .clients { font-size: 0.75rem; }
   .messages { flex: 1; overflow: auto; padding: 0.8rem 1rem; display: flex; flex-direction: column; gap: 0.5rem; }
   .msg { display: flex; flex-direction: column; align-items: flex-start; max-width: 75%; }
   .msg.out { align-self: flex-end; align-items: flex-end; }
