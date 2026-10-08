@@ -14,6 +14,7 @@ mod plugins;
 mod presence;
 mod settings;
 mod wake;
+mod zoom;
 
 use bus::Event;
 use i18n::{t, tf};
@@ -453,6 +454,7 @@ pub fn run() {
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_notification::init())
         .plugin(tauri_plugin_dialog::init())
+        .plugin(zoom::init())
         .manage(chat::ChatState::default())
         .manage(reach::ReachState::default())
         .manage(fkeys::FkeyState::default())
