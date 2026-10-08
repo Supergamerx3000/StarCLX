@@ -64,6 +64,8 @@ pub enum PhoneError {
     NoMailbox,
     #[error("Kein besetzter Anruf, für den ein Rückruf möglich ist")]
     NoCallback,
+    #[error("Dieser Anruf kommt nicht von einer Türsprechstelle")]
+    NoDoor,
     #[error(
         "Call2Go angefordert, aber kein aktives Mobiltelefon (iFMC) hinterlegt. \
          Ohne weiteres Telefon passiert nichts."
@@ -105,8 +107,27 @@ pub struct CallView {
     pub recording: bool,
     /// Unix-Zeit in Millisekunden
     pub connected_since: Option<i64>,
+    /// Anruf einer Türsprechstelle mit Kamera
+    pub door_cam: bool,
+    /// Tür lässt sich per DTMF öffnen
+    pub door_open: bool,
     #[serde(skip)]
     sip_call_ids: Vec<String>,
+    /// Kamera-URL der Türsprechstelle; kann Zugangsdaten enthalten und
+    /// bleibt deshalb im Backend.
+    #[serde(skip)]
+    door_cam_url: String,
+    #[serde(skip)]
+    door_dtmf: String,
+}
+
+impl CallView {
+    fn set_door(&mut self, cam_url: String, dtmf: String) {
+        self.door_cam = !cam_url.trim().is_empty();
+        self.door_open = !dtmf.trim().is_empty();
+        self.door_cam_url = cam_url.trim().to_owned();
+        self.door_dtmf = dtmf.trim().to_owned();
+    }
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -383,6 +404,28 @@ impl Phone {
             .await
             .map_err(sf_onehub::Error::from)?;
         Ok(())
+    }
+
+    /// Kamera-URL der Türsprechstelle, von der dieser Anruf kommt
+    pub fn door_cam_url(&self, call_id: &str) -> Option<String> {
+        let inner = self.inner.lock().unwrap();
+        let call = inner.calls.get(call_id)?;
+        call.door_cam.then(|| call.door_cam_url.clone())
+    }
+
+    /// Öffnet die Tür: schickt den DTMF-Code, den die Anlage für die
+    /// Türsprechstelle hinterlegt hat (wie „Tür öffnen“ im Windows-Client).
+    pub async fn open_door(&self, call_id: &str) -> PhoneResult<()> {
+        let code = {
+            let inner = self.inner.lock().unwrap();
+            inner
+                .calls
+                .get(call_id)
+                .filter(|c| c.door_open)
+                .map(|c| c.door_dtmf.clone())
+                .ok_or(PhoneError::NoDoor)?
+        };
+        self.send_dtmf(call_id, &code).await
     }
 
     /// Leitet einen (klingelnden) Anruf an eine andere Nummer weiter.
@@ -684,11 +727,18 @@ fn apply(inner: &mut Inner, ev: v1::call::call_event_response::CallEvent) {
             }
         }
         E::CallProvisionalChanged(e) => {
-            if let Some(c) = inner.calls.get_mut(&id_of(&e.call_id))
-                && let Some(r) = e.remote_participant
-            {
-                c.remote_name = r.name;
-                c.remote_number = r.number;
+            if let Some(c) = inner.calls.get_mut(&id_of(&e.call_id)) {
+                if let Some(r) = e.remote_participant {
+                    c.remote_name = r.name;
+                    c.remote_number = r.number;
+                }
+                if e.door_line_cam_url.is_some() || e.door_line_dtmf_code.is_some() {
+                    c.set_door(
+                        e.door_line_cam_url
+                            .unwrap_or_else(|| c.door_cam_url.clone()),
+                        e.door_line_dtmf_code.unwrap_or_else(|| c.door_dtmf.clone()),
+                    );
+                }
             }
         }
         E::CallStateChanged(e) => {
@@ -777,7 +827,7 @@ fn phase_of(state: v1::types::CallState) -> CallPhase {
 fn view_of(c: &v1::call::Call) -> CallView {
     let remote = c.remote_participant.clone().unwrap_or_default();
     let local = c.local_participant.clone().unwrap_or_default();
-    CallView {
+    let mut view = CallView {
         id: id_of(&c.call_id),
         phase: phase_of(c.call_state()),
         incoming: c.call_direction() == v1::types::CallDirection::Inbound,
@@ -793,8 +843,14 @@ fn view_of(c: &v1::call::Call) -> CallView {
             .filter(|id| !id.is_empty()),
         recording: c.record_by != 0,
         connected_since: c.connected_timestamp.as_ref().map(millis),
+        door_cam: false,
+        door_open: false,
         sip_call_ids: c.sip_call_ids.clone(),
-    }
+        door_cam_url: String::new(),
+        door_dtmf: String::new(),
+    };
+    view.set_door(c.door_line_cam_url.clone(), c.door_line_dtmf_code.clone());
+    view
 }
 
 #[cfg(test)]
@@ -851,5 +907,33 @@ mod tests {
             }),
         );
         assert!(inner.calls.is_empty());
+    }
+
+    #[test]
+    fn door_line_brings_camera_and_code() {
+        let mut inner = Inner::default();
+        let mut door = call("t", v1::types::CallState::Ringing);
+        door.door_line_cam_url = "http://admin:geheim@tuer/video.mjpg".into();
+        apply(
+            &mut inner,
+            E::CallCreated(v1::call::CallCreatedEvent { calls: vec![door] }),
+        );
+        let c = &inner.calls["t"];
+        assert!(c.door_cam && !c.door_open);
+        // Die Zugangsdaten gehen nicht an die Oberfläche.
+        assert!(!serde_json::to_string(c).unwrap().contains("geheim"));
+
+        apply(
+            &mut inner,
+            E::CallProvisionalChanged(v1::call::CallProvisionalChangedEvent {
+                call_id: Some(call_id_of("t")),
+                door_line_dtmf_code: Some("*9".into()),
+                ..Default::default()
+            }),
+        );
+        let c = &inner.calls["t"];
+        assert!(c.door_cam && c.door_open);
+        assert_eq!(c.door_cam_url, "http://admin:geheim@tuer/video.mjpg");
+        assert_eq!(c.door_dtmf, "*9");
     }
 }

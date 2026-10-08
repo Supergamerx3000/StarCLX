@@ -88,6 +88,8 @@ pub struct Prefs {
     pub handle_tel_links: bool,
     /// URL oder Programm bei Anruf
     pub call_actions: Vec<crate::plugins::callactions::CallAction>,
+    /// Angelegte Türkameras (Name und URL), als Kachel anzeigbar
+    pub door_cams: Vec<crate::plugins::doorcam::DoorCam>,
     /// Landesvorwahl ohne "+" für die Umrechnung nationaler Nummern
     pub default_country_code: String,
     /// Beim Minimieren nur noch im Tray anzeigen
@@ -140,6 +142,7 @@ impl Default for Prefs {
             autostart: false,
             handle_tel_links: true,
             call_actions: Vec::new(),
+            door_cams: Vec::new(),
             default_country_code: "41".into(),
             minimize_to_tray: false,
             always_on_top: false,

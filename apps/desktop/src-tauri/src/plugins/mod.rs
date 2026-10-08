@@ -12,6 +12,7 @@ pub mod call;
 pub mod callactions;
 pub mod chat;
 pub mod contacts;
+pub mod doorcam;
 pub mod fkeys;
 pub mod journal;
 pub mod reach;

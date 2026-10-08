@@ -38,6 +38,8 @@ export type Prefs = {
   autostart: boolean;
   handle_tel_links: boolean;
   call_actions: CallAction[];
+  /** Angelegte Türkameras (Plugin src-tauri/src/plugins/doorcam) */
+  door_cams: DoorCam[];
   /** Landesvorwahl ohne "+", z. B. "41" */
   default_country_code: string;
   minimize_to_tray: boolean;
@@ -63,6 +65,9 @@ export type CallAction = {
   /** URL (mit "://") oder Befehlszeile */
   target: string;
 };
+
+/** Türkamera: Name und URL (rtsp://, MJPEG oder Einzelbild, Zugangsdaten in der URL) */
+export type DoorCam = { name: string; url: string };
 
 export type Hotkeys = {
   enabled: boolean;

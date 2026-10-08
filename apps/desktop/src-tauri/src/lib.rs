@@ -460,6 +460,7 @@ pub fn run() {
         .manage(audio::AudioState::default())
         .manage(bus::Bus::default())
         .manage(plugins::call::CallState::default())
+        .manage(plugins::doorcam::DoorCamState::default())
         .manage(plugins::journal::JournalState::default())
         .manage(busylight::BusylightState::default())
         .manage(AppState {
@@ -567,6 +568,8 @@ pub fn run() {
             plugins::call::phone_callback,
             plugins::call::phone_dtmf,
             plugins::call::phone_action,
+            plugins::doorcam::doorcam_watch,
+            plugins::doorcam::doorcam_stop,
             get_prefs,
             save_prefs,
             signaling_numbers,

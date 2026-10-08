@@ -202,6 +202,75 @@ const TEXTS: &[(&str, [&str; 3])] = &[
             "Softphone disattivato nelle impostazioni",
         ],
     ),
+    // Türkamera
+    (
+        "Keine Türkamera zu diesem Anruf",
+        [
+            "No door camera for this call",
+            "Pas de caméra de porte pour cet appel",
+            "Nessuna telecamera porta per questa chiamata",
+        ],
+    ),
+    (
+        "Keine Kamera-URL",
+        [
+            "No camera URL",
+            "Pas d'URL de caméra",
+            "Nessun URL della telecamera",
+        ],
+    ),
+    (
+        "Ungültige Kamera-URL: {detail}",
+        [
+            "Invalid camera URL: {detail}",
+            "URL de caméra invalide : {detail}",
+            "URL della telecamera non valido: {detail}",
+        ],
+    ),
+    (
+        "Kamera nicht erreichbar: {detail}",
+        [
+            "Camera not reachable: {detail}",
+            "Caméra injoignable : {detail}",
+            "Telecamera non raggiungibile: {detail}",
+        ],
+    ),
+    (
+        "Kamera antwortet mit {detail}",
+        [
+            "Camera responds with {detail}",
+            "La caméra répond {detail}",
+            "La telecamera risponde con {detail}",
+        ],
+    ),
+    (
+        "Kamera liefert kein Bild",
+        [
+            "Camera delivers no image",
+            "La caméra ne fournit pas d'image",
+            "La telecamera non fornisce immagini",
+        ],
+    ),
+    (
+        "Kamera sendet keine Bilder mehr",
+        [
+            "Camera stopped sending images",
+            "La caméra n'envoie plus d'images",
+            "La telecamera non invia più immagini",
+        ],
+    ),
+    (
+        "Für RTSP-Kameras wird ffmpeg benötigt",
+        [
+            "RTSP cameras need ffmpeg",
+            "Les caméras RTSP nécessitent ffmpeg",
+            "Le telecamere RTSP richiedono ffmpeg",
+        ],
+    ),
+    (
+        "ffmpeg: {detail}",
+        ["ffmpeg: {detail}", "ffmpeg : {detail}", "ffmpeg: {detail}"],
+    ),
     (
         "Softphone ist nicht bereit",
         [
