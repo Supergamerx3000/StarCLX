@@ -176,6 +176,7 @@ const dict: Record<string, string> = {
   "frei": "available",
   "nicht erreichbar": "unavailable",
   "Gespräch geparkt": "call parked",
+  "mit {who}": "with {who}",
   "Noch keine Funktionstasten. Anlegen lassen sie sich unter Einstellungen → Funktionstasten oder auf der Anlage.": "No function keys yet. You can create them under Settings → Function keys or on the phone system.",
   "Heute": "Today",
   "Gestern": "Yesterday",
