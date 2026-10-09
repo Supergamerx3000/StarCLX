@@ -15,7 +15,7 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use tokio_xmpp::Stanza;
 use tokio_xmpp::jid::{BareJid, Jid};
 use tokio_xmpp::minidom::Element;
@@ -82,6 +82,39 @@ pub(crate) struct RoomState {
     pub invite: Vec<String>,
     /// Verlauf beim Betreten ist eingegangen, aber noch nicht gemeldet
     pub replayed: bool,
+    /// Selbst eben angelegt; ein gespeicherter Raum, der beim Betreten neu
+    /// entsteht, war schon zu Ende (alle sind gegangen)
+    pub fresh: bool,
+}
+
+/// Gespeicherter spontaner Gruppenchat
+#[derive(Serialize, Deserialize)]
+struct SavedRoom {
+    jid: String,
+    name: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    password: Option<String>,
+}
+
+/// Spontane Gruppenchats vom letzten Mal
+pub(crate) fn load_rooms(path: Option<&std::path::Path>) -> BTreeMap<String, RoomState> {
+    let saved: Vec<SavedRoom> = path
+        .and_then(|p| std::fs::read(p).ok())
+        .and_then(|d| serde_json::from_slice(&d).ok())
+        .unwrap_or_default();
+    saved
+        .into_iter()
+        .map(|s| {
+            (
+                s.jid,
+                RoomState {
+                    name: s.name,
+                    password: s.password,
+                    ..Default::default()
+                },
+            )
+        })
+        .collect()
 }
 
 /// Lokaler Teil des Raums einer Gruppe, wie beim Windows-Client
@@ -231,6 +264,10 @@ fn invite(room: &BareJid, to: &str, reason: &str) -> Stanza {
     m.into()
 }
 
+fn invite_reason(nick: &str) -> String {
+    format!("{} lädt dich in den Gruppenchat ein", parse_nick(nick).0)
+}
+
 /// `muc#user`-Angaben einer Präsenz: echte JID und Statuscodes
 fn muc_user(payloads: &[Element]) -> (Option<String>, BTreeSet<u16>) {
     let Some(x) = payloads.iter().find(|e| e.is("x", NS_MUC_USER)) else {
@@ -282,7 +319,7 @@ fn delayed(m: &Message) -> Option<i64> {
 }
 
 impl Conn {
-    fn service(&self) -> String {
+    pub(crate) fn muc_service(&self) -> String {
         format!("{SERVICE}.{}", self.own.domain())
     }
 
@@ -302,7 +339,7 @@ impl Conn {
     /// Legt Räume für Gruppen an, die es auch in der Kontaktliste gibt (so
     /// entscheidet der Windows-Client, welche Gruppen einen Chat haben).
     pub(crate) fn want_group_rooms(&mut self) {
-        let service = self.service();
+        let service = self.muc_service();
         for group in &self.groups {
             let local = room_local(group);
             if local.is_empty() || !self.roster_groups.contains(group) {
@@ -369,9 +406,11 @@ impl Conn {
             RoomState {
                 name,
                 invite: members,
+                fresh: true,
                 ..Default::default()
             },
         );
+        self.save_rooms();
         self.publish_rooms();
         self.join_rooms()
     }
@@ -382,8 +421,29 @@ impl Conn {
             return Vec::new();
         }
         self.rooms.remove(jid);
+        self.save_rooms();
         self.publish_rooms();
         leave(jid, &self.nick).into_iter().collect()
+    }
+
+    fn save_rooms(&self) {
+        let Some(path) = &self.rooms_file else {
+            return;
+        };
+        let saved: Vec<SavedRoom> = self
+            .rooms
+            .iter()
+            .filter(|(_, r)| !r.group)
+            .map(|(jid, r)| SavedRoom {
+                jid: jid.clone(),
+                name: r.name.clone(),
+                password: r.password.clone(),
+            })
+            .collect();
+        let data = serde_json::to_vec(&saved).unwrap_or_default();
+        if let Err(e) = crate::history::write_private(path, &data) {
+            tracing::warn!(error = %e, "Gruppenchats nicht gespeichert");
+        }
     }
 
     fn contact_name(&self, jid: &str) -> String {
@@ -399,13 +459,38 @@ impl Conn {
             .iter()
             .map(|(jid, r)| Room {
                 jid: jid.clone(),
-                name: r.name.clone(),
+                // Spontaner Gruppenchat ohne Thema: nach den Anwesenden
+                // benennen, wie der Windows-Client
+                name: if r.name.is_empty() {
+                    r.occupants
+                        .values()
+                        .map(|m| m.name.as_str())
+                        .collect::<Vec<_>>()
+                        .join(", ")
+                } else {
+                    r.name.clone()
+                },
                 group: r.group,
                 joined: r.joined,
                 members: r.occupants.values().cloned().collect(),
             })
             .collect();
         let _ = self.events.send(ChatEvent::Rooms { rooms });
+    }
+
+    /// Neu angelegter Raum ist eingerichtet: Thema setzen und einladen
+    pub(crate) fn room_configured(&mut self, key: &str) -> Vec<Stanza> {
+        let reason = invite_reason(&self.nick);
+        let (Some(r), Ok(room)) = (self.rooms.get_mut(key), key.parse::<BareJid>()) else {
+            return Vec::new();
+        };
+        r.fresh = false;
+        let mut out = Vec::new();
+        if !r.name.is_empty() {
+            out.push(subject(&room, &r.name));
+        }
+        out.extend(r.invite.drain(..).map(|to| invite(&room, &to, &reason)));
+        out
     }
 
     /// Präsenz aus einem Raum: wer da ist, und ob man selbst drin ist
@@ -438,7 +523,14 @@ impl Conn {
             }
             PresenceType::None if me => {
                 r.joined = true;
-                if codes.contains(&STATUS_CREATED) {
+                if codes.contains(&STATUS_CREATED) && !r.group && !r.fresh {
+                    // Alle waren gegangen, der Gruppenchat ist zu Ende:
+                    // den eben neu entstandenen Raum gleich wieder auflösen
+                    tracing::info!(room = %key, "Gruppenchat: beendet");
+                    self.rooms.remove(&key);
+                    self.save_rooms();
+                    out.extend(leave(&key, &self.nick));
+                } else if codes.contains(&STATUS_CREATED) {
                     tracing::info!(room = %key, "Gruppenchat: Raum neu angelegt");
                     let id = new_id();
                     let iq = IqHeader {
@@ -448,14 +540,14 @@ impl Conn {
                     }
                     .assemble(IqPayload::Set(config(r.group, &r.name)));
                     out.push(iq.into());
-                    out.push(subject(&room, &r.name));
+                    // Thema und Einladungen erst, wenn der Raum eingerichtet
+                    // ist: Vorher ist er gesperrt, Openfire verwirft dann
+                    // das Thema, und Eingeladene kommen nicht hinein.
                     self.pending.insert(id, Pending::RoomConfig(key.clone()));
+                } else {
+                    let reason = invite_reason(&self.nick);
+                    out.extend(r.invite.drain(..).map(|to| invite(&room, &to, &reason)));
                 }
-                let reason = format!(
-                    "{} lädt dich in den Gruppenchat ein",
-                    parse_nick(&self.nick).0
-                );
-                out.extend(r.invite.drain(..).map(|to| invite(&room, &to, &reason)));
             }
             PresenceType::None => {
                 let (name, from_nick) = parse_nick(&nick);
@@ -511,8 +603,9 @@ impl Conn {
         // Thema: kommt nach dem Verlauf beim Betreten
         if let Some((_, s)) = m.get_best_subject(vec!["de", "en"]) {
             let r = self.rooms.get_mut(&room)?;
-            if !r.group && !s.trim().is_empty() {
+            if !r.group && !s.trim().is_empty() && r.name != s.trim() {
                 r.name = s.trim().to_owned();
+                self.save_rooms();
             }
             self.flush_replay(&room);
             self.publish_rooms();
@@ -584,6 +677,7 @@ impl Conn {
                 ..Default::default()
             },
         );
+        self.save_rooms();
         self.publish_rooms();
         Some(self.join_rooms())
     }

@@ -111,7 +111,7 @@ fn insert(list: &mut Vec<ChatMessage>, msg: ChatMessage) -> bool {
     true
 }
 
-fn write_private(path: &std::path::Path, data: &[u8]) -> std::io::Result<()> {
+pub(crate) fn write_private(path: &std::path::Path, data: &[u8]) -> std::io::Result<()> {
     use std::io::Write;
     if let Some(dir) = path.parent() {
         std::fs::create_dir_all(dir)?;

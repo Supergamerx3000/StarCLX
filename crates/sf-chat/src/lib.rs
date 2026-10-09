@@ -249,6 +249,9 @@ impl Chat {
         let jid: BareJid = jid.parse().map_err(|_| Error::Jid(jid.to_owned()))?;
         // Mehrere rustls-Backends sind im Spiel; eines muss Standard sein.
         let _ = tokio_xmpp::rustls::crypto::aws_lc_rs::default_provider().install_default();
+        let rooms_file = history_file
+            .as_ref()
+            .map(|p| p.with_extension("rooms.json"));
         let history = History::open(history_file);
         let (tx, rx) = mpsc::unbounded_channel();
         let task = tokio::spawn(run(
@@ -256,6 +259,7 @@ impl Chat {
             host.to_owned(),
             Arc::new(token),
             history.clone(),
+            rooms_file,
             events,
             rx,
         ));
@@ -394,6 +398,8 @@ struct Conn {
     roster_groups: BTreeSet<String>,
     /// Eigener Spitzname in Räumen; leer, bis die Gruppen bekannt sind
     nick: String,
+    /// Spontane Gruppenchats, damit sie einen Neustart überdauern
+    rooms_file: Option<PathBuf>,
     history: History,
     events: mpsc::UnboundedSender<ChatEvent>,
 }
@@ -524,6 +530,7 @@ async fn run(
     host: String,
     token: TokenFn,
     history: History,
+    rooms_file: Option<PathBuf>,
     events: mpsc::UnboundedSender<ChatEvent>,
     mut commands: mpsc::UnboundedReceiver<Command>,
 ) {
@@ -540,10 +547,11 @@ async fn run(
         client_info: BTreeMap::new(),
         outgoing: BTreeMap::new(),
         incoming: BTreeMap::new(),
-        rooms: BTreeMap::new(),
+        rooms: muc::load_rooms(rooms_file.as_deref()),
         groups: Vec::new(),
         roster_groups: BTreeSet::new(),
         nick: String::new(),
+        rooms_file,
         history,
         events: events.clone(),
     };
@@ -836,7 +844,7 @@ impl Conn {
                     if let Err(e) = result {
                         tracing::warn!(%room, error = ?e.defined_condition, "Gruppenchat: Einstellungen abgelehnt");
                     }
-                    Vec::new()
+                    self.room_configured(&room)
                 }
                 other => self.on_transfer_result(other, result),
             };
@@ -920,6 +928,10 @@ impl Conn {
         };
         if from == self.own.to_string() {
             return disco;
+        }
+        // Raum, den man nicht (mehr) kennt: kein Kontakt
+        if from.ends_with(&format!("@{}", self.muc_service())) {
+            return Vec::new();
         }
         let show = match p.type_ {
             PresenceType::None => match p.show {
@@ -1036,6 +1048,7 @@ mod tests {
             groups: Vec::new(),
             roster_groups: BTreeSet::new(),
             nick: String::new(),
+            rooms_file: None,
             history: History::open(None),
             events,
         };
@@ -1278,6 +1291,20 @@ mod tests {
     }
 
     const ROOM: &str = "vertrieb@chatrooms.pbx.test";
+
+    /// Der Raum bestätigt die Einstellungen aus `config` (erste Stanza)
+    fn configured(conn: &mut Conn, room: &str, config: &Stanza) -> Vec<String> {
+        let Stanza::Iq(iq) = config else {
+            panic!("keine Einstellungen")
+        };
+        let id = iq.id().to_owned();
+        conn.on_stanza(stanza(&format!(
+            r#"<iq xmlns="jabber:client" type="result" from="{room}" id="{id}"/>"#
+        )))
+        .iter()
+        .map(xml_of)
+        .collect()
+    }
     const NICK: &str = "Alice Muster <alice@pbx.test>";
 
     /// Alice ist in der Gruppe „Vertrieb“, die auch in der Kontaktliste steht
@@ -1315,11 +1342,13 @@ mod tests {
         )));
         assert!(alice.rooms[ROOM].joined);
         let xml: Vec<_> = out.iter().map(xml_of).collect();
-        assert_eq!(xml.len(), 2, "{xml:?}");
+        assert_eq!(xml.len(), 1, "erst einrichten: {xml:?}");
         assert!(
             xml[0].contains("muc#roomconfig_persistentroom") && xml[0].contains("<value>1</value>")
         );
-        assert!(xml[1].contains("<subject>Vertrieb</subject>"), "{}", xml[1]);
+        let xml = configured(&mut alice, ROOM, &out[0]);
+        assert_eq!(xml.len(), 1, "{xml:?}");
+        assert!(xml[0].contains("<subject>Vertrieb</subject>"), "{}", xml[0]);
     }
 
     #[test]
@@ -1441,11 +1470,14 @@ mod tests {
             NICK.replace('<', "&lt;").replace('>', "&gt;")
         )));
         let xml: Vec<_> = out.iter().map(xml_of).collect();
-        assert_eq!(xml.len(), 3, "{xml:?}");
+        assert_eq!(xml.len(), 1, "erst einrichten: {xml:?}");
         assert!(
             xml[0].contains("muc#roomconfig_persistentroom") && xml[0].contains("<value>0</value>")
         );
-        assert!(xml[2].contains("<invite to='bob@pbx.test'"), "{}", xml[2]);
+        let xml = configured(&mut alice, &jid, &out[0]);
+        assert_eq!(xml.len(), 2, "{xml:?}");
+        assert!(xml[0].contains("<subject>Bob</subject>"), "{}", xml[0]);
+        assert!(xml[1].contains("<invite to='bob@pbx.test'"), "{}", xml[1]);
         // Verlassen geht nur bei spontanen Gruppenchats
         assert_eq!(
             alice
@@ -1459,6 +1491,46 @@ mod tests {
                 .on_command(Command::LeaveRoom { room: ROOM.into() })
                 .is_empty()
         );
+    }
+
+    #[test]
+    fn spontaneous_rooms_survive_a_restart() {
+        let dir = std::env::temp_dir().join(format!("sf-chat-rooms-{}", new_id()));
+        let file = dir.join("chat.rooms.json");
+        let (mut alice, _rx) = in_group();
+        alice.rooms_file = Some(file.clone());
+        let jid = muc::new_room(&alice.own);
+        alice.on_command(Command::CreateRoom {
+            room: jid.clone(),
+            subject: "test".into(),
+            members: vec!["bob@pbx.test".into()],
+        });
+
+        // Neustart: Raum mit Namen wieder da und wird betreten
+        let (mut alice, _rx) = in_group();
+        alice.rooms = muc::load_rooms(Some(&file));
+        alice.rooms_file = Some(file.clone());
+        assert_eq!(alice.rooms[&jid].name, "test");
+        let out = alice.join_rooms();
+        assert!(out.iter().any(|s| xml_of(s).contains(&jid)));
+
+        // Raum entsteht beim Betreten neu: Gruppenchat war zu Ende
+        let out = alice.on_stanza(stanza(&format!(
+            r#"<presence xmlns="jabber:client" from="{jid}/{}"><x xmlns="http://jabber.org/protocol/muc#user">
+                <item affiliation="owner" role="moderator"/><status code="110"/><status code="201"/></x></presence>"#,
+            NICK.replace('<', "&lt;").replace('>', "&gt;")
+        )));
+        let xml: Vec<_> = out.iter().map(xml_of).collect();
+        assert!(xml.len() == 1 && xml[0].contains("unavailable"), "{xml:?}");
+        assert!(!alice.rooms.contains_key(&jid));
+        assert!(muc::load_rooms(Some(&file)).is_empty());
+
+        // Späte Präsenz aus dem Raum macht keinen Kontakt daraus
+        alice.on_stanza(stanza(&format!(
+            r#"<presence xmlns="jabber:client" type="unavailable" from="{jid}/Bob"/>"#
+        )));
+        assert!(!alice.roster.contains_key(&jid));
+        let _ = std::fs::remove_dir_all(dir);
     }
 
     #[test]
