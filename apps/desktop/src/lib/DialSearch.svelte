@@ -1,7 +1,7 @@
 <script lang="ts">
   import { invoke } from "@tauri-apps/api/core";
   import Icon from "./Icon.svelte";
-  import { phone, run } from "./plugins/call/phone.svelte";
+  import { phone, run, canDial } from "./plugins/call/phone.svelte";
   import type { Contact } from "./plugins/contacts/contacts";
   import { t } from "./i18n.svelte";
 
@@ -16,7 +16,7 @@
 
   // Alle wählbaren Nummern der Treffer, für die Pfeiltasten
   const flat = $derived(results.flatMap((c) => c.numbers.map((n) => ({ contact: c, ...n }))));
-  const ready = $derived(phone.status.state === "ready");
+  const ready = $derived(canDial());
 
   function oninput() {
     clearTimeout(timer);

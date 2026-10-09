@@ -7,11 +7,18 @@
  * einen Callback zurück an Rust (ebenfalls auf dem baresip-Thread).
  */
 
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <re.h>
 #include <baresip.h>
 #include <re_dbg.h>
+#include <openssl/evp.h>
+#include <openssl/ssl.h>
+#include <openssl/x509.h>
+
+/* Aus libre (src/tls/openssl/tls.h), dort nicht öffentlich deklariert */
+SSL_CTX *tls_ssl_ctx(const struct tls *tls);
 
 enum sfsip_op {
 	SFSIP_OP_ADD_UA = 1,
@@ -24,6 +31,7 @@ enum sfsip_op {
 	SFSIP_OP_QUIT,
 	SFSIP_OP_RESET,
 	SFSIP_OP_AUSRC,
+	SFSIP_OP_HEADER,
 };
 
 /* Stabile Ereigniscodes für Rust (unabhängig von enum bevent_ev) */
@@ -65,6 +73,96 @@ static struct mqueue *mq;
 static sfsip_event_cb *event_cb;
 static void *event_ctx;
 
+/* Bestätigte SHA-256-Fingerabdrücke („AA:BB:…“, durch Komma getrennt) */
+static char *pins;
+
+/* Call-IDs eingehender Anrufe, die nicht von der Anlage kommen; sie dürfen
+ * nicht automatisch angenommen werden. */
+#define UNTRUSTED_MAX 8
+static char *untrusted[UNTRUSTED_MAX];
+static unsigned untrusted_next;
+
+static void untrusted_add(const struct pl *callid)
+{
+	char **slot = &untrusted[untrusted_next++ % UNTRUSTED_MAX];
+
+	*slot = mem_deref(*slot);
+	(void)pl_strdup(slot, callid);
+}
+
+static bool untrusted_has(const char *callid)
+{
+	unsigned i;
+
+	if (!callid)
+		return false;
+	for (i = 0; i < UNTRUSTED_MAX; i++) {
+		if (untrusted[i] && 0 == str_cmp(untrusted[i], callid))
+			return true;
+	}
+	return false;
+}
+
+static void untrusted_clear(void)
+{
+	unsigned i;
+
+	for (i = 0; i < UNTRUSTED_MAX; i++)
+		untrusted[i] = mem_deref(untrusted[i]);
+}
+
+/* Kommt die Anfrage von der Adresse, bei der das Konto registriert ist?
+ * baresip prüft das selbst nur mit `filter_registrar`, das aber auch keine
+ * neuen Verbindungen der Anlage mehr annähme. Deshalb hier nur für diese
+ * eine Prüfung eingeschaltet. */
+static bool from_registrar(const struct ua *ua, const struct sip_msg *msg)
+{
+	struct config_sip *cfg = &conf_config()->sip;
+	uint32_t saved = cfg->reg_filt;
+	bool ok;
+
+	cfg->reg_filt |= 1u << msg->tp;
+	ok = account_check_origin(ua_account(ua)) &&
+		ua_isregistered(ua) && ua_req_check_origin(ua, msg);
+	cfg->reg_filt = saved;
+	return ok;
+}
+
+/* Wie die Prüfung in sf-tls: gilt das Zertifikat nach den Systemzertifikaten
+ * (samt Hostname), ist es gut; sonst nur, wenn der Benutzer genau dieses
+ * Zertifikat bestätigt hat. */
+static int pin_verify(X509_STORE_CTX *ctx, void *arg)
+{
+	unsigned char md[EVP_MAX_MD_SIZE];
+	unsigned int len = 0, i;
+	char hex[EVP_MAX_MD_SIZE * 3 + 1];
+	const char *p;
+	X509 *leaf;
+	size_t n;
+	(void)arg;
+
+	if (X509_verify_cert(ctx) > 0)
+		return 1;
+
+	leaf = X509_STORE_CTX_get0_cert(ctx);
+	if (!pins || !leaf || !X509_digest(leaf, EVP_sha256(), md, &len))
+		return 0;
+
+	for (i = 0; i < len; i++)
+		snprintf(&hex[i * 3], 4, "%02X%s", md[i],
+			 i + 1 < len ? ":" : "");
+	n = str_len(hex);
+
+	for (p = pins; p && *p; p = strchr(p, ',') ? strchr(p, ',') + 1 : NULL) {
+		if (0 == strncmp(p, hex, n) && (p[n] == ',' || p[n] == '\0')) {
+			X509_STORE_CTX_set_error(ctx, X509_V_OK);
+			return 1;
+		}
+	}
+
+	return 0;
+}
+
 static void emit(int ev, struct ua *ua, struct call *call, const char *text)
 {
 	struct sfsip_event e;
@@ -81,6 +179,10 @@ static void emit(int ev, struct ua *ua, struct call *call, const char *text)
 		e.peer_name = call_peername(call);
 		e.answer_delay = call_answer_delay(call);
 		e.outgoing = call_is_outgoing(call);
+		if (untrusted_has(e.call_id)) {
+			call_set_answer_delay(call, -1);
+			e.answer_delay = -1;
+		}
 	}
 
 	if (event_cb)
@@ -99,6 +201,11 @@ static void bevent_handler(enum bevent_ev ev, struct bevent *event, void *arg)
 		const struct sip_msg *msg = bevent_get_msg(event);
 		struct ua *ua = uag_find_msg(msg);
 
+		/* Automatische Annahme (Click-to-Dial, Durchsage) nur, wenn die
+		 * Anlage selbst anruft, sonst könnte jeder im Netz das Mikrofon
+		 * öffnen. */
+		if (ua && !from_registrar(ua, msg))
+			untrusted_add(&msg->callid);
 		if (ua && !ua_accept(ua, msg))
 			bevent_stop(event);
 		return;
@@ -211,6 +318,21 @@ static void mqueue_handler(int id, void *data, void *arg)
 		}
 		break;
 
+	case SFSIP_OP_HEADER:
+		/* b: "Name: Wert", für alle weiteren Anfragen des Kontos */
+		ua = uag_find_aor(c->a);
+		if (ua && c->b && strchr(c->b, ':')) {
+			struct pl name, val;
+			const char *colon = strchr(c->b, ':');
+			name.p = c->b;
+			name.l = colon - c->b;
+			pl_set_str(&val, colon + 1);
+			(void)pl_trim(&val);
+			err = ua_add_custom_hdr(ua, &name, &val);
+		}
+		else
+			err = ENOENT;
+		break;
 	case SFSIP_OP_CONNECT:
 		ua = uag_find_aor(c->a);
 		if (ua)
@@ -273,7 +395,7 @@ int sfsip_cmd(int op, const char *a, const char *b)
  * SFSIP_OP_QUIT. Blockiert; auf einem eigenen Thread aufrufen. Pro Prozess
  * nur einmal gleichzeitig.
  */
-int sfsip_run(const char *config, const char *software,
+int sfsip_run(const char *config, const char *software, const char *pinlist,
 	      sfsip_event_cb *cb, void *ctx)
 {
 	int err;
@@ -307,6 +429,12 @@ int sfsip_run(const char *config, const char *software,
 	err = ua_init(software, true, true, true);
 	if (err)
 		goto out;
+	err = str_dup(&pins, pinlist ? pinlist : "");
+	if (err)
+		goto out;
+	if (uag_tls() && tls_ssl_ctx(uag_tls()))
+		SSL_CTX_set_cert_verify_callback(tls_ssl_ctx(uag_tls()),
+						 pin_verify, NULL);
 
 	err = conf_modules();
 	if (err)

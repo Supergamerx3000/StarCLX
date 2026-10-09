@@ -13,6 +13,8 @@ tracing.workspace = true
 
 [dev-dependencies]
 tokio = { workspace = true, features = ["time"] }
+rcgen = "0.14"
+sf-tls = { path = "../sf-tls" }
 
 [build-dependencies]
 cmake = "0.1"
