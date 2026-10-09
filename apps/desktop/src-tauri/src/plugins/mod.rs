@@ -14,6 +14,7 @@ pub mod chat;
 pub mod contacts;
 pub mod doorcam;
 pub mod fkeys;
+pub mod headset;
 pub mod journal;
 pub mod reach;
 pub mod voicemail;
@@ -30,6 +31,7 @@ pub struct Login {
 pub fn start(app: &AppHandle) {
     busylight::start(app);
     callactions::start(app);
+    headset::start(app);
 }
 
 /// Abgemeldet oder Sitzung gewechselt; wartet, bis alle fertig sind.

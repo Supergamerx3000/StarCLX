@@ -69,7 +69,7 @@ pub fn start(app: &AppHandle) {
     bus::listen(app, "busylight", |app, event| match event {
         Event::PhoneStopped => set_mode(app, Mode::Off),
         Event::PhoneReady => set_mode(app, Mode::Idle),
-        Event::Calls { calls } => set_mode(app, Mode::from_calls(&calls)),
+        Event::Calls { calls, .. } => set_mode(app, Mode::from_calls(&calls)),
         Event::PrefsSaved => refresh(app),
     });
 }

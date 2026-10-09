@@ -1,0 +1,7 @@
+# Headsets mit USB-HID-Telefonietasten: Zugriff für angemeldete Benutzer (StarCLX)
+# Jabra (GN Netcom)
+SUBSYSTEM=="hidraw", ATTRS{idVendor}=="0b0e", TAG+="uaccess"
+# Poly (Plantronics)
+SUBSYSTEM=="hidraw", ATTRS{idVendor}=="047f", TAG+="uaccess"
+# EPOS (früher Sennheiser Communications)
+SUBSYSTEM=="hidraw", ATTRS{idVendor}=="1395", TAG+="uaccess"

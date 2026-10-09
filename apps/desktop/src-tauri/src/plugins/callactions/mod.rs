@@ -279,7 +279,7 @@ pub fn start(app: &AppHandle) {
     // Bereits ausgelöste Ereignisse je Anruf-ID
     let mut fired: HashMap<String, HashSet<&'static str>> = HashMap::new();
     bus::listen(app, "callactions", move |app, event| {
-        let Event::Calls { calls } = event else {
+        let Event::Calls { calls, .. } = event else {
             return;
         };
         fired.retain(|id, _| calls.iter().any(|c| &c.id == id));

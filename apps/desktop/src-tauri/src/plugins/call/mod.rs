@@ -205,6 +205,7 @@ async fn start_phone(app: AppHandle, hub: sf_onehub::OneHub, host: String) {
                     &app,
                     Event::Calls {
                         calls: calls.clone(),
+                        muted,
                     },
                 );
                 update_phone_status(&app, |s| {
@@ -248,14 +249,15 @@ pub async fn phone_dial(state: State<'_, CallState>, number: String) -> Result<(
 }
 
 #[tauri::command]
-pub async fn phone_answer(
-    app: AppHandle,
-    state: State<'_, CallState>,
-    call_id: String,
-) -> Result<(), String> {
-    let primary = settings::load(&app).prefs.primary_on_answer;
-    with_phone(&state, async |p| {
-        p.answer(&call_id)?;
+pub async fn phone_answer(app: AppHandle, call_id: String) -> Result<(), String> {
+    answer(&app, &call_id).await
+}
+
+/// Anruf annehmen, auch von der Headset-Taste
+pub async fn answer(app: &AppHandle, call_id: &str) -> Result<(), String> {
+    let primary = settings::load(app).prefs.primary_on_answer;
+    with_phone(&app.state::<CallState>(), async |p| {
+        p.answer(call_id)?;
         if primary && let Ok(hub) = crate::hub(&app.state::<AppState>()).await {
             make_primary(&hub, p.phone_id()).await;
         }
@@ -267,6 +269,16 @@ pub async fn phone_answer(
 #[tauri::command]
 pub async fn phone_hangup(state: State<'_, CallState>, call_id: String) -> Result<(), String> {
     with_phone(&state, async |p| p.hangup(&call_id).await).await
+}
+
+/// Auflegen von der Headset-Taste
+pub async fn hangup(app: &AppHandle, call_id: &str) -> Result<(), String> {
+    with_phone(&app.state::<CallState>(), async |p| p.hangup(call_id).await).await
+}
+
+/// Stummschalten von der Headset-Taste
+pub async fn set_mute(app: &AppHandle, muted: bool) -> Result<(), String> {
+    with_phone(&app.state::<CallState>(), async |p| p.set_mute(muted)).await
 }
 
 #[tauri::command]
