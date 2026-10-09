@@ -465,6 +465,7 @@ pub fn run() {
         .manage(plugins::doorcam::DoorCamState::default())
         .manage(plugins::journal::JournalState::default())
         .manage(busylight::BusylightState::default())
+        .manage(plugins::headset::HeadsetState::default())
         .manage(AppState {
             pending: Mutex::default(),
             session: Mutex::default(),
@@ -556,6 +557,8 @@ pub fn run() {
             quick_hide,
             busylight::busylight_info,
             busylight::busylight_test,
+            plugins::headset::headset_info,
+            plugins::headset::headset_test,
             restore_session,
             certs::check_certificate,
             certs::trust_certificate,

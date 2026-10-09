@@ -55,7 +55,8 @@
           "libssl3t64 | libssl3"
         ],
         "files": {
-          "/usr/lib/udev/rules.d/60-starclx-busylight.rules": "udev/60-starclx-busylight.rules"
+          "/usr/lib/udev/rules.d/60-starclx-busylight.rules": "udev/60-starclx-busylight.rules",
+          "/usr/lib/udev/rules.d/60-starclx-headset.rules": "udev/60-starclx-headset.rules"
         }
       },
       "appimage": {},
@@ -79,7 +80,8 @@
           "libayatana-appindicator3.so.1()(64bit)"
         ],
         "files": {
-          "/usr/lib/udev/rules.d/60-starclx-busylight.rules": "udev/60-starclx-busylight.rules"
+          "/usr/lib/udev/rules.d/60-starclx-busylight.rules": "udev/60-starclx-busylight.rules",
+          "/usr/lib/udev/rules.d/60-starclx-headset.rules": "udev/60-starclx-headset.rules"
         }
       }
     }

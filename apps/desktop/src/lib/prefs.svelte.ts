@@ -19,6 +19,8 @@ export type Prefs = {
   busylight: boolean;
   busylight_sound: string;
   busylight_volume: number;
+  /** Headset-Tasten (Plugin src-tauri/src/plugins/headset) */
+  headset: boolean;
   chat_notify: boolean;
   chat_sound: boolean;
   download_dir: string;
