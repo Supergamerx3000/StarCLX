@@ -188,6 +188,13 @@ pub async fn probe(host: &str, port: u16) -> Result<Option<Untrusted>, Error> {
     })
 }
 
+/// Fingerabdruck des Zertifikats an `host:port` und ob es nach den
+/// Systemzertifikaten (samt Hostname) gilt, ohne bestätigte Ausnahmen.
+pub async fn peer_certificate(host: &str, port: u16) -> Result<(String, bool), Error> {
+    let (fingerprint, reason) = inspect(host, port).await?;
+    Ok((fingerprint, reason.is_none()))
+}
+
 /// Gilt das Zertifikat von `host:port` nur, weil der Benutzer es bestätigt
 /// hat? Fehler (z. B. nicht erreichbar) zählen als `false`.
 pub async fn is_confirmed(host: &str, port: u16) -> bool {

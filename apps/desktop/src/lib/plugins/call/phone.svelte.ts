@@ -28,10 +28,12 @@ export type PhoneStatus = {
   muted: boolean;
   /** Rückruf bei Besetzt: "available", "active" oder "" */
   callback: string;
+  /** Fingerabdruck eines SIP-Zertifikats, das bestätigt werden muss */
+  sip_certificate: string;
 };
 
 export const phone = $state({
-  status: { state: "off", detail: "", calls: [], muted: false, callback: "" } as PhoneStatus,
+  status: { state: "off", detail: "", calls: [], muted: false, callback: "", sip_certificate: "" } as PhoneStatus,
   notice: "",
   now: Date.now(),
 });

@@ -509,5 +509,6 @@ const dict: Record<string, string> = {
   "Übertragung unvollständig": "Trasferimento incompleto",
   "Gegenseite unterstützt die Übertragung nicht": "L’altra parte non supporta questo trasferimento",
   "unbekannter Client": "client sconosciuto",
+  "SIP-Zertifikat bestätigen": "Conferma il certificato SIP",
 };
 export default dict;

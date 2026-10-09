@@ -75,6 +75,8 @@
     subTop = (e.currentTarget as HTMLElement).offsetTop;
     sub = sub === name ? "" : name;
   };
+  const trustSipCert = () =>
+    run(() => invoke("phone_trust_sip_certificate", { fingerprint: phone.status.sip_certificate }));
   const setDnd = () => run(() => invoke("fkey_dnd", { enabled: !dnd }));
   const setPrimary = (id: string) => run(async () => { await invoke("set_primary_phone", { id }); await loadPhones(); });
   const setNumber = (id: string) => run(async () => { await invoke("set_signaling_number", { id }); await loadNumbers(); await loadSignaling(); });
@@ -101,6 +103,10 @@
     <span class="muted">STARFACE {session.server_version} · {session.server.replace(/^https?:\/\//, "")}</span>
     <span class="muted state"><span class="reg {phone.status.state}"></span>{stateText[phone.status.state]}</span>
     {#if phone.status.state === "error" && phone.status.detail}<span class="notice">{t(phone.status.detail)}</span>{/if}
+    {#if phone.status.state === "error" && phone.status.sip_certificate}
+      <code class="fp">{phone.status.sip_certificate}</code>
+      <button class="certok" onclick={trustSipCert}>{t("SIP-Zertifikat bestätigen")}</button>
+    {/if}
   </div>
 
   <button class="row" class:on={dnd} onclick={setDnd}>
@@ -206,6 +212,8 @@
   .pill { font-size: 0.72rem; font-weight: 700; padding: 0.05rem 0.45rem; border-radius: 999px; background: var(--red); color: #fff; }
   hr { border: none; border-top: 1px solid var(--line); margin: 0.3rem 0 0; width: 100%; }
   .notice { color: var(--accent); font-size: 0.85rem; padding: 0 0.3rem; }
+  .fp { font-size: 0.72rem; word-break: break-all; padding: 0 0.3rem; color: var(--muted); }
+  .certok { align-self: center; }
 
   .sub {
     position: absolute; left: calc(100% + 0.4rem); width: 18rem;

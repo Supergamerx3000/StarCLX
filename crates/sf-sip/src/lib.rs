@@ -30,6 +30,7 @@ mod ffi {
     pub const OP_QUIT: c_int = 8;
     pub const OP_RESET: c_int = 9;
     pub const OP_AUSRC: c_int = 10;
+    pub const OP_HEADER: c_int = 11;
 
     pub const EV_READY: c_int = 1;
     pub const EV_ERROR: c_int = 2;
@@ -63,6 +64,7 @@ mod ffi {
         pub fn sfsip_run(
             config: *const c_char,
             software: *const c_char,
+            pins: *const c_char,
             cb: EventCb,
             ctx: *mut c_void,
         ) -> c_int;
@@ -101,7 +103,9 @@ pub enum SipEvent {
         reason: String,
     },
     /// Eingehender Anruf. `auto_answer` ist gesetzt, wenn die Anlage per
-    /// Call-Info/Alert-Info um automatische Annahme bittet.
+    /// Call-Info/Alert-Info um automatische Annahme bittet. Kommt der Anruf
+    /// nicht von der Adresse, bei der das Konto registriert ist, bleibt es
+    /// `false`: sonst könnte jeder im Netz das Mikrofon öffnen.
     Incoming {
         call: CallInfo,
         auto_answer: bool,
@@ -152,6 +156,9 @@ pub struct Config {
     /// TLS-Zertifikat der Anlage prüfen.
     pub verify_server: bool,
     pub ca_file: Option<String>,
+    /// SHA-256-Fingerabdrücke (`AA:BB:…`) von Zertifikaten, die gelten,
+    /// obwohl sie die normale Prüfung nicht bestehen (vom Benutzer bestätigt).
+    pub trusted_fingerprints: Vec<String>,
     /// Weitere baresip-Konfigurationszeilen (für Tests und Sonderfälle).
     pub extra: String,
 }
@@ -164,6 +171,7 @@ impl Default for Config {
             sip_listen: None,
             verify_server: true,
             ca_file: Some("/etc/ssl/certs/ca-certificates.crt".into()),
+            trusted_fingerprints: Vec::new(),
             extra: String::new(),
         }
     }
@@ -350,6 +358,13 @@ impl Softphone {
         if RUNNING.swap(true, Ordering::SeqCst) {
             return Err(Error::AlreadyRunning);
         }
+        let pins = config
+            .trusted_fingerprints
+            .iter()
+            .map(|f| f.trim().to_ascii_uppercase())
+            .collect::<Vec<_>>()
+            .join(",");
+        let pins = CString::new(pins).map_err(|_| Error::InvalidValue("pins".into()))?;
         let config =
             CString::new(config.render()).map_err(|_| Error::InvalidValue("config".into()))?;
         let software =
@@ -368,7 +383,13 @@ impl Softphone {
                 // SAFETY: Zeiger bleiben gültig, bis sfsip_run zurückkehrt;
                 // danach ruft baresip den Callback nicht mehr auf.
                 let err = unsafe {
-                    ffi::sfsip_run(config.as_ptr(), software.as_ptr(), on_event, ctx.cast())
+                    ffi::sfsip_run(
+                        config.as_ptr(),
+                        software.as_ptr(),
+                        pins.as_ptr(),
+                        on_event,
+                        ctx.cast(),
+                    )
                 };
                 if err != 0 {
                     tracing::warn!(err, "baresip beendet mit Fehler");
@@ -465,6 +486,14 @@ impl Softphone {
     /// registriert alle Konten neu.
     pub fn reset(&self) -> Result<()> {
         self.cmd(ffi::OP_RESET, None, None)
+    }
+
+    /// Zusätzlicher Header in allen weiteren Anfragen eines Kontos (für Tests).
+    pub fn add_header(&self, aor: &str, name: &str, value: &str) -> Result<()> {
+        if name.is_empty() || name.contains([':', '\r', '\n']) || value.contains(['\r', '\n']) {
+            return Err(Error::InvalidValue("header".into()));
+        }
+        self.cmd(ffi::OP_HEADER, Some(aor), Some(&format!("{name}: {value}")))
     }
 
     /// Direkter SIP-Anruf von einem Konto aus. Im Client normalerweise nicht
