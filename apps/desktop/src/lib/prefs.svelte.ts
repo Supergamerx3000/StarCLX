@@ -6,6 +6,8 @@ export type Prefs = {
   softphone: boolean;
   primary_on_login: boolean;
   primary_on_answer: boolean;
+  /** „Wählen über“: ID des Telefons, leer heisst Softphone */
+  dial_phone: string;
   notify_missed: boolean;
   notify_missed_group: boolean;
   speakers: string[];

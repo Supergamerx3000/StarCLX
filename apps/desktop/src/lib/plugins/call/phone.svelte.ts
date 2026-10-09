@@ -28,10 +28,14 @@ export type PhoneStatus = {
   muted: boolean;
   /** Rückruf bei Besetzt: "available", "active" oder "" */
   callback: string;
+  /** Anrufsteuerung über die Anlage verfügbar, auch ohne Softphone */
+  control: boolean;
+  /** ID des Softphones an der Anlage, leer ohne Softphone */
+  softphone_id: string;
 };
 
 export const phone = $state({
-  status: { state: "off", detail: "", calls: [], muted: false, callback: "" } as PhoneStatus,
+  status: { state: "off", detail: "", calls: [], muted: false, callback: "", control: false, softphone_id: "" } as PhoneStatus,
   notice: "",
   now: Date.now(),
 });
@@ -75,5 +79,11 @@ export function duration(c: Call, now: number) {
   const ss = String(s % 60).padStart(2, "0");
   return h ? `${h}:${mm}:${ss}` : `${mm}:${ss}`;
 }
+
+/** Wählen geht, sobald die Anrufsteuerung läuft; ohne Softphone über das
+ *  Telefon aus „Wählen über“ bzw. das primäre Telefon. */
+export const canDial = () => phone.status.control;
+/** Ton, Annehmen und Stummschalten gibt es nur am Softphone. */
+export const hasSoftphone = () => phone.status.state === "ready";
 
 export const isRingingIn = (c: Call) => c.incoming && c.phase === "ringing";

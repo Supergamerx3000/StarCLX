@@ -509,5 +509,10 @@ const dict: Record<string, string> = {
   "Übertragung unvollständig": "Trasferimento incompleto",
   "Gegenseite unterstützt die Übertragung nicht": "L’altra parte non supporta questo trasferimento",
   "unbekannter Client": "client sconosciuto",
+  "Softphone": "Softphone",
+  "Telefon, das die Anlage beim Wählen zuerst anruft": "Telefono che il centralino chiama per primo durante la composizione",
+  "Wählen über: {phone}": "Componi tramite: {phone}",
+  "Wählen über": "Componi tramite",
+  "Die Anlage ruft dieses Telefon zuerst an. Annehmen geht nur am Softphone.": "Il centralino chiama prima questo telefono. Rispondere funziona solo sul softphone.",
 };
 export default dict;

@@ -5,6 +5,11 @@
 //! ruft die Anlage zuerst das Softphone an, das diesen Rückruf automatisch
 //! annimmt. Eingehende Anrufe klingeln am Softphone und werden dort
 //! angenommen. Auflegen, Halten und DTMF laufen über gRPC.
+//!
+//! Ohne Softphone (ausgeschaltet oder nicht angemeldet) steuert der Client
+//! die Anrufe trotzdem: Gewählt wird dann über ein anderes eigenes Telefon,
+//! etwa das Tischtelefon, das die Anlage zuerst anruft. Annehmen geht nur am
+//! Softphone; die Anlage kennt kein Abheben aus der Ferne.
 
 use std::collections::BTreeMap;
 use std::sync::{Arc, Mutex};
@@ -60,6 +65,8 @@ pub enum PhoneError {
     Register(String),
     #[error("Dieser Anruf klingelt nicht am Softphone")]
     NotRinging,
+    #[error("Nur mit Softphone möglich")]
+    NoSoftphone,
     #[error("Keine Voicemailbox vorhanden")]
     NoMailbox,
     #[error("Kein besetzter Anruf, für den ein Rückruf möglich ist")]
@@ -162,6 +169,8 @@ struct Inner {
     callback_offer: Option<(String, Instant)>,
     /// Anrufe mit aktivem Rückruf bei Besetzt
     callback_active: Vec<String>,
+    /// Telefon, über das ein Anruf gewählt wurde, falls nicht das Softphone
+    call_phone: BTreeMap<String, String>,
 }
 
 impl Inner {
@@ -182,8 +191,9 @@ impl Inner {
 
 pub struct Phone {
     hub: OneHub,
-    phone_id: String,
-    sip: Arc<Softphone>,
+    /// App-Telefon an der Anlage; `None` ohne Softphone
+    phone_id: Option<String>,
+    sip: Option<Arc<Softphone>>,
     inner: Arc<Mutex<Inner>>,
     events: mpsc::UnboundedSender<PhoneEvent>,
     tasks: Vec<JoinHandle<()>>,
@@ -265,40 +275,92 @@ impl Phone {
             detail: String::new(),
         });
 
-        let inner = Arc::new(Mutex::new(Inner::default()));
-        let mut phone = Self {
-            hub,
-            phone_id,
-            sip,
-            inner,
-            events,
-            tasks: Vec::new(),
-        };
+        let mut phone = Self::new(hub, Some(phone_id), Some(sip), events);
         phone.tasks.push(phone.spawn_sip_driver(sip_rx));
         phone.tasks.push(phone.spawn_pbx_driver());
         Ok(phone)
     }
 
-    /// ID des App-Telefons auf der Anlage
-    pub fn phone_id(&self) -> &str {
-        &self.phone_id
+    /// Anrufsteuerung ohne Softphone: zeigt die Anrufe der Anlage und
+    /// steuert sie, gewählt wird über ein anderes eigenes Telefon.
+    pub fn without_softphone(hub: OneHub, events: mpsc::UnboundedSender<PhoneEvent>) -> Self {
+        let mut phone = Self::new(hub, None, None, events);
+        phone.tasks.push(phone.spawn_pbx_driver());
+        phone
     }
 
-    /// Wählt über die Anlage. Sie ruft zuerst das Softphone an.
-    pub async fn dial(&self, number: &str) -> PhoneResult<()> {
-        self.inner.lock().unwrap().dial_until = Some(Instant::now() + DIAL_WINDOW);
+    fn new(
+        hub: OneHub,
+        phone_id: Option<String>,
+        sip: Option<Arc<Softphone>>,
+        events: mpsc::UnboundedSender<PhoneEvent>,
+    ) -> Self {
+        Self {
+            hub,
+            phone_id,
+            sip,
+            inner: Arc::new(Mutex::new(Inner::default())),
+            events,
+            tasks: Vec::new(),
+        }
+    }
+
+    fn sip(&self) -> PhoneResult<&Softphone> {
+        self.sip.as_deref().ok_or(PhoneError::NoSoftphone)
+    }
+
+    /// Telefon, an dem ein Anruf läuft: das, über das er gewählt wurde,
+    /// sonst das Softphone. `None` überlässt die Wahl der Anlage.
+    fn phone_of(&self, call_id: &str) -> Option<v1::types::PhoneId> {
+        let via = self.inner.lock().unwrap().call_phone.get(call_id).cloned();
+        via.or_else(|| self.phone_id.clone())
+            .map(|id| v1::types::PhoneId { id })
+    }
+
+    /// Merkt sich das wählende Telefon und, wenn es das Softphone ist, dass
+    /// dessen Rückruf gleich automatisch angenommen wird.
+    fn expect_callback(&self, via: Option<&str>) {
+        if via.is_none_or(|id| Some(id) == self.phone_id.as_deref()) && self.sip.is_some() {
+            self.inner.lock().unwrap().dial_until = Some(Instant::now() + DIAL_WINDOW);
+        }
+    }
+
+    /// ID des App-Telefons auf der Anlage, sofern das Softphone läuft
+    pub fn phone_id(&self) -> Option<&str> {
+        self.phone_id.as_deref()
+    }
+
+    /// Läuft das Softphone (Ton, Annehmen, Stummschalten)?
+    pub fn has_softphone(&self) -> bool {
+        self.sip.is_some()
+    }
+
+    /// Wählt über die Anlage. Sie ruft zuerst das wählende Telefon an:
+    /// `via` (z. B. das Tischtelefon), sonst das Softphone, ohne Softphone
+    /// das primäre Telefon.
+    pub async fn dial(&self, number: &str, via: Option<&str>) -> PhoneResult<()> {
+        self.expect_callback(via);
+        let phone = via.map(str::to_owned).or_else(|| self.phone_id.clone());
         let req = v1::call::PlaceCallRequest {
             number: number.to_owned(),
             requested_call_id: None,
-            phone_id: Some(v1::types::PhoneId {
-                id: self.phone_id.clone(),
-            }),
+            phone_id: phone.clone().map(|id| v1::types::PhoneId { id }),
         };
-        if let Err(e) = self.hub.call().place_call(req).await {
-            self.inner.lock().unwrap().dial_until = None;
-            return Err(sf_onehub::Error::from(e).into());
+        match self.hub.call().place_call(req).await {
+            Ok(resp) => {
+                let call = id_of(&resp.into_inner().call_id);
+                if let Some(phone) = phone.filter(|p| Some(p) != self.phone_id.as_ref())
+                    && !call.is_empty()
+                {
+                    self.inner.lock().unwrap().call_phone.insert(call, phone);
+                }
+                Ok(())
+            }
+            Err(e) => {
+                self.inner.lock().unwrap().dial_until = None;
+                Err(sf_onehub::Error::from(e).into())
+            }
         }
-        Ok(())
     }
 
     /// Rückruf bei Besetzt: aktiviert ihn für den zuletzt besetzten Anruf
@@ -355,7 +417,7 @@ impl Phone {
                 .cloned()
                 .ok_or(PhoneError::NotRinging)?
         };
-        self.sip.answer(&sip_id)?;
+        self.sip()?.answer(&sip_id)?;
         Ok(())
     }
 
@@ -383,9 +445,7 @@ impl Phone {
             call.clone()
                 .resume_call(v1::call::ResumeCallRequest {
                     call_id: Some(call_id_of(call_id)),
-                    phone_id: Some(v1::types::PhoneId {
-                        id: self.phone_id.clone(),
-                    }),
+                    phone_id: self.phone_of(call_id),
                 })
                 .await
         };
@@ -508,19 +568,28 @@ impl Phone {
 
     /// Rückfrage: hält `call_id` und ruft `number` an.
     pub async fn consult(&self, call_id: &str, number: &str) -> PhoneResult<()> {
-        self.inner.lock().unwrap().dial_until = Some(Instant::now() + DIAL_WINDOW);
+        let phone = self.phone_of(call_id);
+        self.expect_callback(phone.as_ref().map(|p| p.id.as_str()));
         let req = v1::call::PlaceConsultationCallRequest {
             number: number.to_owned(),
             call_id: Some(call_id_of(call_id)),
-            phone_id: Some(v1::types::PhoneId {
-                id: self.phone_id.clone(),
-            }),
+            phone_id: phone.clone(),
         };
-        if let Err(e) = self.hub.call().place_consultation_call(req).await {
-            self.inner.lock().unwrap().dial_until = None;
-            return Err(sf_onehub::Error::from(e).into());
+        match self.hub.call().place_consultation_call(req).await {
+            Ok(resp) => {
+                let call = id_of(&resp.into_inner().call_id);
+                if let Some(phone) = phone.filter(|p| Some(&p.id) != self.phone_id.as_ref())
+                    && !call.is_empty()
+                {
+                    self.inner.lock().unwrap().call_phone.insert(call, phone.id);
+                }
+                Ok(())
+            }
+            Err(e) => {
+                self.inner.lock().unwrap().dial_until = None;
+                Err(sf_onehub::Error::from(e).into())
+            }
         }
-        Ok(())
     }
 
     /// Verbindet die Rückfrage mit dem gehaltenen Anruf und steigt aus.
@@ -541,9 +610,7 @@ impl Phone {
     pub async fn conference(&self, call_ids: &[String]) -> PhoneResult<()> {
         let req = v1::conference::InitiateConferenceRequest {
             call_ids: call_ids.iter().map(|id| call_id_of(id)).collect(),
-            phone_id: Some(v1::types::PhoneId {
-                id: self.phone_id.clone(),
-            }),
+            phone_id: call_ids.first().and_then(|id| self.phone_of(id)),
         };
         self.hub
             .conference_call()
@@ -557,20 +624,23 @@ impl Phone {
     /// neu registrieren, sonst laufen eingehende Anrufe bis zur nächsten
     /// regulären Registrierung ins Leere.
     pub fn resume(&self) {
-        if let Err(e) = self.sip.reset() {
+        if let Some(sip) = &self.sip
+            && let Err(e) = sip.reset()
+        {
             tracing::warn!(error = %e, "Softphone nicht neu verbunden");
         }
     }
 
     /// Schaltet das Mikrofon für alle Gespräche am Softphone stumm.
     pub fn set_mute(&self, muted: bool) -> PhoneResult<()> {
+        let sip = self.sip()?;
         let active = {
             let mut inner = self.inner.lock().unwrap();
             inner.muted = muted;
             inner.sip_active.clone()
         };
         for id in active {
-            self.sip.set_mute(&id, muted)?;
+            sip.set_mute(&id, muted)?;
         }
         self.publish();
         Ok(())
@@ -587,7 +657,7 @@ impl Phone {
     fn spawn_sip_driver(&self, mut rx: mpsc::UnboundedReceiver<SipEvent>) -> JoinHandle<()> {
         let inner = self.inner.clone();
         let events = self.events.clone();
-        let sip = self.sip.clone();
+        let sip = self.sip.clone().expect("SIP-Treiber nur mit Softphone");
         tokio::spawn(async move {
             while let Some(ev) = rx.recv().await {
                 tracing::debug!(?ev, "SIP");
@@ -760,7 +830,9 @@ fn apply(inner: &mut Inner, ev: v1::call::call_event_response::CallEvent) {
             }
         }
         E::CallDisconnected(e) => {
-            inner.calls.remove(&id_of(&e.call_id));
+            let id = id_of(&e.call_id);
+            inner.calls.remove(&id);
+            inner.call_phone.remove(&id);
         }
         E::CallBackOnBusyStateChanged(e) => {
             use v1::call::CallBackOnBusyState as S;
@@ -907,6 +979,19 @@ mod tests {
             }),
         );
         assert!(inner.calls.is_empty());
+    }
+
+    #[test]
+    fn hangup_forgets_dialing_phone() {
+        let mut inner = Inner::default();
+        inner.call_phone.insert("a".into(), "tisch".into());
+        apply(
+            &mut inner,
+            E::CallDisconnected(v1::call::CallDisconnectedEvent {
+                call_id: Some(call_id_of("a")),
+            }),
+        );
+        assert!(inner.call_phone.is_empty());
     }
 
     #[test]

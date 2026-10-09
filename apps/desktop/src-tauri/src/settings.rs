@@ -39,6 +39,9 @@ pub struct Prefs {
     pub primary_on_login: bool,
     /// Bei Rufannahme das Softphone als primäres Telefon auswählen
     pub primary_on_answer: bool,
+    /// „Wählen über“: ID des Telefons, das die Anlage beim Wählen zuerst
+    /// anruft (z. B. das Tischtelefon); leer heisst Softphone
+    pub dial_phone: String,
     /// Benachrichtigung über verpasste Anrufe (ohne Gruppenanrufe)
     pub notify_missed: bool,
     /// Benachrichtigung bei verpassten Gruppenanrufen
@@ -112,6 +115,7 @@ impl Default for Prefs {
             softphone: true,
             primary_on_login: false,
             primary_on_answer: false,
+            dial_phone: String::new(),
             notify_missed: true,
             notify_missed_group: true,
             speakers: Vec::new(),

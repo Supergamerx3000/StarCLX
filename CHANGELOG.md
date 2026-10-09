@@ -1,5 +1,13 @@
 # Änderungen
 
+## Unveröffentlicht
+
+### Tischtelefon steuern
+- „Wählen über“ im Profilmenü: Die Anlage ruft beim Wählen zuerst das gewählte eigene Telefon
+  an, z. B. das Tischtelefon (gilt auch für Heranholen, Parken und Voicemail über Telefon)
+- Der Call Manager zeigt und steuert Anrufe auch ohne Softphone (auflegen, halten, Rückfrage,
+  verbinden, Konferenz usw.); annehmen und stummschalten gehen weiterhin nur am Softphone
+
 ## 1.3.9 – 2026-10-08
 
 Wie 1.3.8, nur kommen die Pakete jetzt auch über die apt-, dnf- und Flatpak-Quelle; die standen

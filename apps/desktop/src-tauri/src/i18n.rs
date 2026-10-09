@@ -297,11 +297,11 @@ const TEXTS: &[(&str, [&str; 3])] = &[
         ["ffmpeg: {detail}", "ffmpeg : {detail}", "ffmpeg: {detail}"],
     ),
     (
-        "Softphone ist nicht bereit",
+        "Anrufsteuerung ist nicht bereit",
         [
-            "Softphone is not ready",
-            "Le softphone n'est pas prêt",
-            "Il softphone non è pronto",
+            "Call control is not ready",
+            "Le contrôle des appels n'est pas prêt",
+            "Il controllo chiamate non è pronto",
         ],
     ),
     (
