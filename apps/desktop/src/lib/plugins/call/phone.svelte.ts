@@ -32,10 +32,12 @@ export type PhoneStatus = {
   control: boolean;
   /** ID des Softphones an der Anlage, leer ohne Softphone */
   softphone_id: string;
+  /** Fingerabdruck eines SIP-Zertifikats, das bestätigt werden muss */
+  sip_certificate: string;
 };
 
 export const phone = $state({
-  status: { state: "off", detail: "", calls: [], muted: false, callback: "", control: false, softphone_id: "" } as PhoneStatus,
+  status: { state: "off", detail: "", calls: [], muted: false, callback: "", control: false, softphone_id: "", sip_certificate: "" } as PhoneStatus,
   notice: "",
   now: Date.now(),
 });

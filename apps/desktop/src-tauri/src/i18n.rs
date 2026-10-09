@@ -433,6 +433,22 @@ const TEXTS: &[(&str, [&str; 3])] = &[
         ],
     ),
     (
+        "Das SIP-Zertifikat der Anlage ist unbekannt oder hat sich geändert. Bestätige es nur, wenn du den Fingerabdruck kennst.",
+        [
+            "The PBX's SIP certificate is unknown or has changed. Only confirm it if you recognise the fingerprint.",
+            "Le certificat SIP du PBX est inconnu ou a changé. Ne le confirmez que si vous reconnaissez l’empreinte.",
+            "Il certificato SIP del centralino è sconosciuto o è cambiato. Confermalo solo se riconosci l’impronta.",
+        ],
+    ),
+    (
+        "Kein Zertifikat zu bestätigen",
+        [
+            "No certificate to confirm",
+            "Aucun certificat à confirmer",
+            "Nessun certificato da confermare",
+        ],
+    ),
+    (
         "Tastenkürzel lassen sich nur unter GNOME automatisch eintragen.",
         [
             "Keyboard shortcuts can only be registered automatically under GNOME.",

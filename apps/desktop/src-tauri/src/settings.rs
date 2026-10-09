@@ -15,6 +15,10 @@ pub struct Settings {
     /// Vom Benutzer bestätigte Zertifikate (SHA-256) je Anlage
     #[serde(default)]
     pub trusted_certs: BTreeMap<String, BTreeSet<String>>,
+    /// Bestätigte SIP-Zertifikate (SHA-256) je Hostname der Anlage, für
+    /// Zertifikate, die nicht nach den Systemzertifikaten gelten
+    #[serde(default)]
+    pub sip_certs: BTreeMap<String, String>,
     /// Umleitungstasten mit Zielabfrage und die Einstellungen, die beim
     /// Ausschalten wiederkommen
     #[serde(default)]

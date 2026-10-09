@@ -350,6 +350,7 @@ const dict: Record<string, string> = {
   "Softphone aus": "Softphone spento",
   "Softphone startet …": "Avvio del softphone …",
   "Softphone bereit": "Softphone pronto",
+  "Lizenz": "Licenza",
   "Softphone nicht angemeldet": "Softphone non registrato",
   "Menü schliessen": "Chiudi menu",
   "Anordnung bearbeiten": "Modifica disposizione",
@@ -514,5 +515,6 @@ const dict: Record<string, string> = {
   "Wählen über: {phone}": "Componi tramite: {phone}",
   "Wählen über": "Componi tramite",
   "Die Anlage ruft dieses Telefon zuerst an. Annehmen geht nur am Softphone.": "Il centralino chiama prima questo telefono. Rispondere funziona solo sul softphone.",
+  "SIP-Zertifikat bestätigen": "Conferma il certificato SIP",
 };
 export default dict;
