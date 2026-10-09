@@ -41,6 +41,7 @@ async fn call_between_two_local_accounts_with_srtp() {
         sip_listen: Some(format!("{ip}:{port}")),
         verify_server: false,
         ca_file: None,
+        trusted_fingerprints: Vec::new(),
         extra: "ausrc_srate 16000\nausrc_channels 1\n".into(),
     };
     let (phone, mut rx) = Softphone::start(&config, "sf-sip-test").unwrap();
@@ -57,11 +58,16 @@ async fn call_between_two_local_accounts_with_srtp() {
         ))
         .unwrap();
 
+    // Bitte um automatische Annahme wie bei Click-to-Dial. Alice ist nicht
+    // die Anlage, bei der Bob registriert ist: das darf nicht greifen.
+    phone
+        .add_header(&alice, "Call-Info", "<sip:x>;answer-after=0")
+        .unwrap();
     phone
         .connect(&alice, &format!("sip:bob@{ip}:{port}"))
         .unwrap();
 
-    let SipEvent::Incoming { call, .. } = next(&mut rx, "eingehenden Anruf", |e| {
+    let SipEvent::Incoming { call, auto_answer } = next(&mut rx, "eingehenden Anruf", |e| {
         matches!(e, SipEvent::Incoming { .. })
     })
     .await
@@ -69,6 +75,7 @@ async fn call_between_two_local_accounts_with_srtp() {
         unreachable!()
     };
     assert!(call.peer_uri.contains("alice"), "{call:?}");
+    assert!(!auto_answer, "Auto-Annahme von fremder Adresse");
     phone.answer(&call.call_id).unwrap();
 
     // SRTP-Aushandlung und Verbindungsaufbau kommen in beliebiger Reihenfolge.

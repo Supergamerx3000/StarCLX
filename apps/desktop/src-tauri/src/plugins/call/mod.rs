@@ -98,6 +98,9 @@ pub struct PhoneStatus {
     muted: bool,
     /// Rückruf bei Besetzt: "available", "active" oder ""
     callback: String,
+    /// Fingerabdruck eines neuen SIP-Zertifikats, das der Benutzer erst
+    /// bestätigen muss; sonst leer
+    sip_certificate: String,
 }
 
 fn update_phone_status(app: &AppHandle, f: impl FnOnce(&mut PhoneStatus)) {
@@ -133,20 +136,28 @@ async fn start_phone(app: AppHandle, hub: sf_onehub::OneHub, host: String) {
     }
     let (tx, mut rx) = mpsc::unbounded_channel();
     let mut config = audio::softphone_config(&prefs).await;
-    // Cloud-Anlagen nutzen für SIP ein Zertifikat der privaten „STARFACE CA“
-    // (auf die IP ausgestellt), das kein System kennt; baresip kann es nicht
-    // einzeln bestätigen. Wie bei bestätigten Zertifikaten nicht prüfen.
-    let cloud = app
-        .state::<AppState>()
-        .session
-        .lock()
-        .await
-        .as_ref()
-        .is_some_and(|s| s.info().cloud);
-    if cloud || certs::is_confirmed(&host).await {
-        config.verify_server = false;
+    config.trusted_fingerprints = trusted_sip_certs(&app, &host);
+    let mut started = Phone::start(
+        hub.clone(),
+        &host,
+        &config,
+        env!("CARGO_PKG_VERSION"),
+        tx.clone(),
+    )
+    .await;
+    // Bisher galt das SIP-Zertifikat bei Cloud-Anlagen und bestätigten
+    // Zertifikaten ungeprüft. Beim ersten Mal dort wird es deshalb ohne
+    // Rückfrage übernommen; ändert es sich später, fragt der Client.
+    if let Err(sf_core::phone::PhoneError::UntrustedSipCertificate { fingerprint }) = &started
+        && !settings::load(&app).sip_certs.contains_key(&host)
+        && (is_cloud(&app).await || certs::is_confirmed(&host).await)
+    {
+        tracing::info!(%host, %fingerprint, "SIP-Zertifikat beim ersten Mal übernommen");
+        remember_sip_cert(&app, &host, fingerprint);
+        config.trusted_fingerprints = trusted_sip_certs(&app, &host);
+        started = Phone::start(hub.clone(), &host, &config, env!("CARGO_PKG_VERSION"), tx).await;
     }
-    match Phone::start(hub.clone(), &host, &config, env!("CARGO_PKG_VERSION"), tx).await {
+    match started {
         Ok(phone) => {
             if app.state::<AppState>().session.lock().await.is_none() {
                 return; // inzwischen abgemeldet
@@ -165,11 +176,20 @@ async fn start_phone(app: AppHandle, hub: sf_onehub::OneHub, host: String) {
                     "Dem Benutzer fehlt in der Anlage das Recht für App-Telefone (uci_autoprovisioning). Der Administrator kann es unter Benutzer → Rechte freischalten.",
                 )
                 .to_owned(),
+                sf_core::phone::PhoneError::UntrustedSipCertificate { .. } => t(
+                    "Das SIP-Zertifikat der Anlage ist unbekannt oder hat sich geändert. Bestätige es nur, wenn du den Fingerabdruck kennst.",
+                )
+                .to_owned(),
                 _ => e.to_string(),
+            };
+            let sip_certificate = match e {
+                sf_core::phone::PhoneError::UntrustedSipCertificate { fingerprint } => fingerprint,
+                _ => String::new(),
             };
             update_phone_status(&app, |s| {
                 s.state = "error".into();
                 s.detail = detail;
+                s.sip_certificate = sip_certificate;
             });
             return;
         }
@@ -221,6 +241,65 @@ async fn start_phone(app: AppHandle, hub: sf_onehub::OneHub, host: String) {
             }
         }
     }
+}
+
+async fn is_cloud(app: &AppHandle) -> bool {
+    app.state::<AppState>()
+        .session
+        .lock()
+        .await
+        .as_ref()
+        .is_some_and(|s| s.info().cloud)
+}
+
+/// Bestätigte Fingerabdrücke für das SIP-Zertifikat dieser Anlage: das
+/// eigens bestätigte SIP-Zertifikat und die beim Anmelden bestätigten.
+fn trusted_sip_certs(app: &AppHandle, host: &str) -> Vec<String> {
+    let s = settings::load(app);
+    s.sip_certs
+        .get(host)
+        .cloned()
+        .into_iter()
+        .chain(s.trusted_certs.into_values().flatten())
+        .collect()
+}
+
+fn remember_sip_cert(app: &AppHandle, host: &str, fingerprint: &str) {
+    settings::update(app, |s| {
+        s.sip_certs
+            .insert(host.to_owned(), fingerprint.to_ascii_uppercase());
+    });
+}
+
+/// Neues SIP-Zertifikat bestätigen und das Softphone neu starten
+#[tauri::command]
+pub async fn phone_trust_sip_certificate(
+    app: AppHandle,
+    fingerprint: String,
+) -> Result<(), String> {
+    let host = {
+        let state = app.state::<AppState>();
+        let session = state.session.lock().await;
+        let session = session.as_ref().ok_or(t("Nicht angemeldet"))?;
+        url::Url::parse(&session.info().server)
+            .ok()
+            .and_then(|u| u.host_str().map(str::to_owned))
+            .ok_or(t("Server-Adresse ohne Hostname"))?
+    };
+    // Nur den Fingerabdruck, der gerade zur Bestätigung ansteht
+    let pending = app
+        .state::<CallState>()
+        .status
+        .lock()
+        .unwrap()
+        .sip_certificate
+        .clone();
+    if pending.is_empty() || !pending.eq_ignore_ascii_case(fingerprint.trim()) {
+        return Err(t("Kein Zertifikat zu bestätigen").into());
+    }
+    remember_sip_cert(&app, &host, &pending);
+    restart_phone(&app).await;
+    Ok(())
 }
 
 async fn make_primary(hub: &sf_onehub::OneHub, phone_id: &str) {

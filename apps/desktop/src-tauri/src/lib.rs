@@ -570,6 +570,7 @@ pub fn run() {
             plugins::call::phone_callback,
             plugins::call::phone_dtmf,
             plugins::call::phone_action,
+            plugins::call::phone_trust_sip_certificate,
             plugins::doorcam::doorcam_watch,
             plugins::doorcam::doorcam_stop,
             get_prefs,

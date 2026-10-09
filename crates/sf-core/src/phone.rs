@@ -58,6 +58,10 @@ pub enum PhoneError {
     NoProvisioningRight(String),
     #[error("SIP-Registrierung fehlgeschlagen: {0}")]
     Register(String),
+    /// Das SIP-Zertifikat der Anlage gilt nicht nach den Systemzertifikaten
+    /// und ist nicht bestätigt.
+    #[error("SIP-Zertifikat der Anlage nicht bestätigt ({fingerprint})")]
+    UntrustedSipCertificate { fingerprint: String },
     #[error("Dieser Anruf klingelt nicht am Softphone")]
     NotRinging,
     #[error("Keine Voicemailbox vorhanden")]
@@ -225,16 +229,33 @@ impl Phone {
             .await?
             .ok_or_else(|| PhoneError::NoPhone(creds.user.clone()))?;
 
-        // Ohne Zertifikatsprüfung (Cloud, bestätigte Zertifikate) darf
-        // baresip die Anlage per IP ansprechen; die löst hier das System auf.
+        // Die Anlage nutzt für SIP oft ein Zertifikat ihrer eigenen CA (Cloud:
+        // „STARFACE CA“, auf die IP ausgestellt), das kein System kennt. Das
+        // gilt nur, wenn sein Fingerabdruck bestätigt ist; dann darf baresip
+        // die Anlage auch per IP ansprechen (die löst hier das System auf).
+        let mut config = config.clone();
         let outbound = if config.verify_server {
-            None
+            let (fingerprint, valid) = sf_tls::peer_certificate(host, creds.port)
+                .await
+                .map_err(|e| PhoneError::Register(e.to_string()))?;
+            if valid {
+                None
+            } else if config
+                .trusted_fingerprints
+                .iter()
+                .any(|f| f.trim().eq_ignore_ascii_case(&fingerprint))
+            {
+                config.trusted_fingerprints = vec![fingerprint];
+                resolve(host, creds.port).await
+            } else {
+                return Err(PhoneError::UntrustedSipCertificate { fingerprint });
+            }
         } else {
             resolve(host, creds.port).await
         };
 
         let software = format!("starclx/{app_version}");
-        let (sip, mut sip_rx) = Softphone::start(config, &software)?;
+        let (sip, mut sip_rx) = Softphone::start(&config, &software)?;
         let sip = Arc::new(sip);
         sip.add_account(&sf_sip::Account {
             user: creds.user,
