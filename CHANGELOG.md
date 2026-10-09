@@ -3,8 +3,9 @@
 ## Unveröffentlicht
 
 ### Tischtelefon steuern
-- „Wählen über“ im Profilmenü: Die Anlage ruft beim Wählen zuerst das gewählte eigene Telefon
-  an, z. B. das Tischtelefon (gilt auch für Heranholen, Parken und Voicemail über Telefon)
+- Gewählt wird über das primäre Telefon aus dem Profilmenü: Ist es das Tischtelefon, ruft die
+  Anlage beim Wählen zuerst dieses an (gilt auch für Heranholen, Parken und Voicemail über
+  Telefon). Bisher wählte StarCLX immer über das Softphone.
 - Der Call Manager zeigt und steuert Anrufe auch ohne Softphone (auflegen, halten, Rückfrage,
   verbinden, Konferenz usw.); annehmen und stummschalten gehen weiterhin nur am Softphone
 

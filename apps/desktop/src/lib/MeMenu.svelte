@@ -1,8 +1,7 @@
 <script lang="ts">
   // Menü am Profilbild, aufgebaut wie in der STARFACE-App: Bild und Name,
-  // darunter „Wählen über“ (Softphone oder z. B. Tischtelefon), Ruhe,
-  // Chat-Status, primäres Telefon, signalisierte Rufnummer und die eigenen
-  // Umleitungen (Immer); Untermenüs öffnen sich daneben.
+  // darunter Ruhe, Chat-Status, primäres Telefon, signalisierte Rufnummer
+  // und die eigenen Umleitungen (Immer); Untermenüs öffnen sich daneben.
   import { invoke } from "@tauri-apps/api/core";
   import { listen } from "@tauri-apps/api/event";
   import { onMount } from "svelte";
@@ -19,7 +18,7 @@
 
   let { session, onsettings, onlogout }: { session: Session; onsettings: () => void; onlogout: () => void } = $props();
 
-  let sub = $state<"" | "dial" | "chat" | "phone" | "number" | "redirect">("");
+  let sub = $state<"" | "chat" | "phone" | "number" | "redirect">("");
   let phones = $state<PhoneView[]>([]);
   let numbers = $state<SignalingNumber[]>([]);
   let redirects = $state<Redirect[]>([]);
@@ -36,15 +35,6 @@
   // Lizenztyp aus der REST-API; unbekannte Werte so, wie die Anlage sie liefert
   const licenseLabel = $derived(license ? ({ USER: "User", USERLIGHT: "User Light" } as Record<string, string>)[license] ?? license : "");
   const primary = $derived(phones.find((p) => p.primary));
-  // „Wählen über“: leer heisst Softphone, ohne Softphone das primäre Telefon
-  const dialVia = $derived(prefs.value?.dial_phone ?? "");
-  const dialPhones = $derived(phones.filter((p) => p.id !== phone.status.softphone_id));
-  const ownLabel = $derived(phone.status.softphone_id ? t("Softphone") : t("Primäres Telefon"));
-  const dialLabel = $derived.by(() => {
-    if (!dialVia) return ownLabel;
-    const p = phones.find((p) => p.id === dialVia);
-    return p ? phoneName(p) : dialVia;
-  });
   const signaling = $derived(numbers.find((n) => n.selected));
   const always = $derived(redirects.filter((r) => r.kind === "always" && !r.group));
   const activeRedirects = $derived(always.filter((r) => r.enabled).length);
@@ -93,11 +83,6 @@
   const trustSipCert = () =>
     run(() => invoke("phone_trust_sip_certificate", { fingerprint: phone.status.sip_certificate }));
   const setDnd = () => run(() => invoke("fkey_dnd", { enabled: !dnd }));
-  const setDial = (id: string) =>
-    run(async () => {
-      await invoke("set_dial_phone", { id });
-      if (prefs.value) prefs.value.dial_phone = id;
-    });
   const setPrimary = (id: string) => run(async () => { await invoke("set_primary_phone", { id }); await loadPhones(); });
   const setNumber = (id: string) => run(async () => { await invoke("set_signaling_number", { id }); await loadNumbers(); await loadSignaling(); });
   const setRedirect = (r: Redirect) => run(async () => { await invoke("redirect_enable", { id: r.id, enabled: !r.enabled }); await loadRedirects(); });
@@ -130,10 +115,6 @@
     {/if}
   </div>
 
-  <button class="row" class:open={sub === "dial"} title={t("Telefon, das die Anlage beim Wählen zuerst anruft")} onclick={(e) => toggle("dial", e)}>
-    <span class="ic"><Icon name="call" size={20} /></span>
-    <span class="lbl">{t("Wählen über: {phone}", { phone: dialLabel })}</span><span class="more"><Icon name="chevron" size={20} /></span>
-  </button>
   <button class="row" class:on={dnd} onclick={setDnd}>
     <span class="ic dnd"><Icon name="dnd" size={22} /></span>
     <span class="lbl">{t("Bitte nicht stören")}</span>
@@ -167,18 +148,12 @@
     <div class="sub" style="top: {subTop}px">
       {#if sub === "chat"}
         <OwnStatus userId={session.user_id} />
-      {:else if sub === "dial"}
-        <span class="title">{t("Wählen über")}</span>
-        <button class="opt" class:sel={!dialVia} onclick={() => setDial("")}>{ownLabel}{#if !dialVia}<span class="tick"><Icon name="check" size={16} /></span>{/if}</button>
-        {#each dialPhones as p (p.id)}
-          <button class="opt" class:sel={p.id === dialVia} onclick={() => setDial(p.id)}>{phoneName(p)}{#if p.id === dialVia}<span class="tick"><Icon name="check" size={16} /></span>{/if}</button>
-        {/each}
-        <span class="muted pad">{t("Die Anlage ruft dieses Telefon zuerst an. Annehmen geht nur am Softphone.")}</span>
       {:else if sub === "phone"}
         <span class="title">{t("Primäres Telefon auswählen")}</span>
         {#each phones as p (p.id)}
           <button class="opt" class:sel={p.primary} onclick={() => setPrimary(p.id)}>{phoneName(p)}{#if p.primary}<span class="tick"><Icon name="check" size={16} /></span>{/if}</button>
         {:else}<span class="muted pad">{t("Keine Telefone")}</span>{/each}
+        <span class="muted pad">{t("Beim Wählen ruft die Anlage zuerst dieses Telefon an. Annehmen geht nur am Softphone.")}</span>
       {:else if sub === "number"}
         <span class="title">{t("Rufnummer signalisieren")}</span>
         {#each numbers as n (n.id)}

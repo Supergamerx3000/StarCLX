@@ -510,11 +510,7 @@ const dict: Record<string, string> = {
   "Übertragung unvollständig": "Transfert incomplet",
   "Gegenseite unterstützt die Übertragung nicht": "L’autre partie ne prend pas en charge ce transfert",
   "unbekannter Client": "client inconnu",
-  "Softphone": "Softphone",
-  "Telefon, das die Anlage beim Wählen zuerst anruft": "Téléphone que la centrale appelle d'abord lors de la numérotation",
-  "Wählen über: {phone}": "Composer via : {phone}",
-  "Wählen über": "Composer via",
-  "Die Anlage ruft dieses Telefon zuerst an. Annehmen geht nur am Softphone.": "La centrale appelle d'abord ce téléphone. Répondre ne fonctionne que sur le softphone.",
   "SIP-Zertifikat bestätigen": "Confirmer le certificat SIP",
+  "Beim Wählen ruft die Anlage zuerst dieses Telefon an. Annehmen geht nur am Softphone.": "Lors de la numérotation, la centrale appelle d'abord ce téléphone. Répondre ne fonctionne que sur le softphone.",
 };
 export default dict;

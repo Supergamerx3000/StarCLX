@@ -1,7 +1,7 @@
 //! Plugin Call: das Softphone mit Anrufen, Halten, Rückfrage, Konferenz usw.
 //! Startet bei der Anmeldung, meldet Anrufe auf dem Bus und steuert den
-//! Klingelton. Ohne Softphone steuert es die Anrufe weiter über die Anlage
-//! und wählt über das Telefon aus „Wählen über“ (z. B. das Tischtelefon).
+//! Klingelton. Gewählt wird über das primäre Telefon (Softphone oder z. B.
+//! Tischtelefon); ohne Softphone steuert es die Anrufe weiter über die Anlage.
 
 use serde::Serialize;
 use sf_core::phone::{CallPhase, Phone, PhoneEvent};
@@ -42,15 +42,17 @@ pub async fn softphone_id(app: &AppHandle) -> Option<String> {
         .and_then(|p| p.phone_id().map(str::to_owned))
 }
 
-/// Telefon, über das gewählt wird: das aus „Wählen über“, sonst das
-/// Softphone, sofern es läuft
+/// Telefon, über das gewählt wird: das primäre Telefon, wie in der
+/// STARFACE-App. Ist es nicht abrufbar, das Softphone, sofern es läuft.
 pub async fn dial_phone_id(app: &AppHandle) -> Option<String> {
-    let via = settings::load(app).prefs.dial_phone;
-    if via.is_empty() {
-        softphone_id(app).await
-    } else {
-        Some(via)
+    if let Ok(hub) = crate::hub(&app.state::<AppState>()).await {
+        match sf_core::account::primary_phone_id(&hub).await {
+            Ok(Some(id)) => return Some(id),
+            Ok(None) => {}
+            Err(e) => tracing::warn!(error = %e, "Primäres Telefon nicht abrufbar"),
+        }
     }
+    softphone_id(app).await
 }
 
 /// Kamera-URL der Türsprechstelle, von der dieser Anruf kommt
@@ -112,8 +114,6 @@ pub struct PhoneStatus {
     callback: String,
     /// Anrufsteuerung über die Anlage verfügbar (auch ohne Softphone)
     control: bool,
-    /// ID des Softphones an der Anlage, leer ohne Softphone
-    softphone_id: String,
     /// Fingerabdruck eines neuen SIP-Zertifikats, das der Benutzer erst
     /// bestätigen muss; sonst leer
     sip_certificate: String,
@@ -159,11 +159,9 @@ async fn start_phone(app: AppHandle, hub: sf_onehub::OneHub, host: String) {
         return; // inzwischen abgemeldet
     }
     let softphone = phone.has_softphone();
-    let softphone_id = phone.phone_id().unwrap_or_default().to_owned();
     *app.state::<CallState>().phone.lock().await = Some(phone);
     update_phone_status(&app, |s| {
         s.control = true;
-        s.softphone_id = softphone_id;
     });
     if softphone {
         bus::publish(&app, Event::PhoneReady);
@@ -369,16 +367,9 @@ pub async fn phone_dial(
     if number.is_empty() {
         return Err(t("Keine Nummer").into());
     }
-    let via = settings::load(&app).prefs.dial_phone;
-    let via = (!via.is_empty()).then_some(via.as_str());
-    with_phone(&state, async |p| p.dial(&number, via).await).await
-}
-
-/// „Wählen über“: Telefon, das die Anlage beim Wählen zuerst anruft; leer
-/// heisst Softphone (ohne Softphone das primäre Telefon).
-#[tauri::command]
-pub fn set_dial_phone(app: AppHandle, id: String) {
-    settings::update(&app, |s| s.prefs.dial_phone = id);
+    // Die Anlage ruft zuerst das primäre Telefon an.
+    let via = dial_phone_id(&app).await;
+    with_phone(&state, async |p| p.dial(&number, via.as_deref()).await).await
 }
 
 #[tauri::command]

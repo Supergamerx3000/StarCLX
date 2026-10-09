@@ -218,8 +218,6 @@ async fn save_prefs(
     prefs.chat_availability.clone_from(&old.chat_availability);
     prefs.chat_text.clone_from(&old.chat_text);
     prefs.chat_presets.clone_from(&old.chat_presets);
-    // „Wählen über“ kommt aus dem Menü.
-    prefs.dial_phone.clone_from(&old.dial_phone);
     settings::update(&app, |s| s.prefs = prefs.clone());
     if old.language != prefs.language {
         i18n::set_language(&prefs.language);
@@ -565,7 +563,6 @@ pub fn run() {
             logout,
             plugins::call::phone_status,
             plugins::call::phone_dial,
-            plugins::call::set_dial_phone,
             plugins::call::phone_answer,
             plugins::call::phone_hangup,
             plugins::call::phone_hold,
