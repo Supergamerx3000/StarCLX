@@ -3,7 +3,7 @@
   import { listen } from "@tauri-apps/api/event";
   import { onMount } from "svelte";
   import Icon from "../../Icon.svelte";
-  import { phone, run } from "../call/phone.svelte";
+  import { phone, run, canDial } from "../call/phone.svelte";
   import { contactEdit, newContact } from "../contacts/contactform.svelte";
   import ShareNote from "./ShareNote.svelte";
   import { searchable } from "../../numbers";
@@ -34,7 +34,7 @@
   // Löschen braucht einen zweiten Klick
   let confirmDelete = $state<string | null>(null);
 
-  const ready = $derived(phone.status.state === "ready");
+  const ready = $derived(canDial());
 
   onMount(() => {
     const offs = [

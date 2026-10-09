@@ -19,7 +19,7 @@ finish-args:
   - --share=network
   # Softphone: Lautsprecher, Mikrofon, Klingeltöne
   - --socket=pulseaudio
-  # Kuando Busylight über /dev/hidraw*
+  # Kuando Busylight und Headset-Tasten über /dev/hidraw*
   - --device=all
   # Anmeldung bleibt im Schlüsselbund
   - --talk-name=org.freedesktop.secrets
@@ -95,3 +95,4 @@ modules:
       - install -Dm644 apps/desktop/src-tauri/icons/128x128@2x.png /app/share/icons/hicolor/256x256/apps/io.github.crazmoe.StarCLX.png
       - install -Dm644 apps/desktop/src-tauri/icons/icon.png /app/share/icons/hicolor/512x512/apps/io.github.crazmoe.StarCLX.png
       - install -Dm644 apps/desktop/src-tauri/udev/60-starclx-busylight.rules /app/share/starclx/60-starclx-busylight.rules
+      - install -Dm644 apps/desktop/src-tauri/udev/60-starclx-headset.rules /app/share/starclx/60-starclx-headset.rules

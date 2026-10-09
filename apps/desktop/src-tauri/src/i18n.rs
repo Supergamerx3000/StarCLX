@@ -297,11 +297,11 @@ const TEXTS: &[(&str, [&str; 3])] = &[
         ["ffmpeg: {detail}", "ffmpeg : {detail}", "ffmpeg: {detail}"],
     ),
     (
-        "Softphone ist nicht bereit",
+        "Anrufsteuerung ist nicht bereit",
         [
-            "Softphone is not ready",
-            "Le softphone n'est pas prêt",
-            "Il softphone non è pronto",
+            "Call control is not ready",
+            "Le contrôle des appels n'est pas prêt",
+            "Il controllo chiamate non è pronto",
         ],
     ),
     (
@@ -463,6 +463,22 @@ const TEXTS: &[(&str, [&str; 3])] = &[
             "The user lacks the permission for app phones on the PBX (uci_autoprovisioning). An administrator can grant it under Users → Permissions.",
             "L’utilisateur n’a pas le droit pour les téléphones d’application sur le PBX (uci_autoprovisioning). Un administrateur peut l’accorder sous Utilisateurs → Droits.",
             "L’utente non ha il permesso per i telefoni app sul centralino (uci_autoprovisioning). Un amministratore può concederlo in Utenti → Permessi.",
+        ],
+    ),
+    (
+        "Das SIP-Zertifikat der Anlage ist unbekannt oder hat sich geändert. Bestätige es nur, wenn du den Fingerabdruck kennst.",
+        [
+            "The PBX's SIP certificate is unknown or has changed. Only confirm it if you recognise the fingerprint.",
+            "Le certificat SIP du PBX est inconnu ou a changé. Ne le confirmez que si vous reconnaissez l’empreinte.",
+            "Il certificato SIP del centralino è sconosciuto o è cambiato. Confermalo solo se riconosci l’impronta.",
+        ],
+    ),
+    (
+        "Kein Zertifikat zu bestätigen",
+        [
+            "No certificate to confirm",
+            "Aucun certificat à confirmer",
+            "Nessun certificato da confermare",
         ],
     ),
     (

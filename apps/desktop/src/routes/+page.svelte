@@ -23,7 +23,7 @@
   import MeMenu from "$lib/MeMenu.svelte";
   import { avatarOf, ownChat } from "$lib/plugins/fkeys/fkeys.svelte";
   import ChatBubble from "$lib/ChatBubble.svelte";
-  import { initPhone, phone, run, isRingingIn } from "$lib/plugins/call/phone.svelte";
+  import { canDial, initPhone, phone, run, isRingingIn } from "$lib/plugins/call/phone.svelte";
   import { loadPrefs, prefs, savePrefs, type Tile } from "$lib/prefs.svelte";
   import Workspace, { tilesOf } from "$lib/Workspace.svelte";
   import { t } from "$lib/i18n.svelte";
@@ -99,7 +99,7 @@
 
   $effect(() => {
     if (!dialPending) return;
-    if (phone.status.state === "ready") {
+    if (canDial()) {
       run("phone_dial", { number: dialPending.number });
       dialPending = null;
     } else if (phone.now > dialPending.until) {

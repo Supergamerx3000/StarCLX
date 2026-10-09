@@ -3,7 +3,7 @@
   import { invoke } from "@tauri-apps/api/core";
   import { onMount } from "svelte";
   import Icon from "../../Icon.svelte";
-  import { phone, run } from "../call/phone.svelte";
+  import { phone, run, canDial } from "../call/phone.svelte";
   import { initials, type Contact, type Folder } from "./contacts";
   import { contactEdit, editContact, newContact } from "./contactform.svelte";
   import { t } from "../../i18n.svelte";
@@ -19,7 +19,7 @@
   let seq = 0;
   let timer: ReturnType<typeof setTimeout> | undefined;
 
-  const ready = $derived(phone.status.state === "ready");
+  const ready = $derived(canDial());
 
   onMount(async () => {
     try {

@@ -2,7 +2,7 @@
   import { invoke } from "@tauri-apps/api/core";
   import { onMount } from "svelte";
   import Icon from "../../Icon.svelte";
-  import { phone, run } from "../call/phone.svelte";
+  import { phone, run, canDial } from "../call/phone.svelte";
   import { loadVoicemails, voicemail, type Voicemail } from "./voicemail.svelte";
   import { locale, t } from "../../i18n.svelte";
 
@@ -21,7 +21,7 @@
   let audio: HTMLAudioElement | null = null;
   let url = "";
 
-  const ready = $derived(phone.status.state === "ready");
+  const ready = $derived(canDial());
   const shown = $derived(voicemail.list.filter((v) => v.folder === folder));
   const count = (f: Folder) => voicemail.list.filter((v) => v.folder === f).length;
 

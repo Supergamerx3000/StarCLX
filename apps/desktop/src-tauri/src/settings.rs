@@ -15,6 +15,10 @@ pub struct Settings {
     /// Vom Benutzer bestätigte Zertifikate (SHA-256) je Anlage
     #[serde(default)]
     pub trusted_certs: BTreeMap<String, BTreeSet<String>>,
+    /// Bestätigte SIP-Zertifikate (SHA-256) je Hostname der Anlage, für
+    /// Zertifikate, die nicht nach den Systemzertifikaten gelten
+    #[serde(default)]
+    pub sip_certs: BTreeMap<String, String>,
     /// Umleitungstasten mit Zielabfrage und die Einstellungen, die beim
     /// Ausschalten wiederkommen
     #[serde(default)]
@@ -59,6 +63,8 @@ pub struct Prefs {
     pub busylight_sound: String,
     /// 0 bis 100
     pub busylight_volume: u8,
+    /// Tasten, Klingeln und LEDs von USB-Headsets (Jabra, Poly, EPOS)
+    pub headset: bool,
     /// Chat: Desktop-Benachrichtigung und Ton bei neuer Nachricht
     pub chat_notify: bool,
     pub chat_sound: bool,
@@ -125,6 +131,7 @@ impl Default for Prefs {
             busylight: false,
             busylight_sound: String::new(),
             busylight_volume: 50,
+            headset: true,
             chat_notify: true,
             chat_sound: true,
             download_dir: String::new(),

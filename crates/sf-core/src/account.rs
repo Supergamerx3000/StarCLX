@@ -200,18 +200,23 @@ pub struct PhoneView {
     pub primary: bool,
 }
 
-/// Eigene Telefone, das primäre markiert
-pub async fn phones(hub: &OneHub) -> sf_onehub::Result<Vec<PhoneView>> {
-    let mut me = hub.me();
-    let list = me.get_phones(()).await?.into_inner().phones;
-    let primary = me
+/// ID des primären Telefons; über dieses Telefon wählt der Client.
+pub async fn primary_phone_id(hub: &OneHub) -> sf_onehub::Result<Option<String>> {
+    Ok(hub
+        .me()
         .get_primary_phone(())
         .await?
         .into_inner()
         .phone
         .and_then(|p| p.phone_id)
         .map(|i| i.id)
-        .unwrap_or_default();
+        .filter(|id| !id.is_empty()))
+}
+
+/// Eigene Telefone, das primäre markiert
+pub async fn phones(hub: &OneHub) -> sf_onehub::Result<Vec<PhoneView>> {
+    let list = hub.me().get_phones(()).await?.into_inner().phones;
+    let primary = primary_phone_id(hub).await?.unwrap_or_default();
     Ok(list
         .into_iter()
         .filter_map(|p| {

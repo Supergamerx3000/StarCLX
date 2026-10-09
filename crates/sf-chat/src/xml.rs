@@ -243,6 +243,17 @@ pub fn roster_items(query: &Element) -> Vec<Contact> {
         .collect()
 }
 
+/// Namen der Gruppen in der Kontaktliste (`<item><group>…</group></item>`)
+pub fn roster_groups(query: &Element) -> std::collections::BTreeSet<String> {
+    query
+        .children()
+        .filter(|c| c.is("item", NS_ROSTER))
+        .flat_map(|c| c.children().filter(|g| g.is("group", NS_ROSTER)))
+        .map(|g| g.text().trim().to_owned())
+        .filter(|g| !g.is_empty())
+        .collect()
+}
+
 fn parse_time(s: &str) -> Option<i64> {
     chrono::DateTime::parse_from_rfc3339(s)
         .ok()
@@ -278,6 +289,7 @@ pub fn parse_archive(chat: &Element, peer: &str) -> Vec<ChatMessage> {
                 outgoing,
                 body,
                 ts,
+                ..Default::default()
             })
         })
         .collect()
@@ -332,6 +344,7 @@ pub fn chat_message(
         outgoing,
         body,
         ts,
+        ..Default::default()
     })
 }
 
@@ -442,6 +455,15 @@ mod tests {
         let items = roster_items(&el);
         assert_eq!(items[0].name, "Claude Star");
         assert_eq!(items[1].name, "1002");
+        let xml = r#"<query xmlns="jabber:iq:roster">
+            <item jid="1001@pbx"><group>Vertrieb</group><group> Support </group></item>
+            <item jid="1002@pbx"><group>Vertrieb</group></item>
+        </query>"#;
+        let groups = roster_groups(&xml.parse().unwrap());
+        assert_eq!(
+            groups.into_iter().collect::<Vec<_>>(),
+            ["Support", "Vertrieb"]
+        );
     }
 
     #[test]

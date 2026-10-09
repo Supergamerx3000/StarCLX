@@ -125,6 +125,7 @@ async fn set_session(app: &AppHandle, session: Option<Session>) {
             hub: s.hub().clone(),
             host,
             user_id: s.info().user_id.clone(),
+            display_name: SessionInfo::from(s.info()).display_name,
         })
     });
     *app.state::<AppState>().session.lock().await = session;
@@ -466,6 +467,7 @@ pub fn run() {
         .manage(plugins::doorcam::DoorCamState::default())
         .manage(plugins::journal::JournalState::default())
         .manage(busylight::BusylightState::default())
+        .manage(plugins::headset::HeadsetState::default())
         .manage(AppState {
             pending: Mutex::default(),
             session: Mutex::default(),
@@ -557,6 +559,8 @@ pub fn run() {
             quick_hide,
             busylight::busylight_info,
             busylight::busylight_test,
+            plugins::headset::headset_info,
+            plugins::headset::headset_test,
             restore_session,
             certs::check_certificate,
             certs::trust_certificate,
@@ -571,6 +575,7 @@ pub fn run() {
             plugins::call::phone_callback,
             plugins::call::phone_dtmf,
             plugins::call::phone_action,
+            plugins::call::phone_trust_sip_certificate,
             plugins::doorcam::doorcam_watch,
             plugins::doorcam::doorcam_stop,
             get_prefs,
@@ -593,6 +598,8 @@ pub fn run() {
             chat::chat_recent,
             chat::chat_conversation,
             chat::chat_send,
+            chat::chat_create_room,
+            chat::chat_leave_room,
             chat::chat_transfers,
             chat::chat_pick_files,
             chat::chat_send_files,
@@ -621,6 +628,7 @@ pub fn run() {
             fkeys::account_set_avatar,
             fkeys::account_delete_avatar,
             fkeys::account_change_password,
+            fkeys::account_license,
             fkeys::fkey_save,
             fkeys::fkey_delete,
             fkeys::fkeys_reorder,

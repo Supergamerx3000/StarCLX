@@ -4909,6 +4909,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "sf-headset"
+version = "1.3.9"
+dependencies = [
+ "tracing",
+]
+
+[[package]]
 name = "sf-onehub"
 version = "1.3.9"
 dependencies = [
@@ -4937,6 +4944,8 @@ version = "1.3.9"
 dependencies = [
  "cmake",
  "pkg-config",
+ "rcgen",
+ "sf-tls",
  "thiserror 2.0.21",
  "tokio",
  "tracing",
@@ -5175,6 +5184,7 @@ dependencies = [
  "sf-chat",
  "sf-core",
  "sf-doorcam",
+ "sf-headset",
  "sf-onehub",
  "sf-sip",
  "sf-tls",
