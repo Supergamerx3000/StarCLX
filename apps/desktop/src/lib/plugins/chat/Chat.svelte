@@ -7,7 +7,7 @@
   import { acceptsFiles, chat, fileSize, nameOf, openConversation, sendFiles, type ChatContact, type ChatMessage, type ChatTransfer } from "./chat.svelte";
   import { initials } from "../contacts/contacts";
   import { numberParts } from "../../numbers";
-  import { phone, run } from "../call/phone.svelte";
+  import { canDial, phone, run } from "../call/phone.svelte";
   import { locale, t } from "../../i18n.svelte";
 
   let term = $state("");
@@ -198,7 +198,7 @@
           {#if item.kind === "msg"}
             {@const m = item.m}
             <div class="msg" class:out={m.outgoing}>
-              <div class="bubble">{#each numberParts(m.body) as p}{#if p.number}<button class="num" title={t("Anrufen")} disabled={phone.status.state !== "ready"} onclick={() => run("phone_dial", { number: p.number })}>{p.text}</button>{:else}{p.text}{/if}{/each}</div>
+              <div class="bubble">{#each numberParts(m.body) as p}{#if p.number}<button class="num" title={t("Anrufen")} disabled={!canDial()} onclick={() => run("phone_dial", { number: p.number })}>{p.text}</button>{:else}{p.text}{/if}{/each}</div>
               <small>{time(m.ts)}</small>
             </div>
           {:else}

@@ -1,7 +1,7 @@
 <script lang="ts">
   import Icon, { type IconName } from "../../Icon.svelte";
   import { backToFirst, callDrag, startCallDrag, transfersOnHangup } from "../fkeys/fkeys.svelte";
-  import { action, duration, isRingingIn, phone, run, who, type Call } from "./phone.svelte";
+  import { action, duration, hasSoftphone, isRingingIn, phone, run, who, type Call } from "./phone.svelte";
   import { t } from "../../i18n.svelte";
   import DoorCamView from "../doorcam/DoorCamView.svelte";
 
@@ -80,7 +80,7 @@
         <small><b>{call.local_number}</b> {call.local_name}</small>
       {/if}
     </div>
-    {#if connected}
+    {#if connected && hasSoftphone()}
       <button
         class="mute"
         class:on={phone.status.muted}
@@ -100,7 +100,7 @@
         <Icon name="hangup" size={ringingIn ? 24 : 30} />
       </button>
     {/if}
-    {#if ringingIn}
+    {#if ringingIn && hasSoftphone()}
       <button class="round green big" title={t("Annehmen")} onclick={() => run("phone_answer", { callId: call.id })}>
         <Icon name="call" size={32} />
       </button>

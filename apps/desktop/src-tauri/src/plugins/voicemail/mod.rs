@@ -131,7 +131,7 @@ pub async fn voicemail_via_phone(
     state: State<'_, AppState>,
     id: String,
 ) -> Result<(), String> {
-    let phone_id = crate::plugins::call::softphone_id(&app)
+    let phone_id = crate::plugins::call::dial_phone_id(&app)
         .await
         .ok_or(t("Das Softphone ist nicht aktiv."))?;
     voicemail::play_via_phone(&hub(&state).await?, &id, &phone_id)

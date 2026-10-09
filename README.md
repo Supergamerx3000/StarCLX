@@ -12,6 +12,8 @@ Nicht mit der STARFACE GmbH verbunden. „STARFACE“ wird nur beschreibend verw
   Zertifikate lokaler Anlagen lassen sich einmalig bestätigen
 - **Softphone** (SIP/TLS, SRTP) mit Call Manager: annehmen, halten, stumm, Ziffernblock, Rückfrage,
   verbinden, Konferenz, Umleiten, Call2Go
+- **Tischtelefon steuern** (CTI): gewählt wird über das primäre Telefon, z. B. das
+  Tischtelefon; Anrufe dort erscheinen im Call Manager, auch ohne Softphone
 - **Suche und Adressbuch**: Suche beim Tippen über alle Adressbücher, Kontakte anlegen, bearbeiten
   und löschen, unbekannte Nummern aus der Rufliste übernehmen
 - **Rufliste** mit Filtern, Notizen, „zurückgerufen“, Benachrichtigung bei verpassten Anrufen;
@@ -143,6 +145,27 @@ Ohne ffmpeg zeigt die Kamera „Für RTSP-Kameras wird ffmpeg benötigt“. Kame
 oder Einzelbild brauchen es nicht. In der Flathub-Variante geht RTSP nicht, weil sie kein
 Programm des Systems starten darf. Eine Kamera lässt sich ohne App prüfen:
 `cargo run -p sf-doorcam --example probe -- <URL>`.
+
+### Tischtelefon steuern
+
+StarCLX wählt wie die STARFACE-App über das **primäre Telefon**, das sich im Profilmenü
+auswählen lässt. Die Anlage ruft beim Wählen zuerst dieses Telefon an:
+
+- **Softphone als primäres Telefon:** wie bisher, das Softphone nimmt den Rückruf der Anlage
+  selbst an.
+- **Tischtelefon (oder ein anderes eigenes Telefon) als primäres Telefon:** Die Anlage lässt es
+  zuerst klingeln; wer abhebt, wird mit der gewählten Nummer verbunden. Das gilt für alles, was
+  wählt: Suche, Rufliste, Kontakte, Chat, Voicemail-Rückruf, Funktionstasten, Tastenkürzel und
+  `tel:`-Links. Heranholen, Parken, Voicemail über Telefon und Ansage aufnehmen laufen ebenfalls
+  über dieses Telefon.
+
+Der Call Manager zeigt alle eigenen Anrufe der Anlage, auch die am Tischtelefon und auch wenn das
+Softphone ausgeschaltet oder nicht angemeldet ist. Auflegen, Ablehnen, Halten, Rückfrage,
+Verbinden, Konferenz, Umleiten, Voicemail, Aufnahme, DTMF und Call2Go gehen dann ebenfalls.
+
+Grenzen: Annehmen geht nur am Softphone, weil die Anlage kein Abheben aus der Ferne anbietet; am
+Tischtelefon wird abgehoben. Stummschalten gibt es ebenfalls nur am Softphone. Ohne Softphone
+spielt StarCLX keinen Klingelton, das Tischtelefon klingelt selbst.
 
 ### Voraussetzungen auf der Anlage
 

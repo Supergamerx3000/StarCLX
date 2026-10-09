@@ -511,5 +511,6 @@ const dict: Record<string, string> = {
   "Gegenseite unterstützt die Übertragung nicht": "The other side does not support this transfer",
   "unbekannter Client": "unknown client",
   "SIP-Zertifikat bestätigen": "Confirm SIP certificate",
+  "Beim Wählen ruft die Anlage zuerst dieses Telefon an. Annehmen geht nur am Softphone.": "When dialling, the phone system calls this phone first. Answering only works on the softphone.",
 };
 export default dict;

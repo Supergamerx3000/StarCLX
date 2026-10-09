@@ -1,6 +1,7 @@
 //! Plugin Call: das Softphone mit Anrufen, Halten, Rückfrage, Konferenz usw.
 //! Startet bei der Anmeldung, meldet Anrufe auf dem Bus und steuert den
-//! Klingelton.
+//! Klingelton. Gewählt wird über das primäre Telefon (Softphone oder z. B.
+//! Tischtelefon); ohne Softphone steuert es die Anrufe weiter über die Anlage.
 
 use serde::Serialize;
 use sf_core::phone::{CallPhase, Phone, PhoneEvent};
@@ -38,7 +39,20 @@ pub async fn softphone_id(app: &AppHandle) -> Option<String> {
         .lock()
         .await
         .as_ref()
-        .map(|p| p.phone_id().to_owned())
+        .and_then(|p| p.phone_id().map(str::to_owned))
+}
+
+/// Telefon, über das gewählt wird: das primäre Telefon, wie in der
+/// STARFACE-App. Ist es nicht abrufbar, das Softphone, sofern es läuft.
+pub async fn dial_phone_id(app: &AppHandle) -> Option<String> {
+    if let Ok(hub) = crate::hub(&app.state::<AppState>()).await {
+        match sf_core::account::primary_phone_id(&hub).await {
+            Ok(Some(id)) => return Some(id),
+            Ok(None) => {}
+            Err(e) => tracing::warn!(error = %e, "Primäres Telefon nicht abrufbar"),
+        }
+    }
+    softphone_id(app).await
 }
 
 /// Kamera-URL der Türsprechstelle, von der dieser Anruf kommt
@@ -98,6 +112,8 @@ pub struct PhoneStatus {
     muted: bool,
     /// Rückruf bei Besetzt: "available", "active" oder ""
     callback: String,
+    /// Anrufsteuerung über die Anlage verfügbar (auch ohne Softphone)
+    control: bool,
     /// Fingerabdruck eines neuen SIP-Zertifikats, das der Benutzer erst
     /// bestätigen muss; sonst leer
     sip_certificate: String,
@@ -124,7 +140,10 @@ async fn start_phone(app: AppHandle, hub: sf_onehub::OneHub, host: String) {
         }
     });
     let prefs = settings::load(&app).prefs;
-    if !prefs.softphone {
+    let (tx, mut rx) = mpsc::unbounded_channel();
+    let phone = if prefs.softphone {
+        start_softphone(&app, &hub, &host, &prefs, tx.clone()).await
+    } else {
         update_phone_status(&app, |s| {
             *s = PhoneStatus {
                 state: "off".into(),
@@ -132,67 +151,20 @@ async fn start_phone(app: AppHandle, hub: sf_onehub::OneHub, host: String) {
                 ..Default::default()
             }
         });
-        return;
+        None
+    };
+    // Ohne Softphone die Anrufe trotzdem über die Anlage steuern
+    let phone = phone.unwrap_or_else(|| Phone::without_softphone(hub.clone(), tx));
+    if app.state::<AppState>().session.lock().await.is_none() {
+        return; // inzwischen abgemeldet
     }
-    let (tx, mut rx) = mpsc::unbounded_channel();
-    let mut config = audio::softphone_config(&prefs).await;
-    config.trusted_fingerprints = trusted_sip_certs(&app, &host);
-    let mut started = Phone::start(
-        hub.clone(),
-        &host,
-        &config,
-        env!("CARGO_PKG_VERSION"),
-        tx.clone(),
-    )
-    .await;
-    // Bisher galt das SIP-Zertifikat bei Cloud-Anlagen und bestätigten
-    // Zertifikaten ungeprüft. Beim ersten Mal dort wird es deshalb ohne
-    // Rückfrage übernommen; ändert es sich später, fragt der Client.
-    if let Err(sf_core::phone::PhoneError::UntrustedSipCertificate { fingerprint }) = &started
-        && !settings::load(&app).sip_certs.contains_key(&host)
-        && (is_cloud(&app).await || certs::is_confirmed(&host).await)
-    {
-        tracing::info!(%host, %fingerprint, "SIP-Zertifikat beim ersten Mal übernommen");
-        remember_sip_cert(&app, &host, fingerprint);
-        config.trusted_fingerprints = trusted_sip_certs(&app, &host);
-        started = Phone::start(hub.clone(), &host, &config, env!("CARGO_PKG_VERSION"), tx).await;
-    }
-    match started {
-        Ok(phone) => {
-            if app.state::<AppState>().session.lock().await.is_none() {
-                return; // inzwischen abgemeldet
-            }
-            if prefs.primary_on_login {
-                make_primary(&hub, phone.phone_id()).await;
-            }
-            *app.state::<CallState>().phone.lock().await = Some(phone);
-            update_phone_status(&app, |s| s.state = "ready".into());
-            bus::publish(&app, Event::PhoneReady);
-        }
-        Err(e) => {
-            tracing::warn!(error = %e, "Softphone nicht gestartet");
-            let detail = match &e {
-                sf_core::phone::PhoneError::NoProvisioningRight(_) => t(
-                    "Dem Benutzer fehlt in der Anlage das Recht für App-Telefone (uci_autoprovisioning). Der Administrator kann es unter Benutzer → Rechte freischalten.",
-                )
-                .to_owned(),
-                sf_core::phone::PhoneError::UntrustedSipCertificate { .. } => t(
-                    "Das SIP-Zertifikat der Anlage ist unbekannt oder hat sich geändert. Bestätige es nur, wenn du den Fingerabdruck kennst.",
-                )
-                .to_owned(),
-                _ => e.to_string(),
-            };
-            let sip_certificate = match e {
-                sf_core::phone::PhoneError::UntrustedSipCertificate { fingerprint } => fingerprint,
-                _ => String::new(),
-            };
-            update_phone_status(&app, |s| {
-                s.state = "error".into();
-                s.detail = detail;
-                s.sip_certificate = sip_certificate;
-            });
-            return;
-        }
+    let softphone = phone.has_softphone();
+    *app.state::<CallState>().phone.lock().await = Some(phone);
+    update_phone_status(&app, |s| {
+        s.control = true;
+    });
+    if softphone {
+        bus::publish(&app, Event::PhoneReady);
     }
     while let Some(ev) = rx.recv().await {
         match ev {
@@ -216,9 +188,10 @@ async fn start_phone(app: AppHandle, hub: sf_onehub::OneHub, host: String) {
                     .calls
                     .iter()
                     .any(|c| c.incoming && c.phase == CallPhase::Ringing);
+                // Ohne Softphone klingelt das Tischtelefon selbst.
                 let ring_internal = calls
                     .iter()
-                    .find(|c| c.incoming && c.phase == CallPhase::Ringing)
+                    .find(|c| softphone && c.incoming && c.phase == CallPhase::Ringing)
                     .map(|c| c.internal);
                 audio::update_ringer(&app, ring_internal);
                 bus::publish(
@@ -239,6 +212,73 @@ async fn start_phone(app: AppHandle, hub: sf_onehub::OneHub, host: String) {
             PhoneEvent::Error { message } => {
                 let _ = app.emit("phone-error", message);
             }
+        }
+    }
+}
+
+/// Meldet das Softphone an; `None`, wenn das scheitert (Grund im Status).
+async fn start_softphone(
+    app: &AppHandle,
+    hub: &sf_onehub::OneHub,
+    host: &str,
+    prefs: &Prefs,
+    tx: mpsc::UnboundedSender<PhoneEvent>,
+) -> Option<Phone> {
+    let mut config = audio::softphone_config(prefs).await;
+    config.trusted_fingerprints = trusted_sip_certs(app, host);
+    let mut started = Phone::start(
+        hub.clone(),
+        host,
+        &config,
+        env!("CARGO_PKG_VERSION"),
+        tx.clone(),
+    )
+    .await;
+    // Bisher galt das SIP-Zertifikat bei Cloud-Anlagen und bestätigten
+    // Zertifikaten ungeprüft. Beim ersten Mal dort wird es deshalb ohne
+    // Rückfrage übernommen; ändert es sich später, fragt der Client.
+    if let Err(sf_core::phone::PhoneError::UntrustedSipCertificate { fingerprint }) = &started
+        && !settings::load(app).sip_certs.contains_key(host)
+        && (is_cloud(app).await || certs::is_confirmed(host).await)
+    {
+        tracing::info!(%host, %fingerprint, "SIP-Zertifikat beim ersten Mal übernommen");
+        remember_sip_cert(app, host, fingerprint);
+        config.trusted_fingerprints = trusted_sip_certs(app, host);
+        started = Phone::start(hub.clone(), host, &config, env!("CARGO_PKG_VERSION"), tx).await;
+    }
+    match started {
+        Ok(phone) => {
+            if prefs.primary_on_login
+                && let Some(id) = phone.phone_id()
+            {
+                make_primary(hub, id).await;
+            }
+            update_phone_status(app, |s| s.state = "ready".into());
+            Some(phone)
+        }
+        Err(e) => {
+            tracing::warn!(error = %e, "Softphone nicht gestartet");
+            let detail = match &e {
+                sf_core::phone::PhoneError::NoProvisioningRight(_) => t(
+                    "Dem Benutzer fehlt in der Anlage das Recht für App-Telefone (uci_autoprovisioning). Der Administrator kann es unter Benutzer → Rechte freischalten.",
+                )
+                .to_owned(),
+                sf_core::phone::PhoneError::UntrustedSipCertificate { .. } => t(
+                    "Das SIP-Zertifikat der Anlage ist unbekannt oder hat sich geändert. Bestätige es nur, wenn du den Fingerabdruck kennst.",
+                )
+                .to_owned(),
+                _ => e.to_string(),
+            };
+            let sip_certificate = match e {
+                sf_core::phone::PhoneError::UntrustedSipCertificate { fingerprint } => fingerprint,
+                _ => String::new(),
+            };
+            update_phone_status(app, |s| {
+                s.state = "error".into();
+                s.detail = detail;
+                s.sip_certificate = sip_certificate;
+            });
+            None
         }
     }
 }
@@ -318,12 +358,18 @@ pub fn phone_status(state: State<'_, CallState>) -> PhoneStatus {
 }
 
 #[tauri::command]
-pub async fn phone_dial(state: State<'_, CallState>, number: String) -> Result<(), String> {
+pub async fn phone_dial(
+    app: AppHandle,
+    state: State<'_, CallState>,
+    number: String,
+) -> Result<(), String> {
     let number = clean_number(&number);
     if number.is_empty() {
         return Err(t("Keine Nummer").into());
     }
-    with_phone(&state, async |p| p.dial(&number).await).await
+    // Die Anlage ruft zuerst das primäre Telefon an.
+    let via = dial_phone_id(&app).await;
+    with_phone(&state, async |p| p.dial(&number, via.as_deref()).await).await
 }
 
 #[tauri::command]
@@ -335,8 +381,11 @@ pub async fn phone_answer(
     let primary = settings::load(&app).prefs.primary_on_answer;
     with_phone(&state, async |p| {
         p.answer(&call_id)?;
-        if primary && let Ok(hub) = crate::hub(&app.state::<AppState>()).await {
-            make_primary(&hub, p.phone_id()).await;
+        if primary
+            && let Some(id) = p.phone_id()
+            && let Ok(hub) = crate::hub(&app.state::<AppState>()).await
+        {
+            make_primary(&hub, id).await;
         }
         Ok(())
     })
@@ -421,7 +470,7 @@ async fn with_phone(
     f: impl AsyncFnOnce(&Phone) -> sf_core::phone::PhoneResult<()>,
 ) -> Result<(), String> {
     let phone = state.phone.lock().await;
-    let phone = phone.as_ref().ok_or(t("Softphone ist nicht bereit"))?;
+    let phone = phone.as_ref().ok_or(t("Anrufsteuerung ist nicht bereit"))?;
     f(phone).await.map_err(|e| e.to_string())
 }
 
