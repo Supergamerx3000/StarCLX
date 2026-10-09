@@ -1,5 +1,14 @@
 # Änderungen
 
+## Unveröffentlicht
+
+### Tischtelefon steuern
+- Gewählt wird über das primäre Telefon aus dem Profilmenü: Ist es das Tischtelefon, ruft die
+  Anlage beim Wählen zuerst dieses an (gilt auch für Heranholen, Parken und Voicemail über
+  Telefon). Bisher wählte StarCLX immer über das Softphone.
+- Der Call Manager zeigt und steuert Anrufe auch ohne Softphone (auflegen, halten, Rückfrage,
+  verbinden, Konferenz usw.); annehmen und stummschalten gehen weiterhin nur am Softphone
+
 ## 1.3.9 – 2026-10-08
 
 Wie 1.3.8, nur kommen die Pakete jetzt auch über die apt-, dnf- und Flatpak-Quelle; die standen

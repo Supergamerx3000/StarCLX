@@ -254,6 +254,11 @@ const dict: Record<string, string> = {
   "Rufnummern nicht geladen: {e}": "Numeri non caricati: {e}",
   "Die Anlage bietet keine Auswahl an.": "Il centralino non offre alcuna scelta.",
   "Beim Empfang eines Anrufs die App in den Vordergrund bringen": "Porta l'app in primo piano quando arriva una chiamata",
+  "Headset-Tasten": "Tasti delle cuffie",
+  "Tasten am Headset verwenden (Jabra, Poly, EPOS)": "Usa i tasti delle cuffie (Jabra, Poly, EPOS)",
+  "Gesprächstaste: annehmen und auflegen · Stummtaste: Mikrofon stumm · Das Headset klingelt bei Anrufen und zeigt Gespräch und Stummschaltung an.": "Tasto chiamata: rispondere e riagganciare · Tasto muto: disattivare il microfono · Le cuffie squillano alle chiamate e mostrano conversazione e muto.",
+  "Kein Headset mit Telefonietasten angeschlossen.": "Nessuna cuffia con tasti di chiamata collegata.",
+  "Klingeln testen": "Prova squillo",
   "Kuando Busylight verwenden": "Usa Kuando Busylight",
   "Grün: frei · Rot: im Gespräch · Rot blinkend: eingehender Anruf": "Verde: libero · Rosso: in conversazione · Rosso lampeggiante: chiamata in arrivo",
   "Angeschlossen:": "Collegato:",
@@ -357,6 +362,7 @@ const dict: Record<string, string> = {
   "Softphone aus": "Softphone spento",
   "Softphone startet …": "Avvio del softphone …",
   "Softphone bereit": "Softphone pronto",
+  "Lizenz": "Licenza",
   "Softphone nicht angemeldet": "Softphone non registrato",
   "Menü schliessen": "Chiudi menu",
   "Anordnung bearbeiten": "Modifica disposizione",
@@ -516,5 +522,7 @@ const dict: Record<string, string> = {
   "Übertragung unvollständig": "Trasferimento incompleto",
   "Gegenseite unterstützt die Übertragung nicht": "L’altra parte non supporta questo trasferimento",
   "unbekannter Client": "client sconosciuto",
+  "SIP-Zertifikat bestätigen": "Conferma il certificato SIP",
+  "Beim Wählen ruft die Anlage zuerst dieses Telefon an. Annehmen geht nur am Softphone.": "Durante la composizione il centralino chiama prima questo telefono. Rispondere funziona solo sul softphone.",
 };
 export default dict;

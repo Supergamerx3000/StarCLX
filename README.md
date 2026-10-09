@@ -12,6 +12,8 @@ Nicht mit der STARFACE GmbH verbunden. „STARFACE“ wird nur beschreibend verw
   Zertifikate lokaler Anlagen lassen sich einmalig bestätigen
 - **Softphone** (SIP/TLS, SRTP) mit Call Manager: annehmen, halten, stumm, Ziffernblock, Rückfrage,
   verbinden, Konferenz, Umleiten, Call2Go
+- **Tischtelefon steuern** (CTI): gewählt wird über das primäre Telefon, z. B. das
+  Tischtelefon; Anrufe dort erscheinen im Call Manager, auch ohne Softphone
 - **Suche und Adressbuch**: Suche beim Tippen über alle Adressbücher, Kontakte anlegen, bearbeiten
   und löschen, unbekannte Nummern aus der Rufliste übernehmen
 - **Rufliste** mit Filtern, Notizen, „zurückgerufen“, Benachrichtigung bei verpassten Anrufen;
@@ -24,6 +26,8 @@ Nicht mit der STARFACE GmbH verbunden. „STARFACE“ wird nur beschreibend verw
 - **Funktionstasten** (BLF, Kurzwahl, Heranholen, Parken, Gruppen, Ruhe …) anzeigen, nutzen und bearbeiten
 - **Erreichbarkeit**: Umleitungen, iFMC, signalisierte Rufnummer
 - **Arbeitsbereich** als Reiter oder frei angeordnete Kacheln
+- **Headset-Tasten** von Jabra, Poly und EPOS (USB-HID-Telefonie): annehmen, auflegen,
+  stummschalten; das Headset klingelt und zeigt Gespräch und Stummschaltung an
 - **Einstellungen**: Audiogeräte, Klingeltöne, Busylight (Kuando), Erscheinungsbild,
   Sprache (Deutsch, English, Français, Italiano)
 - **Desktop-Integration**: Symbol im Infobereich, Autostart, Schnellwahl-Fenster,
@@ -100,8 +104,9 @@ Unterschiede:
 - **Autostart** läuft über die Desktop-Umgebung; GNOME fragt beim Einschalten einmal nach.
 - **`tel:`-Links abschalten** geht nicht in StarCLX, ein anderes Programm wählt man in den
   Systemeinstellungen unter Standardanwendungen.
-- **Busylight** braucht die udev-Regel auf dem System, einmalig:
+- **Busylight** und **Headset-Tasten** brauchen die udev-Regeln auf dem System, einmalig:
   `flatpak run --command=cat ch.crazmoe.StarCLX /app/share/starclx/60-starclx-busylight.rules | sudo tee /etc/udev/rules.d/60-starclx-busylight.rules`
+  bzw. dasselbe mit `60-starclx-headset.rules`
 - **Türkameras mit RTSP** nutzen das `ffmpeg` des Systems (siehe unten), es muss also dort
   installiert sein.
 - Eine eigene Firmen-CA, die nur im System hinterlegt ist, kann im Flatpak fehlen;
@@ -145,6 +150,27 @@ oder Einzelbild brauchen es nicht. In der Flathub-Variante geht RTSP nicht, weil
 Programm des Systems starten darf. Eine Kamera lässt sich ohne App prüfen:
 `cargo run -p sf-doorcam --example probe -- <URL>`.
 
+### Tischtelefon steuern
+
+StarCLX wählt wie die STARFACE-App über das **primäre Telefon**, das sich im Profilmenü
+auswählen lässt. Die Anlage ruft beim Wählen zuerst dieses Telefon an:
+
+- **Softphone als primäres Telefon:** wie bisher, das Softphone nimmt den Rückruf der Anlage
+  selbst an.
+- **Tischtelefon (oder ein anderes eigenes Telefon) als primäres Telefon:** Die Anlage lässt es
+  zuerst klingeln; wer abhebt, wird mit der gewählten Nummer verbunden. Das gilt für alles, was
+  wählt: Suche, Rufliste, Kontakte, Chat, Voicemail-Rückruf, Funktionstasten, Tastenkürzel und
+  `tel:`-Links. Heranholen, Parken, Voicemail über Telefon und Ansage aufnehmen laufen ebenfalls
+  über dieses Telefon.
+
+Der Call Manager zeigt alle eigenen Anrufe der Anlage, auch die am Tischtelefon und auch wenn das
+Softphone ausgeschaltet oder nicht angemeldet ist. Auflegen, Ablehnen, Halten, Rückfrage,
+Verbinden, Konferenz, Umleiten, Voicemail, Aufnahme, DTMF und Call2Go gehen dann ebenfalls.
+
+Grenzen: Annehmen geht nur am Softphone, weil die Anlage kein Abheben aus der Ferne anbietet; am
+Tischtelefon wird abgehoben. Stummschalten gibt es ebenfalls nur am Softphone. Ohne Softphone
+spielt StarCLX keinen Klingelton, das Tischtelefon klingelt selbst.
+
 ### Voraussetzungen auf der Anlage
 
 - STARFACE 10 mit erreichbarem OneHub-Port 9092 und SIP/TLS
@@ -172,6 +198,7 @@ Tag `v<Version>` von Hand bewirkt dasselbe.
 | `crates/sf-audio` | Audiogeräte, Klingeltöne, Testton (PulseAudio/PipeWire) |
 | `crates/sf-chat` | XMPP-Chat |
 | `crates/sf-busylight` | Kuando Busylight über hidraw |
+| `crates/sf-headset` | Headset-Tasten (USB-HID-Telefonie) über hidraw |
 | `crates/sf-doorcam` | Türkameras: RTSP (über ffmpeg), Motion JPEG, Einzelbild |
 | `apps/desktop` | Desktop-App: Tauri 2, Oberfläche in Svelte 5 / TypeScript |
 | `apps/sfctl` | Kommandozeile für Skripte, siehe [README](apps/sfctl/README.md) |

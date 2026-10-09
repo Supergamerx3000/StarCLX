@@ -254,6 +254,11 @@ const dict: Record<string, string> = {
   "Rufnummern nicht geladen: {e}": "Numéros non chargés : {e}",
   "Die Anlage bietet keine Auswahl an.": "La centrale ne propose aucun choix.",
   "Beim Empfang eines Anrufs die App in den Vordergrund bringen": "Mettre l'application au premier plan lors d'un appel entrant",
+  "Headset-Tasten": "Touches du casque",
+  "Tasten am Headset verwenden (Jabra, Poly, EPOS)": "Utiliser les touches du casque (Jabra, Poly, EPOS)",
+  "Gesprächstaste: annehmen und auflegen · Stummtaste: Mikrofon stumm · Das Headset klingelt bei Anrufen und zeigt Gespräch und Stummschaltung an.": "Touche d'appel : répondre et raccrocher · Touche secret : couper le micro · Le casque sonne lors d'un appel et indique la communication et le secret.",
+  "Kein Headset mit Telefonietasten angeschlossen.": "Aucun casque avec touches d'appel branché.",
+  "Klingeln testen": "Tester la sonnerie",
   "Kuando Busylight verwenden": "Utiliser Kuando Busylight",
   "Grün: frei · Rot: im Gespräch · Rot blinkend: eingehender Anruf": "Vert : libre · Rouge : en communication · Rouge clignotant : appel entrant",
   "Angeschlossen:": "Branché :",
@@ -357,6 +362,7 @@ const dict: Record<string, string> = {
   "Softphone aus": "Softphone désactivé",
   "Softphone startet …": "Démarrage du softphone …",
   "Softphone bereit": "Softphone prêt",
+  "Lizenz": "Licence",
   "Softphone nicht angemeldet": "Softphone non enregistré",
   "Menü schliessen": "Fermer le menu",
   "Anordnung bearbeiten": "Modifier la disposition",
@@ -516,5 +522,7 @@ const dict: Record<string, string> = {
   "Übertragung unvollständig": "Transfert incomplet",
   "Gegenseite unterstützt die Übertragung nicht": "L’autre partie ne prend pas en charge ce transfert",
   "unbekannter Client": "client inconnu",
+  "SIP-Zertifikat bestätigen": "Confirmer le certificat SIP",
+  "Beim Wählen ruft die Anlage zuerst dieses Telefon an. Annehmen geht nur am Softphone.": "Lors de la numérotation, la centrale appelle d'abord ce téléphone. Répondre ne fonctionne que sur le softphone.",
 };
 export default dict;

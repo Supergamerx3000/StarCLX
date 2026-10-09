@@ -16,7 +16,8 @@ finish-args:
   # Ton: PulseAudio und PipeWire direkt
   - --socket=pulseaudio
   - --filesystem=xdg-run/pipewire-0:ro
-  # Busylight über /dev/hidraw* (udev-Regel muss auf dem System liegen)
+  # Busylight und Headset-Tasten über /dev/hidraw* (udev-Regeln müssen auf
+  # dem System liegen)
   - --device=all
   # Anmeldung im Schlüsselbund, Benachrichtigungen, Symbol im Infobereich
   - --talk-name=org.freedesktop.secrets
@@ -48,6 +49,8 @@ modules:
         path: ch.crazmoe.StarCLX.metainfo.xml
       - type: file
         path: ../../apps/desktop/src-tauri/udev/60-starclx-busylight.rules
+      - type: file
+        path: ../../apps/desktop/src-tauri/udev/60-starclx-headset.rules
     build-commands:
       - ar -x starclx.deb
       - tar -xf data.tar.*
@@ -55,6 +58,7 @@ modules:
       - install -Dm644 ch.crazmoe.StarCLX.desktop /app/share/applications/ch.crazmoe.StarCLX.desktop
       - install -Dm644 ch.crazmoe.StarCLX.metainfo.xml /app/share/metainfo/ch.crazmoe.StarCLX.metainfo.xml
       - install -Dm644 60-starclx-busylight.rules /app/share/starclx/60-starclx-busylight.rules
+      - install -Dm644 60-starclx-headset.rules /app/share/starclx/60-starclx-headset.rules
       - |
         for f in usr/share/icons/hicolor/*/apps/starclx.png; do
           install -Dm644 "$f" "/app/${f#usr/}"

@@ -12,7 +12,7 @@ use sf_core::redirect::RedirectTarget;
 use tauri::{AppHandle, Emitter, Manager, State};
 use tokio::sync::{Mutex, mpsc};
 
-use crate::plugins::call::softphone_id;
+use crate::plugins::call::dial_phone_id;
 use crate::{AppState, hub};
 
 #[derive(Default)]
@@ -300,6 +300,13 @@ pub async fn account_change_password(
         .map_err(|e| e.to_string())
 }
 
+/// Lizenztyp des eigenen Kontos für das Profilmenü
+#[tauri::command]
+pub async fn account_license(state: State<'_, AppState>) -> Result<Option<String>, String> {
+    let (rest, _, _) = rest(&state).await?;
+    rest.license_type().await.map_err(|e| e.to_string())
+}
+
 /// Letzter bekannter Zustand (User-ID → Telefon, Ruhe, Chat, Umleitung)
 #[tauri::command]
 pub fn fkey_presence(fk: State<'_, FkeyState>) -> HashMap<String, UserState> {
@@ -471,7 +478,7 @@ pub async fn fkey_park(
     call_id: Option<String>,
     number: String,
 ) -> Result<(), String> {
-    let phone = softphone_id(&app).await;
+    let phone = dial_phone_id(&app).await;
     sf_core::fkeys::park(
         &hub(&state).await?,
         call_id.as_deref(),
@@ -489,7 +496,7 @@ pub async fn fkey_grab(
     state: State<'_, AppState>,
     user_id: String,
 ) -> Result<(), String> {
-    let phone = softphone_id(&app).await;
+    let phone = dial_phone_id(&app).await;
     sf_core::fkeys::grab(&hub(&state).await?, &user_id, phone.as_deref())
         .await
         .map_err(|e| e.to_string())

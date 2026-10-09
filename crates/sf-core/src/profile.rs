@@ -1,4 +1,5 @@
-//! Eigenes Konto über die REST-API der Anlage: Benutzerbild und Passwort.
+//! Eigenes Konto über die REST-API der Anlage: Benutzerbild, Passwort und
+//! Lizenztyp.
 //! OneHub kann das Passwort nicht ändern; beides geht deshalb über
 //! `/rest/users/{id}` mit dem Token der Sitzung.
 
@@ -30,20 +31,35 @@ struct PolicyCheck {
     violations: Vec<String>,
 }
 
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct Me {
+    id: i64,
+    #[serde(default)]
+    license_type: Option<String>,
+}
+
 impl Rest {
-    /// Eigene REST-User-ID
-    async fn me_id(&self) -> Result<i64, BoxError> {
-        #[derive(Deserialize)]
-        struct Me {
-            id: i64,
-        }
+    /// Eigener Benutzer aus `/rest/users/me`
+    async fn me(&self) -> Result<Me, BoxError> {
         let resp = check(
             self.req(reqwest::Method::GET, "/rest/users/me")?
                 .send()
                 .await?,
         )
         .await?;
-        Ok(resp.json::<Me>().await?.id)
+        Ok(resp.json::<Me>().await?)
+    }
+
+    /// Eigene REST-User-ID
+    async fn me_id(&self) -> Result<i64, BoxError> {
+        Ok(self.me().await?.id)
+    }
+
+    /// Lizenztyp des eigenen Kontos, etwa `USER` oder `USERLIGHT`;
+    /// `None`, wenn die Anlage keinen liefert.
+    pub async fn license_type(&self) -> Result<Option<String>, BoxError> {
+        Ok(self.me().await?.license_type.filter(|l| !l.is_empty()))
     }
 
     /// Setzt das eigene Benutzerbild (PNG, JPEG oder GIF).
@@ -123,6 +139,16 @@ mod tests {
         let p: PolicyCheck = serde_json::from_str(r#"{"violations":["Zu kurz"]}"#).unwrap();
         assert_eq!(p.violations, vec!["Zu kurz"]);
         assert!(p.policy_message.is_empty());
+    }
+
+    #[test]
+    fn me_reads_license_type() {
+        let me: Me =
+            serde_json::from_str(r#"{"id":7,"login":"moe","licenseType":"USERLIGHT"}"#).unwrap();
+        assert_eq!(me.id, 7);
+        assert_eq!(me.license_type.as_deref(), Some("USERLIGHT"));
+        let me: Me = serde_json::from_str(r#"{"id":7}"#).unwrap();
+        assert!(me.license_type.is_none());
     }
 
     #[test]

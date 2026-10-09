@@ -27,7 +27,7 @@ const EARLY_MAX: usize = 256 * 1024;
 const NORMAL: &str = "info";
 /// Ausführlich: eigene Crates mit Anruf- und Verbindungsdetails
 const VERBOSE: &str = "info,starclx_lib=debug,sf_core=debug,sf_onehub=debug,sf_auth=debug,\
-                       sf_chat=debug,sf_sip=debug,sf_audio=debug,sf_busylight=debug";
+                       sf_chat=debug,sf_sip=debug,sf_audio=debug,sf_busylight=debug,sf_headset=debug";
 
 enum Sink {
     Early(Vec<u8>),
