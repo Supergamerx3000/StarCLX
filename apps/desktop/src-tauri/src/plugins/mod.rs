@@ -11,6 +11,7 @@ pub mod busylight;
 pub mod call;
 pub mod callactions;
 pub mod chat;
+pub mod conference;
 pub mod contacts;
 pub mod doorcam;
 pub mod fkeys;
@@ -38,6 +39,7 @@ pub async fn session_ended(app: &AppHandle) {
     journal::session_ended(app).await;
     reach::session_ended(app).await;
     voicemail::session_ended(app).await;
+    conference::session_ended(app).await;
     fkeys::session_ended(app).await;
     chat::session_ended(app).await;
 }
@@ -47,6 +49,7 @@ pub async fn session_started(app: &AppHandle, login: Login) {
     journal::session_started(app, login.hub.clone()).await;
     reach::session_started(app, login.hub.clone()).await;
     voicemail::session_started(app, login.hub.clone()).await;
+    conference::session_started(app, login.hub.clone()).await;
     chat::session_started(app, login.hub.clone(), login.host.clone(), login.user_id);
     call::session_started(app, login.hub, login.host);
 }

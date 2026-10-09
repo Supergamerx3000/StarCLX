@@ -5,6 +5,7 @@
 //! gültig) im Hintergrund, bevor es abläuft.
 
 pub mod account;
+pub mod conference;
 pub mod contact_form;
 pub mod directory;
 pub mod fkeys;

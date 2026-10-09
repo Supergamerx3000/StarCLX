@@ -352,6 +352,39 @@ const TEXTS: &[(&str, [&str; 3])] = &[
             "Azione sconosciuta {action}",
         ],
     ),
+    // Konferenzen
+    (
+        "Keine Berechtigung für Konferenzen",
+        [
+            "No permission for conferences",
+            "Pas d’autorisation pour les conférences",
+            "Nessuna autorizzazione per le conferenze",
+        ],
+    ),
+    (
+        "Bitte einen Namen eingeben",
+        [
+            "Please enter a name",
+            "Veuillez saisir un nom",
+            "Inserire un nome",
+        ],
+    ),
+    (
+        "Unbekannte Wiederholung",
+        [
+            "Unknown recurrence",
+            "Répétition inconnue",
+            "Ripetizione sconosciuta",
+        ],
+    ),
+    (
+        "Jeder Teilnehmer braucht eine Nummer oder E-Mail-Adresse",
+        [
+            "Every participant needs a number or email address",
+            "Chaque participant doit avoir un numéro ou une adresse e-mail",
+            "Ogni partecipante deve avere un numero o un indirizzo e-mail",
+        ],
+    ),
     (
         "Unbekannter Ordner",
         ["Unknown folder", "Dossier inconnu", "Cartella sconosciuta"],

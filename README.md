@@ -18,6 +18,7 @@ Nicht mit der STARFACE GmbH verbunden. „STARFACE“ wird nur beschreibend verw
   Anruf mit Notiz per Chat oder E-Mail an Kollegen weitergeben
 - **Chat** mit Kollegen (Präsenz, Verlauf, Dateien, Abwesenheit bei Inaktivität)
 - **Voicemail** abhören und verwalten
+- **Geplante Konferenzen** anlegen, ändern, löschen und starten (Termin, Wiederholung, Teilnehmer)
 - **Türsprechstellen**: Kamerabild im Call Manager, sobald die Tür anruft, mit „Tür öffnen“;
   weitere Kameras als Kachel (RTSP, Motion JPEG, Einzelbild)
 - **Funktionstasten** (BLF, Kurzwahl, Heranholen, Parken, Gruppen, Ruhe …) anzeigen, nutzen und bearbeiten

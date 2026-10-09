@@ -204,6 +204,10 @@ impl OneHub {
         v1::conference::conference_call_service_client::ConferenceCallServiceClient
     );
     service!(
+        conference,
+        v1::conference::conference_service_client::ConferenceServiceClient
+    );
+    service!(
         voicemail,
         v1::voicemail::voice_mail_service_client::VoiceMailServiceClient
     );
