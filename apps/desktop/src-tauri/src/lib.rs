@@ -621,6 +621,7 @@ pub fn run() {
             fkeys::account_set_avatar,
             fkeys::account_delete_avatar,
             fkeys::account_change_password,
+            fkeys::account_license,
             fkeys::fkey_save,
             fkeys::fkey_delete,
             fkeys::fkeys_reorder,

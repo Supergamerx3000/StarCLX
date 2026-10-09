@@ -350,6 +350,7 @@ const dict: Record<string, string> = {
   "Softphone aus": "Softphone off",
   "Softphone startet …": "Softphone starting …",
   "Softphone bereit": "Softphone ready",
+  "Lizenz": "License",
   "Softphone nicht angemeldet": "Softphone not registered",
   "Menü schliessen": "Close menu",
   "Anordnung bearbeiten": "Edit layout",

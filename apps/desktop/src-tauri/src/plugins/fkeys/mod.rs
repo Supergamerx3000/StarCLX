@@ -300,6 +300,13 @@ pub async fn account_change_password(
         .map_err(|e| e.to_string())
 }
 
+/// Lizenztyp des eigenen Kontos für das Profilmenü
+#[tauri::command]
+pub async fn account_license(state: State<'_, AppState>) -> Result<Option<String>, String> {
+    let (rest, _, _) = rest(&state).await?;
+    rest.license_type().await.map_err(|e| e.to_string())
+}
+
 /// Letzter bekannter Zustand (User-ID → Telefon, Ruhe, Chat, Umleitung)
 #[tauri::command]
 pub fn fkey_presence(fk: State<'_, FkeyState>) -> HashMap<String, UserState> {
