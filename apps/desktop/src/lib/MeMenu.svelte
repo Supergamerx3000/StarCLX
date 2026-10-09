@@ -23,6 +23,7 @@
   let numbers = $state<SignalingNumber[]>([]);
   let redirects = $state<Redirect[]>([]);
   let notice = $state("");
+  let license = $state<string | null>(null);
 
   const avatar = $derived(session.user_id ? avatarOf(session.user_id) : null);
   const initials = $derived(session.display_name.split(/\s+/).filter(Boolean).slice(0, 2).map((w) => w[0]).join("").toUpperCase() || "?");
@@ -31,6 +32,8 @@
   const own = $derived(ownChat(session.user_id));
   const chat = $derived(own.availability);
   const chatLabel = $derived(own.text || ({ available: t("Verfügbar"), away: t("Abwesend"), dnd: t("Bitte nicht stören") } as Record<string, string>)[chat]);
+  // Lizenztyp aus der REST-API; unbekannte Werte so, wie die Anlage sie liefert
+  const licenseLabel = $derived(license ? ({ USER: "User", USERLIGHT: "User Light" } as Record<string, string>)[license] ?? license : "");
   const primary = $derived(phones.find((p) => p.primary));
   const signaling = $derived(numbers.find((n) => n.selected));
   const always = $derived(redirects.filter((r) => r.kind === "always" && !r.group));
@@ -60,6 +63,8 @@
     loadPhones();
     loadNumbers();
     loadRedirects();
+    // Ohne Lizenzangabe bleibt die Zeile einfach weg
+    invoke<string | null>("account_license").then((l) => (license = l)).catch(() => {});
     // Änderungen aus anderen Clients nachziehen, solange das Menü offen ist
     const off = [
       listen("me-signaling", () => loadNumbers()),
@@ -101,6 +106,7 @@
     </span>
     <strong>{session.display_name}</strong>
     <span class="muted">STARFACE {session.server_version} · {session.server.replace(/^https?:\/\//, "")}</span>
+    {#if licenseLabel}<span class="muted">{t("Lizenz")}: {licenseLabel}</span>{/if}
     <span class="muted state"><span class="reg {phone.status.state}"></span>{stateText[phone.status.state]}</span>
     {#if phone.status.state === "error" && phone.status.detail}<span class="notice">{t(phone.status.detail)}</span>{/if}
     {#if phone.status.state === "error" && phone.status.sip_certificate}
