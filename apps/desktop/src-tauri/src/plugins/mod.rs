@@ -24,6 +24,8 @@ pub struct Login {
     /// Rechnername der Anlage
     pub host: String,
     pub user_id: String,
+    /// Vor- und Nachname (Spitzname in Gruppenchats)
+    pub display_name: String,
 }
 
 /// Beim Start einmal: Plugins hängen sich an den Bus.
@@ -47,6 +49,12 @@ pub async fn session_started(app: &AppHandle, login: Login) {
     journal::session_started(app, login.hub.clone()).await;
     reach::session_started(app, login.hub.clone()).await;
     voicemail::session_started(app, login.hub.clone()).await;
-    chat::session_started(app, login.hub.clone(), login.host.clone(), login.user_id);
+    chat::session_started(
+        app,
+        login.hub.clone(),
+        login.host.clone(),
+        login.user_id,
+        login.display_name,
+    );
     call::session_started(app, login.hub, login.host);
 }

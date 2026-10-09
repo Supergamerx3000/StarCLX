@@ -10,6 +10,8 @@ use crate::ChatMessage;
 /// So viele Nachrichten bleiben je Gespräch erhalten.
 const KEEP: usize = 1000;
 /// Gleiche Nachricht aus Archiv und lokal: Zeitstempel weichen so weit ab.
+/// In Gruppenchats zählt auch der Absender: „ok“ von zwei Leuten sind zwei
+/// Nachrichten.
 const SAME_WINDOW_MS: i64 = 120_000;
 
 #[derive(Clone)]
@@ -94,6 +96,7 @@ fn insert(list: &mut Vec<ChatMessage>, msg: ChatMessage) -> bool {
     let dup = list.iter().any(|m| {
         m.id == msg.id
             || (m.outgoing == msg.outgoing
+                && m.sender == msg.sender
                 && m.body == msg.body
                 && (m.ts - msg.ts).abs() < SAME_WINDOW_MS)
     });
@@ -136,6 +139,7 @@ mod tests {
             outgoing: out,
             body: body.into(),
             ts,
+            ..Default::default()
         }
     }
 
@@ -153,5 +157,17 @@ mod tests {
             ["Hallo", "Hoi"]
         );
         assert_eq!(h.recent()[0].body, "Hoi");
+    }
+
+    #[test]
+    fn group_messages_from_different_senders_stay() {
+        let h = History::open(None);
+        let from = |id: &str, sender: &str| ChatMessage {
+            sender: sender.into(),
+            ..m(id, false, "ok", 20_000)
+        };
+        assert!(h.add(from("g1", "c@pbx")));
+        assert!(h.add(from("g2", "d@pbx")));
+        assert!(!h.add(from("g3", "d@pbx")));
     }
 }

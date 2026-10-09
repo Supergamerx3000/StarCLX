@@ -2,7 +2,7 @@
 //! reicht Ereignisse als Tauri-Events weiter.
 
 use serde::Serialize;
-use sf_chat::{Chat, ChatEvent, ChatMessage, Contact, Transfer, TransferState};
+use sf_chat::{Chat, ChatEvent, ChatMessage, Contact, Room, Transfer, TransferState};
 use tauri::{AppHandle, Emitter, Manager, State};
 use tauri_plugin_notification::NotificationExt;
 use tokio::sync::{Mutex, mpsc};
@@ -26,10 +26,18 @@ pub struct ChatStatus {
     detail: String,
     own: String,
     contacts: Vec<Contact>,
+    /// Gruppenchats
+    rooms: Vec<Room>,
 }
 
 /// Startet den Chat für die Sitzung (im Hintergrund, Fehler nur als Status).
-pub fn session_started(app: &AppHandle, hub: sf_onehub::OneHub, host: String, user_id: String) {
+pub fn session_started(
+    app: &AppHandle,
+    hub: sf_onehub::OneHub,
+    host: String,
+    user_id: String,
+    display_name: String,
+) {
     let app = app.clone();
     tauri::async_runtime::spawn(async move {
         set_status(&app, |s| {
@@ -81,6 +89,16 @@ pub fn session_started(app: &AppHandle, hub: sf_onehub::OneHub, host: String, us
         let (availability, text) = own(&crate::settings::load(&app).prefs, crate::presence::away());
         *app.state::<ChatState>().last_sent.lock().unwrap() = Some((availability, text.clone()));
         chat.set_presence(availability, &text);
+        // Gruppen der Anlage für die Gruppenchats; ohne sie bleiben
+        // Einladungen in spontane Gruppenchats möglich
+        let groups = match sf_core::group::memberships(&hub).await {
+            Ok(list) => list.into_iter().map(|m| m.name).collect(),
+            Err(e) => {
+                tracing::warn!(error = %e, "Gruppen für den Gruppenchat nicht abgefragt");
+                Vec::new()
+            }
+        };
+        chat.set_groups(&display_name, groups);
         *app.state::<ChatState>().chat.lock().await = Some(chat);
         while let Some(ev) = rx.recv().await {
             match ev {
@@ -89,6 +107,7 @@ pub fn session_started(app: &AppHandle, hub: sf_onehub::OneHub, host: String, us
                     s.detail = detail;
                 }),
                 ChatEvent::Roster { contacts } => set_status(&app, |s| s.contacts = contacts),
+                ChatEvent::Rooms { rooms } => set_status(&app, |s| s.rooms = rooms),
                 ChatEvent::Message { message, notify } => {
                     if notify {
                         notify_message(&app, &message);
@@ -254,6 +273,12 @@ fn set_status(app: &AppHandle, f: impl FnOnce(&mut ChatStatus)) {
 
 fn notify_message(app: &AppHandle, m: &ChatMessage) {
     let body: String = m.body.chars().take(140).collect();
+    // Gruppenchat: Absender vor den Text
+    let body = if m.sender_name.is_empty() {
+        body
+    } else {
+        format!("{}: {body}", m.sender_name)
+    };
     notify(app, &m.peer, body);
 }
 
@@ -281,15 +306,23 @@ fn notify(app: &AppHandle, peer: &str, body: String) {
     if !prefs.chat_notify {
         return;
     }
-    let name = app
-        .state::<ChatState>()
-        .status
-        .lock()
-        .unwrap()
-        .contacts
-        .iter()
-        .find(|c| c.jid == peer)
-        .map_or_else(|| peer.to_owned(), |c| c.name.clone());
+    let name = {
+        let state = app.state::<ChatState>();
+        let status = state.status.lock().unwrap();
+        status
+            .contacts
+            .iter()
+            .find(|c| c.jid == peer)
+            .map(|c| c.name.clone())
+            .or_else(|| {
+                status
+                    .rooms
+                    .iter()
+                    .find(|r| r.jid == peer)
+                    .map(|r| r.name.clone())
+            })
+            .unwrap_or_else(|| peer.to_owned())
+    };
     if let Err(e) = app.notification().builder().title(name).body(body).show() {
         tracing::warn!(error = %e, "Benachrichtigung nicht angezeigt");
     }
@@ -334,6 +367,28 @@ pub async fn chat_send(
     let chat = state.chat.lock().await;
     let chat = chat.as_ref().ok_or(t("Chat ist nicht verbunden"))?;
     chat.send(&peer, body.trim_end());
+    Ok(())
+}
+
+/// Startet einen spontanen Gruppenchat mit `members` (Jabber-IDs); liefert
+/// den Raum, damit die Oberfläche ihn gleich öffnen kann.
+#[tauri::command]
+pub async fn chat_create_room(
+    state: State<'_, ChatState>,
+    subject: String,
+    members: Vec<String>,
+) -> Result<String, String> {
+    let chat = state.chat.lock().await;
+    let chat = chat.as_ref().ok_or(t("Chat ist nicht verbunden"))?;
+    Ok(chat.create_room(subject.trim(), members))
+}
+
+/// Verlässt einen spontanen Gruppenchat.
+#[tauri::command]
+pub async fn chat_leave_room(state: State<'_, ChatState>, room: String) -> Result<(), String> {
+    let chat = state.chat.lock().await;
+    let chat = chat.as_ref().ok_or(t("Chat ist nicht verbunden"))?;
+    chat.leave_room(&room);
     Ok(())
 }
 

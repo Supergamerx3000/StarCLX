@@ -16,7 +16,8 @@ Nicht mit der STARFACE GmbH verbunden. „STARFACE“ wird nur beschreibend verw
   und löschen, unbekannte Nummern aus der Rufliste übernehmen
 - **Rufliste** mit Filtern, Notizen, „zurückgerufen“, Benachrichtigung bei verpassten Anrufen;
   Anruf mit Notiz per Chat oder E-Mail an Kollegen weitergeben
-- **Chat** mit Kollegen (Präsenz, Verlauf, Dateien, Abwesenheit bei Inaktivität)
+- **Chat** mit Kollegen (Präsenz, Verlauf, Dateien, Abwesenheit bei Inaktivität), Gruppenchats
+  der Anlagen-Gruppen und spontane Gruppenchats wie in der STARFACE-App
 - **Voicemail** abhören und verwalten
 - **Türsprechstellen**: Kamerabild im Call Manager, sobald die Tür anruft, mit „Tür öffnen“;
   weitere Kameras als Kachel (RTSP, Motion JPEG, Einzelbild)

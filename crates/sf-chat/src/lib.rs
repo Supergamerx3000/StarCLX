@@ -7,9 +7,10 @@
 //! Neuverbindungen, das aktuelle Token. (Der fertige `tokio_xmpp::Client`
 //! verbindet sich mit dem Passwort vom Start neu und scheitert dann ewig.)
 //!
-//! Unterstützt: Kontaktliste mit Präsenz, Einzelchats, Nachrichten anderer
-//! Geräte (Carbons), verzögerte Zustellung, Verlauf aus dem Serverarchiv
-//! (XEP-0136) und ein lokaler Verlauf als JSON-Datei.
+//! Unterstützt: Kontaktliste mit Präsenz, Einzelchats, Gruppenchats (siehe
+//! [`muc`]), Nachrichten anderer Geräte (Carbons), verzögerte Zustellung,
+//! Verlauf aus dem Serverarchiv (XEP-0136) und ein lokaler Verlauf als
+//! JSON-Datei.
 //!
 //! Nach der ersten Anmeldung fragt der Client per Service Discovery
 //! (XEP-0030) ab, welche Dienste und Features die Anlage und die Clients der
@@ -21,6 +22,7 @@
 
 mod files;
 mod history;
+pub mod muc;
 mod tls;
 pub mod transfer;
 mod xml;
@@ -53,12 +55,15 @@ use tokio_xmpp::{Stanza, client_login};
 use sf_backoff::Backoff;
 
 pub use history::History;
+pub use muc::{Member, Room};
 pub use transfer::{Transfer, TransferState};
 
 const PORT: u16 = 5222;
 /// Höchstens so viele Clients je Programmstart per Discovery abfragen
 const MAX_CLIENT_DISCO: usize = 200;
 const MAX_BACKOFF: Duration = Duration::from_secs(60);
+/// In diesem Takt werden abgewiesene Gruppenräume erneut betreten
+const ROOM_RETRY: Duration = Duration::from_secs(20);
 /// Nach so langer Stille fragt der Client per Ping nach, ob die Verbindung
 /// noch steht; ohne Antwort in derselben Zeit gilt sie als tot. Der Standard
 /// von tokio-xmpp (300 s) ist zu lang: Bei Cloud-Anlagen kappte ein Proxy
@@ -103,15 +108,21 @@ struct ClientInfo {
     files: Option<bool>,
 }
 
-#[derive(Debug, Clone, Serialize, serde::Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, Serialize, serde::Deserialize, PartialEq, Eq)]
 pub struct ChatMessage {
     pub id: String,
-    /// Gesprächspartner (bare JID)
+    /// Gesprächspartner (bare JID), bei Gruppenchats der Raum
     pub peer: String,
     pub outgoing: bool,
     pub body: String,
     /// Unix-Zeit in Millisekunden
     pub ts: i64,
+    /// Gruppenchat: Absender (bare JID, leer, wenn unbekannt)
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub sender: String,
+    /// Gruppenchat: Name des Absenders, wie er ihn im Raum angibt
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub sender_name: String,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -139,6 +150,10 @@ pub enum ChatEvent {
     Transfer {
         transfer: Transfer,
     },
+    /// Gruppenchats und wer darin anwesend ist
+    Rooms {
+        rooms: Vec<Room>,
+    },
 }
 
 enum Command {
@@ -163,6 +178,19 @@ enum Command {
     },
     CancelFile {
         id: String,
+    },
+    /// Eigener Name und Gruppen der Anlage (für die Gruppenchats)
+    Groups {
+        display_name: String,
+        groups: Vec<String>,
+    },
+    CreateRoom {
+        room: String,
+        subject: String,
+        members: Vec<String>,
+    },
+    LeaveRoom {
+        room: String,
     },
     /// Abmelden mit Statustext, danach endet die Verbindung
     Offline {
@@ -203,6 +231,7 @@ impl Own {
 
 pub struct Chat {
     commands: mpsc::UnboundedSender<Command>,
+    own: BareJid,
     history: History,
     task: JoinHandle<()>,
 }
@@ -223,7 +252,7 @@ impl Chat {
         let history = History::open(history_file);
         let (tx, rx) = mpsc::unbounded_channel();
         let task = tokio::spawn(run(
-            jid,
+            jid.clone(),
             host.to_owned(),
             Arc::new(token),
             history.clone(),
@@ -232,6 +261,7 @@ impl Chat {
         ));
         Ok(Self {
             commands: tx,
+            own: jid,
             history,
             task,
         })
@@ -271,6 +301,34 @@ impl Chat {
         let _ = self
             .commands
             .send(Command::CancelFile { id: id.to_owned() });
+    }
+
+    /// Eigener Name und die Gruppen der Anlage, in denen man Mitglied ist.
+    /// Danach betritt der Chat die Gruppenräume (siehe [`muc`]).
+    pub fn set_groups(&self, display_name: &str, groups: Vec<String>) {
+        let _ = self.commands.send(Command::Groups {
+            display_name: display_name.to_owned(),
+            groups,
+        });
+    }
+
+    /// Startet einen spontanen Gruppenchat und lädt `members` (bare JIDs)
+    /// ein. Ohne Thema heisst er nach den Eingeladenen. Liefert den Raum.
+    pub fn create_room(&self, subject: &str, members: Vec<String>) -> String {
+        let room = muc::new_room(&self.own);
+        let _ = self.commands.send(Command::CreateRoom {
+            room: room.clone(),
+            subject: subject.to_owned(),
+            members,
+        });
+        room
+    }
+
+    /// Verlässt einen spontanen Gruppenchat.
+    pub fn leave_room(&self, room: &str) {
+        let _ = self.commands.send(Command::LeaveRoom {
+            room: room.to_owned(),
+        });
     }
 
     /// Lokaler Verlauf eines Gesprächs; lädt zusätzlich das Serverarchiv nach.
@@ -328,6 +386,14 @@ struct Conn {
     client_info: BTreeMap<String, ClientInfo>,
     outgoing: BTreeMap<String, Outgoing>,
     incoming: BTreeMap<String, Incoming>,
+    /// Gruppenchats: Raum (bare JID) → Stand
+    rooms: BTreeMap<String, muc::RoomState>,
+    /// Gruppen der Anlage, in denen man Mitglied ist
+    groups: Vec<String>,
+    /// Gruppen, die in der Kontaktliste vorkommen
+    roster_groups: BTreeSet<String>,
+    /// Eigener Spitzname in Räumen; leer, bis die Gruppen bekannt sind
+    nick: String,
     history: History,
     events: mpsc::UnboundedSender<ChatEvent>,
 }
@@ -443,6 +509,8 @@ enum Pending {
     Close(String),
     /// Name und Version eines Clients (XEP-0092) für die Client-Art
     Version(String),
+    /// Einstellungen eines neu angelegten Raums
+    RoomConfig(String),
 }
 
 struct Pacing {
@@ -472,6 +540,10 @@ async fn run(
         client_info: BTreeMap::new(),
         outgoing: BTreeMap::new(),
         incoming: BTreeMap::new(),
+        rooms: BTreeMap::new(),
+        groups: Vec::new(),
+        roster_groups: BTreeSet::new(),
+        nick: String::new(),
         history,
         events: events.clone(),
     };
@@ -481,8 +553,14 @@ async fn run(
             16,
         );
         let mut online = false;
+        let mut retry = tokio::time::interval(ROOM_RETRY);
         loop {
             tokio::select! {
+                _ = retry.tick(), if online => {
+                    for stanza in conn.join_rooms() {
+                        stream.send(Box::new(stanza)).await;
+                    }
+                }
                 ev = stream.next() => match ev {
                     None => {
                         // Der Stream gibt nur bei schweren Fehlern auf; neu beginnen.
@@ -531,6 +609,14 @@ async fn run(
                         }
                         return stream.close().await;
                     }
+                    Some(Command::Groups { display_name, groups }) => {
+                        let out = conn.set_groups(&display_name, groups);
+                        if online {
+                            for stanza in out {
+                                stream.send(Box::new(stanza)).await;
+                            }
+                        }
+                    }
                     Some(cmd) if online => {
                         for stanza in conn.on_command(cmd) {
                             stream.send(Box::new(stanza)).await;
@@ -541,6 +627,15 @@ async fn run(
                         let _ = events.send(ChatEvent::State {
                             online: false,
                             detail: "Nicht verbunden; Nachricht nicht gesendet".into(),
+                        });
+                    }
+                    Some(Command::LeaveRoom { room }) => {
+                        conn.leave_room(&room);
+                    }
+                    Some(Command::CreateRoom { .. }) => {
+                        let _ = events.send(ChatEvent::State {
+                            online: false,
+                            detail: "Nicht verbunden; Gruppenchat nicht gestartet".into(),
                         });
                     }
                     Some(Command::LoadArchive { .. } | Command::AcceptFile { .. } | Command::DeclineFile { .. } | Command::CancelFile { .. }) => {}
@@ -571,11 +666,14 @@ impl Conn {
         // Laufende Übertragungen überleben keine neue Verbindung
         self.drop_transfers();
         self.resources.clear();
+        self.rooms_offline();
         let mut out = vec![
             xml::iq_get(&self.roster_request, xml::roster_query()),
             xml::iq_set(&new_id(), xml::carbons_enable()),
             own.presence().into(),
         ];
+        // Gruppenräume kommen nach der Kontaktliste dazu
+        out.extend(self.join_rooms());
         if !self.discovered {
             self.discovered = true;
             let domain = self.own.domain().to_string();
@@ -648,6 +746,7 @@ impl Conn {
 
     fn on_command(&mut self, cmd: Command) -> Vec<Stanza> {
         match cmd {
+            Command::Send { to, body } if self.is_room(&to) => self.send_to_room(&to, body),
             Command::Send { to, body } => {
                 let Ok(to_jid) = to.parse::<BareJid>() else {
                     return Vec::new();
@@ -662,10 +761,13 @@ impl Conn {
                     outgoing: true,
                     body,
                     ts: now_ms(),
+                    ..Default::default()
                 };
                 self.store(message, false);
                 vec![msg.into()]
             }
+            // Gruppenchats führt das Archiv nicht; ihren Verlauf liefert der Raum
+            Command::LoadArchive { peer } if self.is_room(&peer) => Vec::new(),
             Command::LoadArchive { peer } => {
                 let id = new_id();
                 self.archive_requests.insert(id.clone(), peer.clone());
@@ -675,6 +777,16 @@ impl Conn {
             Command::AcceptFile { id, dir } => self.accept_file(&id, &dir),
             Command::DeclineFile { id } => self.decline_file(&id).into_iter().collect(),
             Command::CancelFile { id } => self.cancel_file(&id).into_iter().collect(),
+            Command::CreateRoom {
+                room,
+                subject,
+                members,
+            } => self.create_room(room, &subject, members),
+            Command::LeaveRoom { room } => self.leave_room(&room),
+            Command::Groups {
+                display_name,
+                groups,
+            } => self.set_groups(&display_name, groups),
             // werden in `run` behandelt
             Command::Presence(_) | Command::Offline { .. } => Vec::new(),
         }
@@ -689,10 +801,9 @@ impl Conn {
     fn on_stanza(&mut self, stanza: Stanza) -> Vec<Stanza> {
         match stanza {
             Stanza::Message(m) => self.on_message(m),
-            Stanza::Presence(p) => return self.on_presence(p),
-            Stanza::Iq(iq) => return self.on_iq(iq),
+            Stanza::Presence(p) => self.on_presence(p),
+            Stanza::Iq(iq) => self.on_iq(iq),
         }
-        Vec::new()
     }
 
     fn on_iq(&mut self, iq: Iq) -> Vec<Stanza> {
@@ -721,6 +832,12 @@ impl Conn {
                     }
                     Vec::new()
                 }
+                Pending::RoomConfig(room) => {
+                    if let Err(e) = result {
+                        tracing::warn!(%room, error = ?e.defined_condition, "Gruppenchat: Einstellungen abgelehnt");
+                    }
+                    Vec::new()
+                }
                 other => self.on_transfer_result(other, result),
             };
         }
@@ -730,7 +847,7 @@ impl Conn {
         };
         if id == self.roster_request {
             if let Some(el) = el {
-                self.on_roster(&el);
+                return self.on_roster(&el);
             }
         } else if let Some(peer) = self.archive_requests.remove(&id)
             && let Some(el) = el
@@ -746,11 +863,15 @@ impl Conn {
         Vec::new()
     }
 
-    fn on_roster(&mut self, query: &Element) {
+    /// Kontaktliste; liefert die Anfragen zum Betreten der Gruppenräume.
+    fn on_roster(&mut self, query: &Element) -> Vec<Stanza> {
         for item in xml::roster_items(query) {
             self.roster.entry(item.jid.clone()).or_insert(item);
         }
         self.publish_roster();
+        self.roster_groups = xml::roster_groups(query);
+        self.want_group_rooms();
+        self.join_rooms()
     }
 
     fn publish_roster(&self) {
@@ -787,6 +908,11 @@ impl Conn {
 
     /// Liefert ggf. eine Discovery-Anfrage an den Client des Absenders.
     fn on_presence(&mut self, p: Presence) -> Vec<Stanza> {
+        if let Some(room) = p.from.as_ref().map(Jid::to_bare)
+            && self.is_room(room.as_str())
+        {
+            return self.on_room_presence(room, &p);
+        }
         self.track_resource(&p);
         let disco = self.disco_client(&p);
         let Some(from) = p.from.as_ref().map(|j| j.to_bare().to_string()) else {
@@ -857,7 +983,10 @@ impl Conn {
         out
     }
 
-    fn on_message(&mut self, m: Message) {
+    fn on_message(&mut self, m: Message) -> Vec<Stanza> {
+        if let Some(out) = self.on_room_message(&m) {
+            return out;
+        }
         let own = self.own.to_string();
         // Carbons: Nachrichten, die über ein anderes Gerät liefen
         if m.from
@@ -868,15 +997,16 @@ impl Conn {
             if let Some(msg) = xml::chat_message(&fwd.message, fwd.delay.as_ref(), &own, sent) {
                 self.store(msg, !sent);
             }
-            return;
+            return Vec::new();
         }
         if !matches!(m.type_, MessageType::Chat | MessageType::Normal) {
-            return;
+            return Vec::new();
         }
         let delay = xml::delay_of(&m);
         if let Some(msg) = xml::chat_message(&m, delay.as_ref(), &own, false) {
             self.store(msg, delay.is_none());
         }
+        Vec::new()
     }
 }
 
@@ -902,6 +1032,10 @@ mod tests {
             client_info: BTreeMap::new(),
             outgoing: BTreeMap::new(),
             incoming: BTreeMap::new(),
+            rooms: BTreeMap::new(),
+            groups: Vec::new(),
+            roster_groups: BTreeSet::new(),
+            nick: String::new(),
             history: History::open(None),
             events,
         };
@@ -1124,6 +1258,207 @@ mod tests {
             (TransferState::Failed, "Kontakt ist nicht online")
         );
         let _ = std::fs::remove_dir_all(dir);
+    }
+
+    fn stanza(xml: &str) -> Stanza {
+        let el: Element = xml.parse().unwrap();
+        match el.name() {
+            "presence" => Presence::try_from(el).unwrap().into(),
+            "message" => Message::try_from(el).unwrap().into(),
+            _ => Iq::try_from(el).unwrap().into(),
+        }
+    }
+
+    fn xml_of(s: &Stanza) -> String {
+        String::from(&Element::from(s))
+    }
+
+    fn events(rx: &mut mpsc::UnboundedReceiver<ChatEvent>) -> Vec<ChatEvent> {
+        std::iter::from_fn(|| rx.try_recv().ok()).collect()
+    }
+
+    const ROOM: &str = "vertrieb@chatrooms.pbx.test";
+    const NICK: &str = "Alice Muster <alice@pbx.test>";
+
+    /// Alice ist in der Gruppe „Vertrieb“, die auch in der Kontaktliste steht
+    fn in_group() -> (Conn, mpsc::UnboundedReceiver<ChatEvent>) {
+        let (mut alice, rx) = conn(ALICE);
+        assert!(
+            alice
+                .set_groups("Alice Muster", vec!["Vertrieb".into(), "Lager".into()])
+                .is_empty()
+        );
+        alice.roster_request = "r1".into();
+        let out = alice.on_stanza(stanza(
+            r#"<iq xmlns="jabber:client" type="result" id="r1"><query xmlns="jabber:iq:roster">
+                <item jid="bob@pbx.test" name="Bob"><group>Vertrieb</group></item>
+            </query></iq>"#,
+        ));
+        assert_eq!(out.len(), 1, "nur Vertrieb hat einen Chat");
+        let join = xml_of(&out[0]);
+        assert!(
+            join.contains(&format!("to='{ROOM}/Alice Muster &lt;alice@pbx.test&gt;'")),
+            "{join}"
+        );
+        assert!(join.contains("maxstanzas='100'"), "{join}");
+        (alice, rx)
+    }
+
+    #[test]
+    fn group_room_is_created_when_missing() {
+        let (mut alice, _rx) = in_group();
+        let out = alice.on_stanza(stanza(&format!(
+            r#"<presence xmlns="jabber:client" from="{ROOM}/{}"><x xmlns="http://jabber.org/protocol/muc#user">
+                <item affiliation="owner" role="moderator" jid="{ALICE}"/><status code="110"/><status code="201"/>
+            </x></presence>"#,
+            NICK.replace('<', "&lt;").replace('>', "&gt;")
+        )));
+        assert!(alice.rooms[ROOM].joined);
+        let xml: Vec<_> = out.iter().map(xml_of).collect();
+        assert_eq!(xml.len(), 2, "{xml:?}");
+        assert!(
+            xml[0].contains("muc#roomconfig_persistentroom") && xml[0].contains("<value>1</value>")
+        );
+        assert!(xml[1].contains("<subject>Vertrieb</subject>"), "{}", xml[1]);
+    }
+
+    #[test]
+    fn group_messages_carry_sender_and_replay_once() {
+        let (mut alice, mut rx) = in_group();
+        alice.on_stanza(stanza(&format!(
+            r#"<presence xmlns="jabber:client" from="{ROOM}/{}"><x xmlns="http://jabber.org/protocol/muc#user">
+                <item affiliation="member" role="participant"/><status code="110"/></x></presence>"#,
+            NICK.replace('<', "&lt;").replace('>', "&gt;")
+        )));
+        // Bob ist da
+        alice.on_stanza(stanza(&format!(
+            r#"<presence xmlns="jabber:client" from="{ROOM}/Bob &lt;bob@pbx.test&gt;"/>"#
+        )));
+        let ChatEvent::Rooms { rooms } = events(&mut rx).pop().unwrap() else {
+            panic!("keine Räume")
+        };
+        assert_eq!(
+            rooms[0].members,
+            [Member {
+                jid: "bob@pbx.test".into(),
+                name: "Bob".into()
+            }]
+        );
+        // Verlauf beim Betreten, dann Thema
+        alice.on_stanza(stanza(&format!(
+            r#"<message xmlns="jabber:client" from="{ROOM}/Bob &lt;bob@pbx.test&gt;" type="groupchat" id="h1">
+                <body>Von gestern</body><delay xmlns="urn:xmpp:delay" stamp="2026-10-08T10:00:00Z"/></message>"#
+        )));
+        assert!(
+            events(&mut rx).is_empty(),
+            "Verlauf erst mit dem Thema melden"
+        );
+        alice.on_stanza(stanza(&format!(
+            r#"<message xmlns="jabber:client" from="{ROOM}" type="groupchat"><subject>Vertrieb</subject></message>"#
+        )));
+        let ev = events(&mut rx);
+        assert!(
+            matches!(&ev[0], ChatEvent::History { peer, messages } if peer == ROOM && messages.len() == 1)
+        );
+        // Neue Nachricht von Bob
+        alice.on_stanza(stanza(&format!(
+            r#"<message xmlns="jabber:client" from="{ROOM}/Bob &lt;bob@pbx.test&gt;" type="groupchat" id="m2"><body>Hoi zäme</body></message>"#
+        )));
+        let ev = events(&mut rx);
+        let ChatEvent::Message { message, notify } = &ev[0] else {
+            panic!("keine Nachricht")
+        };
+        assert!(notify);
+        assert_eq!(
+            (
+                message.peer.as_str(),
+                message.sender.as_str(),
+                message.sender_name.as_str(),
+                message.outgoing
+            ),
+            (ROOM, "bob@pbx.test", "Bob", false)
+        );
+        // Eigene Nachricht: gesendet und vom Raum zurück nur einmal im Verlauf
+        let out = alice.on_command(Command::Send {
+            to: ROOM.into(),
+            body: "Hallo".into(),
+        });
+        let sent = xml_of(&out[0]);
+        assert!(
+            sent.contains("type='groupchat'") && sent.contains(&format!("to='{ROOM}'")),
+            "{sent}"
+        );
+        let id = alice.history.get(ROOM).last().unwrap().id.clone();
+        alice.on_stanza(stanza(&format!(
+            r#"<message xmlns="jabber:client" from="{ROOM}/{}" type="groupchat" id="{id}"><body>Hallo</body></message>"#,
+            NICK.replace('<', "&lt;").replace('>', "&gt;")
+        )));
+        let all = alice.history.get(ROOM);
+        assert_eq!(all.len(), 3);
+        assert!(all[2].outgoing);
+        // Das Archiv wird für Räume nicht gefragt
+        assert!(
+            alice
+                .on_command(Command::LoadArchive { peer: ROOM.into() })
+                .is_empty()
+        );
+    }
+
+    #[test]
+    fn invitation_joins_and_own_room_invites() {
+        let (mut alice, _rx) = in_group();
+        let out = alice.on_stanza(stanza(
+            r#"<message xmlns="jabber:client" from="abc@chatrooms.pbx.test" to="alice@pbx.test">
+                <x xmlns="http://jabber.org/protocol/muc#user"><invite from="bob@pbx.test/win"><reason>Komm</reason></invite></x>
+            </message>"#,
+        ));
+        assert!(xml_of(&out[0]).contains("to='abc@chatrooms.pbx.test/Alice Muster"));
+        assert!(!alice.rooms["abc@chatrooms.pbx.test"].group);
+
+        // Eigener spontaner Gruppenchat: Einladungen nach dem Anlegen
+        alice.roster.insert(
+            "bob@pbx.test".into(),
+            Contact {
+                jid: "bob@pbx.test".into(),
+                name: "Bob".into(),
+                show: "online".into(),
+                status: String::new(),
+                clients: Vec::new(),
+            },
+        );
+        let out = alice.on_command(Command::CreateRoom {
+            room: muc::new_room(&alice.own),
+            subject: String::new(),
+            members: vec!["bob@pbx.test".into()],
+        });
+        assert_eq!(out.len(), 1);
+        let (jid, room) = alice.rooms.iter().find(|(j, _)| j.len() > 40).unwrap();
+        assert_eq!(room.name, "Bob");
+        let jid = jid.clone();
+        let out = alice.on_stanza(stanza(&format!(
+            r#"<presence xmlns="jabber:client" from="{jid}/{}"><x xmlns="http://jabber.org/protocol/muc#user">
+                <item affiliation="owner" role="moderator"/><status code="110"/><status code="201"/></x></presence>"#,
+            NICK.replace('<', "&lt;").replace('>', "&gt;")
+        )));
+        let xml: Vec<_> = out.iter().map(xml_of).collect();
+        assert_eq!(xml.len(), 3, "{xml:?}");
+        assert!(
+            xml[0].contains("muc#roomconfig_persistentroom") && xml[0].contains("<value>0</value>")
+        );
+        assert!(xml[2].contains("<invite to='bob@pbx.test'"), "{}", xml[2]);
+        // Verlassen geht nur bei spontanen Gruppenchats
+        assert_eq!(
+            alice
+                .on_command(Command::LeaveRoom { room: jid.clone() })
+                .len(),
+            1
+        );
+        assert!(!alice.rooms.contains_key(&jid));
+        assert!(
+            alice
+                .on_command(Command::LeaveRoom { room: ROOM.into() })
+                .is_empty()
+        );
     }
 
     #[test]
