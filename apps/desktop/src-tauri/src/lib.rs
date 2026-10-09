@@ -463,6 +463,7 @@ pub fn run() {
         .manage(audio::AudioState::default())
         .manage(bus::Bus::default())
         .manage(plugins::call::CallState::default())
+        .manage(plugins::conference::ConferenceState::default())
         .manage(plugins::doorcam::DoorCamState::default())
         .manage(plugins::journal::JournalState::default())
         .manage(busylight::BusylightState::default())
@@ -648,6 +649,10 @@ pub fn run() {
             voicemail::voicemail_move,
             voicemail::voicemail_delete,
             voicemail::voicemail_via_phone,
+            plugins::conference::conferences,
+            plugins::conference::conference_save,
+            plugins::conference::conference_delete,
+            plugins::conference::conference_start,
             chat::pick_download_dir,
             log::log_export,
             log::log_open_dir,

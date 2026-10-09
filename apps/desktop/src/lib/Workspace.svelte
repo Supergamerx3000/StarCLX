@@ -11,6 +11,7 @@
     { id: "contacts", x: 0, y: 8, w: 4, h: 8, visible: true },
     { id: "chat", x: 4, y: 8, w: 4, h: 8, visible: true },
     { id: "voicemail", x: 8, y: 8, w: 4, h: 8, visible: true },
+    { id: "conference", x: 4, y: 16, w: 4, h: 7, visible: true },
     // Nur sinnvoll mit angelegten Kameras, daher anfangs ausgeblendet
     { id: "doorcam", x: 0, y: 16, w: 4, h: 7, visible: false },
   ];
