@@ -125,6 +125,7 @@ async fn set_session(app: &AppHandle, session: Option<Session>) {
             hub: s.hub().clone(),
             host,
             user_id: s.info().user_id.clone(),
+            display_name: SessionInfo::from(s.info()).display_name,
         })
     });
     *app.state::<AppState>().session.lock().await = session;
@@ -596,6 +597,8 @@ pub fn run() {
             chat::chat_recent,
             chat::chat_conversation,
             chat::chat_send,
+            chat::chat_create_room,
+            chat::chat_leave_room,
             chat::chat_transfers,
             chat::chat_pick_files,
             chat::chat_send_files,

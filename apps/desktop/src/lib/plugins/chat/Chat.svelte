@@ -4,7 +4,7 @@
   import { getCurrentWebview } from "@tauri-apps/api/webview";
   import { onMount, tick } from "svelte";
   import Icon from "../../Icon.svelte";
-  import { acceptsFiles, chat, fileSize, nameOf, openConversation, sendFiles, type ChatContact, type ChatMessage, type ChatTransfer } from "./chat.svelte";
+  import { acceptsFiles, chat, createRoom, fileSize, leaveRoom, nameOf, openConversation, roomOf, sendFiles, type ChatMessage, type ChatRoom, type ChatTransfer } from "./chat.svelte";
   import { initials } from "../contacts/contacts";
   import { numberParts } from "../../numbers";
   import { canDial, phone, run } from "../call/phone.svelte";
@@ -17,6 +17,10 @@
   let conv = $state<HTMLElement>();
   /** Dateien werden über das Gespräch gezogen */
   let dropping = $state(false);
+  /** Neuen Gruppenchat zusammenstellen: Thema und ausgewählte Kontakte */
+  let picking = $state(false);
+  let subject = $state("");
+  let picked = $state<Record<string, boolean>>({});
 
   onMount(() => {
     chat.visible = true;
@@ -37,7 +41,7 @@
     };
   });
 
-  const canDrop = () => !!chat.open && chat.status.online && acceptsFiles(chat.open);
+  const canDrop = () => !!chat.open && chat.status.online && !roomOf(chat.open) && acceptsFiles(chat.open);
 
   function overConv(x: number, y: number) {
     const r = conv?.getBoundingClientRect();
@@ -99,12 +103,17 @@
     online: t("Online"), chat: t("Online"), away: t("Abwesend"), xa: t("Länger abwesend"), dnd: t("Nicht stören"), offline: t("Offline"),
   });
 
-  // Kontakte mit Gesprächen zuerst (neueste oben), dann alphabetisch
+  // Kontakte und Gruppenchats mit Gesprächen zuerst (neueste oben), dann alphabetisch
+  type Entry = { jid: string; name: string; show: string; status: string; room?: ChatRoom };
   const list = $derived.by(() => {
     const q = term.trim().toLowerCase();
-    const known = new Map<string, ChatContact>(chat.status.contacts.map((c) => [c.jid, c]));
+    const known = new Map<string, Entry>(chat.status.contacts.map((c) => [c.jid, c]));
+    for (const r of chat.status.rooms) {
+      known.set(r.jid, { jid: r.jid, name: r.name || t("Gruppenchat"), show: r.joined ? "online" : "offline", status: "", room: r });
+    }
     for (const peer of Object.keys(chat.last)) {
-      if (!known.has(peer)) known.set(peer, { jid: peer, name: peer.split("@")[0], show: "offline", status: "", clients: [] });
+      // Verlassene Gruppenchats nicht als Kontakt zeigen
+      if (!known.has(peer) && !peer.includes("@chatrooms.")) known.set(peer, { jid: peer, name: peer.split("@")[0], show: "offline", status: "" });
     }
     return [...known.values()]
       .filter((c) => !q || c.name.toLowerCase().includes(q) || c.jid.includes(q))
@@ -141,7 +150,59 @@
       : d.toLocaleString(locale(), { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" });
   };
   const openContact = $derived(chat.status.contacts.find((c) => c.jid === chat.open));
-  const filesOk = $derived(!!chat.open && acceptsFiles(chat.open));
+  const openRoom = $derived(roomOf(chat.open));
+  const filesOk = $derived(!!chat.open && !openRoom && acceptsFiles(chat.open));
+  // Wer im Gruppenchat anwesend ist
+  const memberLine = $derived(
+    !openRoom
+      ? ""
+      : !openRoom.joined
+        ? t("Verbinde …")
+        : openRoom.members.length
+          ? openRoom.members.map((m) => m.name || nameOf(m.jid)).join(", ")
+          : t("Sonst niemand anwesend"),
+  );
+  // Kontakte zur Auswahl für einen neuen Gruppenchat
+  const pickable = $derived(
+    chat.status.contacts
+      .filter((c) => !term.trim() || c.name.toLowerCase().includes(term.trim().toLowerCase()))
+      .sort((a, b) => a.name.localeCompare(b.name)),
+  );
+  const pickedJids = $derived(Object.keys(picked).filter((j) => picked[j]));
+
+  function startPicking() {
+    picking = !picking;
+    subject = "";
+    picked = {};
+  }
+
+  async function startRoom() {
+    try {
+      await createRoom(subject, pickedJids);
+      picking = false;
+      error = "";
+    } catch (e) {
+      error = String(e);
+    }
+  }
+
+  async function leave() {
+    if (!openRoom) return;
+    try {
+      await leaveRoom(openRoom.jid);
+      error = "";
+    } catch (e) {
+      error = String(e);
+    }
+  }
+
+  /** Vorschau der letzten Nachricht, im Gruppenchat mit Absender */
+  function preview(jid: string) {
+    const m = chat.last[jid];
+    if (!m) return "";
+    const who = m.outgoing ? "" : m.sender_name || (m.sender ? nameOf(m.sender) : "");
+    return who ? `${who}: ${m.body}` : m.body;
+  }
   // Angemeldete Geräte, z. B. „STARFACE Windows · unbekannter Client“
   const clientNames = $derived(
     (openContact?.clients ?? []).map((k) => k.name || t("unbekannter Client")).join(" · "),
@@ -149,7 +210,9 @@
   const attachTitle = $derived(
     !chat.status.online
       ? t("Chat nicht verbunden")
-      : filesOk
+      : openRoom
+        ? t("Dateien gehen nur an einzelne Kontakte")
+        : filesOk
         ? t("Datei senden (oder hierher ziehen)")
         : (openContact?.clients.length ?? 0)
           ? t("Der Client des Kontakts kann keine Dateien empfangen")
@@ -162,42 +225,80 @@
     <div class="state" class:on={chat.status.online}>
       <span class="dot"></span>{chat.status.online ? t("Chat verbunden") : chat.status.detail || t("Chat nicht verbunden")}
     </div>
-    <label class="filter">
-      <Icon name="search" size={18} />
-      <input bind:value={term} placeholder={t("Kontakt suchen")} />
-    </label>
-    <div class="contacts">
-      {#each list as c (c.jid)}
-        <button class="contact" class:active={c.jid === chat.open} onclick={() => openConversation(c.jid)}>
-          <span class="av">{initials(c.name)}<span class="presence {c.show}" title={showText[c.show] ?? c.show}></span></span>
-          <span class="txt">
-            <strong>{c.name}</strong>
-            <small>{chat.last[c.jid]?.body ?? (c.status || showText[c.show] || "")}</small>
-          </span>
-          {#if chat.unread[c.jid]}<span class="badge">{chat.unread[c.jid]}</span>{/if}
-        </button>
-      {:else}
-        <p class="muted">{chat.status.online ? t("Keine Kontakte.") : ""}</p>
-      {/each}
+    <div class="tools">
+      <label class="filter">
+        <Icon name="search" size={18} />
+        <input bind:value={term} placeholder={t("Kontakt suchen")} />
+      </label>
+      <button class="newroom" class:on={picking} title={t("Gruppenchat starten")} onclick={startPicking} disabled={!chat.status.online}><Icon name="groups" size={18} /></button>
     </div>
+    {#if picking}
+      <div class="pick">
+        <input bind:value={subject} placeholder={t("Thema (optional)")} />
+        <div class="contacts">
+          {#each pickable as c (c.jid)}
+            <label class="contact">
+              <input type="checkbox" bind:checked={picked[c.jid]} />
+              <span class="av">{initials(c.name)}<span class="presence {c.show}" title={showText[c.show] ?? c.show}></span></span>
+              <span class="txt"><strong>{c.name}</strong></span>
+            </label>
+          {:else}
+            <p class="muted">{t("Keine Kontakte.")}</p>
+          {/each}
+        </div>
+        <div class="pickactions">
+          <button onclick={() => (picking = false)}>{t("Abbrechen")}</button>
+          <button class="primary" onclick={startRoom} disabled={!pickedJids.length || !chat.status.online}>{t("Gruppenchat starten")}</button>
+        </div>
+      </div>
+    {:else}
+      <div class="contacts">
+        {#each list as c (c.jid)}
+          <button class="contact" class:active={c.jid === chat.open} onclick={() => openConversation(c.jid)}>
+            {#if c.room}
+              <span class="av room" title={t("Gruppenchat")}><Icon name="groups" size={20} /></span>
+            {:else}
+              <span class="av">{initials(c.name)}<span class="presence {c.show}" title={showText[c.show] ?? c.show}></span></span>
+            {/if}
+            <span class="txt">
+              <strong>{c.name}</strong>
+              <small>{preview(c.jid) || (c.room ? t("Gruppenchat") : c.status || showText[c.show] || "")}</small>
+            </span>
+            {#if chat.unread[c.jid]}<span class="badge">{chat.unread[c.jid]}</span>{/if}
+          </button>
+        {:else}
+          <p class="muted">{chat.status.online ? t("Keine Kontakte.") : ""}</p>
+        {/each}
+      </div>
+    {/if}
   </aside>
   <div class="divider" role="separator" aria-orientation="vertical" use:splitter={"chat"}></div>
 
   <section class="conv" class:dropping bind:this={conv}>
     {#if chat.open}
       <header>
-        <span class="av">{initials(nameOf(chat.open))}<span class="presence {openContact?.show ?? 'offline'}"></span></span>
-        <div>
-          <strong>{nameOf(chat.open)}</strong>
-          <small>{openContact?.status || showText[openContact?.show ?? "offline"]}</small>
-          {#if clientNames}<small class="clients" title={(openContact?.clients ?? []).map((k) => k.resource).join("\n")}>{clientNames}</small>{/if}
-        </div>
+        {#if openRoom}
+          <span class="av room"><Icon name="groups" size={20} /></span>
+          <div class="who">
+            <strong>{openRoom.name || t("Gruppenchat")}</strong>
+            <small class="members" title={memberLine}>{memberLine}</small>
+          </div>
+          {#if !openRoom.group}<button class="leave" title={t("Gruppenchat verlassen")} onclick={leave}>{t("Verlassen")}</button>{/if}
+        {:else}
+          <span class="av">{initials(nameOf(chat.open))}<span class="presence {openContact?.show ?? 'offline'}"></span></span>
+          <div class="who">
+            <strong>{nameOf(chat.open)}</strong>
+            <small>{openContact?.status || showText[openContact?.show ?? "offline"]}</small>
+            {#if clientNames}<small class="clients" title={(openContact?.clients ?? []).map((k) => k.resource).join("\n")}>{clientNames}</small>{/if}
+          </div>
+        {/if}
       </header>
       <div class="messages" bind:this={scroller}>
         {#each items as item (item.kind === "msg" ? item.m.id : `file-${item.f.id}`)}
           {#if item.kind === "msg"}
             {@const m = item.m}
             <div class="msg" class:out={m.outgoing}>
+              {#if openRoom && !m.outgoing}<small class="from">{m.sender_name || nameOf(m.sender ?? "")}</small>{/if}
               <div class="bubble">{#each numberParts(m.body) as p}{#if p.number}<button class="num" title={t("Anrufen")} disabled={!canDial()} onclick={() => run("phone_dial", { number: p.number })}>{p.text}</button>{:else}{p.text}{/if}{/each}</div>
               <small>{time(m.ts)}</small>
             </div>
@@ -252,6 +353,22 @@
   .state { display: flex; align-items: center; gap: 0.45rem; font-size: 0.85rem; color: var(--muted); padding: 0 0.3rem; }
   .state .dot { width: 0.6rem; height: 0.6rem; border-radius: 50%; background: #777; }
   .state.on .dot { background: var(--green); }
+  .tools { display: flex; gap: 0.4rem; align-items: center; }
+  .tools .filter { flex: 1; min-width: 0; }
+  .newroom { width: 2.1rem; height: 2.1rem; padding: 0; border-radius: 50%; display: grid; place-items: center; flex: none; background: none; border: 1px solid var(--line); color: inherit; }
+  .newroom.on { background: var(--accent-soft); }
+  .newroom:disabled { opacity: 0.4; }
+  .pick { flex: 1; min-height: 0; display: flex; flex-direction: column; gap: 0.4rem; }
+  .pick > input { padding: 0.4rem 0.6rem; border-radius: 6px; border: 1px solid var(--line); background: var(--bar-2); color: inherit; }
+  .pick .contact { cursor: pointer; }
+  .pickactions { display: flex; gap: 0.4rem; justify-content: flex-end; flex-wrap: wrap; }
+  .pickactions .primary { background: var(--accent); color: #111; border-color: var(--accent); }
+  .pickactions .primary:disabled { opacity: 0.4; }
+  .av.room { color: var(--muted); }
+  .leave { margin-left: auto; padding: 0.2rem 0.7rem; font-size: 0.85rem; }
+  header .who { min-width: 0; }
+  header .members { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+  .msg .from { margin: 0 0.3rem 0.1rem; font-weight: 600; }
   .filter { display: flex; align-items: center; gap: 0.4rem; padding: 0 0.6rem; background: var(--bar-2); border: 1px solid var(--line); border-radius: 999px; }
   .filter input { border: none; background: none; outline: none; flex: 1; padding: 0.4rem 0; }
   .contacts { flex: 1; overflow: auto; display: flex; flex-direction: column; gap: 0.1rem; }

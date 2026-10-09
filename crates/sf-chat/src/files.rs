@@ -396,7 +396,7 @@ impl Conn {
                 }
                 Vec::new()
             }
-            Pending::Disco(_) | Pending::Version(_) => Vec::new(),
+            Pending::Disco(_) | Pending::Version(_) | Pending::RoomConfig(_) => Vec::new(),
         }
     }
 
@@ -405,6 +405,7 @@ impl Conn {
         let payload = if el.is("query", xml::NS_DISCO_INFO) {
             IqPayload::Result(Some(xml::own_disco_info(&[
                 xml::NS_DISCO_INFO,
+                crate::muc::NS_MUC,
                 NS_PING,
                 NS_VERSION,
                 NS_SI,
