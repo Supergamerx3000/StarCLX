@@ -45,6 +45,8 @@ export function initChat() {
   if (started) return;
   started = true;
   listen<ChatStatus>("chat-status", (e) => {
+    // Abgemeldet oder anderes Konto: Gespräche des alten Kontos verwerfen
+    if (chat.status.own && e.payload.own !== chat.status.own) clearConversations();
     chat.status = e.payload;
     if (e.payload.online) loadRecent();
   });
@@ -76,6 +78,15 @@ export function initChat() {
     for (const tr of list) chat.transfers[tr.id] = tr;
   });
   loadRecent();
+}
+
+/** Vergisst alles, was zum bisherigen Konto gehört. */
+function clearConversations() {
+  chat.last = {};
+  chat.unread = {};
+  chat.open = "";
+  chat.messages = [];
+  chat.transfers = {};
 }
 
 async function loadRecent() {

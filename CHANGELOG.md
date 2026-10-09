@@ -9,6 +9,10 @@
 - Der Call Manager zeigt und steuert Anrufe auch ohne Softphone (auflegen, halten, Rückfrage,
   verbinden, Konferenz usw.); annehmen und stummschalten gehen weiterhin nur am Softphone
 
+### Behoben
+- Nach einem Kontowechsel zeigte der Chat noch Gespräche und letzte Nachrichten des vorher
+  angemeldeten Kontos; sie werden jetzt beim Abmelden verworfen
+
 ## 1.3.9 – 2026-10-08
 
 Wie 1.3.8, nur kommen die Pakete jetzt auch über die apt-, dnf- und Flatpak-Quelle; die standen
