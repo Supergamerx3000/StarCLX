@@ -13,6 +13,9 @@
   import Voicemail from "$lib/plugins/voicemail/Voicemail.svelte";
   import FunctionKeys from "$lib/plugins/fkeys/FunctionKeys.svelte";
   import DoorCams from "$lib/plugins/doorcam/DoorCams.svelte";
+  import Conferences from "$lib/plugins/conference/Conferences.svelte";
+  import ConferenceForm from "$lib/plugins/conference/ConferenceForm.svelte";
+  import { activeConferences, conferenceEdit, conferences, initConferences, loadConferences } from "$lib/plugins/conference/conference.svelte";
   import { initVoicemail, loadVoicemails, unheard, voicemail } from "$lib/plugins/voicemail/voicemail.svelte";
   import { initChat, unreadTotal } from "$lib/plugins/chat/chat.svelte";
   import Icon, { type IconName } from "$lib/Icon.svelte";
@@ -37,19 +40,20 @@
 
   onMount(() => {
     const offs = [
-      listen<SessionInfo>("session", (e) => { session = e.payload; notice = ""; phase = "session"; loadVoicemails(); }),
+      listen<SessionInfo>("session", (e) => { session = e.payload; notice = ""; phase = "session"; loadVoicemails(); loadConferences(); }),
       listen<string>("login-error", (e) => { notice = e.payload; phase = "login"; }),
-      listen<string>("logged-out", (e) => { session = null; notice = e.payload; phase = "login"; voicemail.list = []; }),
+      listen<string>("logged-out", (e) => { session = null; notice = e.payload; phase = "login"; voicemail.list = []; conferences.list = []; conferenceEdit.id = null; }),
       listen<{ action: string; text: string | null }>("hotkey", (e) => hotkey(e.payload.action, e.payload.text)),
       listen("dial-request", takeDialRequest),
       // Nach dem Standby: Voicemails neu holen (Funktionstasten und
       // Umleitungen hören selbst auf "resumed" bzw. "reach-changed")
-      listen("resumed", () => { if (session) loadVoicemails(); }),
+      listen("resumed", () => { if (session) { loadVoicemails(); loadConferences(); } }),
     ];
     initPhone();
     takeDialRequest();
     initChat();
     initVoicemail();
+    initConferences();
     loadPrefs().catch(() => {});
     restore();
     return () => offs.forEach((p) => p.then((off) => off()));
@@ -108,7 +112,7 @@
     server = (await invoke<string | null>("last_server")) ?? "";
     try {
       const info = await invoke<SessionInfo | null>("restore_session");
-      if (info) { session = info; phase = "session"; loadVoicemails(); return; }
+      if (info) { session = info; phase = "session"; loadVoicemails(); loadConferences(); return; }
     } catch (e) {
       notice = t("Automatische Anmeldung fehlgeschlagen: {e}", { e: String(e) });
     }
@@ -146,7 +150,7 @@
 
   let menuOpen = $state(false);
   let settingsOpen = $state(false);
-  type Tab = "journal" | "voicemail" | "contacts" | "chat" | "fkeys" | "doorcam";
+  type Tab = "journal" | "voicemail" | "contacts" | "chat" | "fkeys" | "conference" | "doorcam";
   let tab = $state<Tab>("journal");
   const allTabs: { id: Tab; icon: IconName; label: string }[] = $derived([
     { id: "journal", icon: "history", label: t("Rufliste") },
@@ -154,6 +158,7 @@
     { id: "contacts", icon: "contacts", label: t("Adressbuch") },
     { id: "chat", icon: "chat", label: "Chat" },
     { id: "fkeys", icon: "dialpad", label: t("Funktionstasten") },
+    { id: "conference", icon: "meetings", label: t("Konferenzen") },
     { id: "doorcam", icon: "videocam", label: t("Türkamera") },
   ]);
   /** Türkamera nur mit angelegten Kameras anbieten */
@@ -167,7 +172,7 @@
   const free = $derived(prefs.value?.workspace === "free");
   let tiles = $state<Tile[]>([]);
   /** Zähler, die sonst am Reiter stehen, für die Kachel-Titelleiste */
-  const badge = (id: string) => (id === "chat" ? unreadTotal() : id === "voicemail" ? unheard() : 0);
+  const badge = (id: string) => (id === "chat" ? unreadTotal() : id === "voicemail" ? unheard() : id === "conference" ? activeConferences() : 0);
 
   /** Anordnung entsperrt; beim Start immer fixiert */
   let editing = $state(false);
@@ -261,6 +266,7 @@
           <Icon name={tb.icon} size={20} /><span>{tb.label}</span>
           {#if tb.id === "chat" && unreadTotal()}<span class="unread">{unreadTotal()}</span>{/if}
           {#if tb.id === "voicemail" && unheard()}<span class="unread">{unheard()}</span>{/if}
+          {#if tb.id === "conference" && activeConferences()}<span class="unread">{activeConferences()}</span>{/if}
         </button>
       {/each}
       {#if free}
@@ -290,6 +296,8 @@
           <Contacts />
         {:else if id === "doorcam"}
           <DoorCams />
+        {:else if id === "conference"}
+          <Conferences />
         {:else}
           <Chat />
         {/if}
@@ -303,6 +311,9 @@
   </div>
   {#if contactEdit.open}
     {#key contactEdit.id + contactEdit.number}<ContactForm />{/key}
+  {/if}
+  {#if conferenceEdit.id !== null}
+    {#key conferenceEdit.id}<ConferenceForm me={session} />{/key}
   {/if}
   {#if settingsOpen}
     <Settings onclose={() => (settingsOpen = false)} onlogout={logout} server={session.server} userId={session.user_id} displayName={session.display_name} />

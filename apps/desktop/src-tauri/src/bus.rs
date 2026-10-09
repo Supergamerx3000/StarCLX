@@ -11,8 +11,8 @@ pub enum Event {
     PhoneStopped,
     /// Softphone gestartet und bereit
     PhoneReady,
-    /// Anrufe haben sich geändert
-    Calls { calls: Vec<CallView> },
+    /// Anrufe oder Stummschaltung haben sich geändert
+    Calls { calls: Vec<CallView>, muted: bool },
     /// Einstellungen gespeichert
     PrefsSaved,
 }

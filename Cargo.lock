@@ -4909,6 +4909,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "sf-headset"
+version = "1.3.9"
+dependencies = [
+ "tracing",
+]
+
+[[package]]
 name = "sf-onehub"
 version = "1.3.9"
 dependencies = [
@@ -5177,6 +5184,7 @@ dependencies = [
  "sf-chat",
  "sf-core",
  "sf-doorcam",
+ "sf-headset",
  "sf-onehub",
  "sf-sip",
  "sf-tls",

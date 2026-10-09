@@ -22,6 +22,7 @@ sf-sip = { path = "../../../crates/sf-sip" }
 sf-chat = { path = "../../../crates/sf-chat" }
 sf-audio = { path = "../../../crates/sf-audio" }
 sf-busylight = { path = "../../../crates/sf-busylight" }
+sf-headset = { path = "../../../crates/sf-headset" }
 zbus = "5"
 arboard = { version = "3", default-features = false }
 tracing.workspace = true

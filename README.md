@@ -18,13 +18,17 @@ Nicht mit der STARFACE GmbH verbunden. „STARFACE“ wird nur beschreibend verw
   und löschen, unbekannte Nummern aus der Rufliste übernehmen
 - **Rufliste** mit Filtern, Notizen, „zurückgerufen“, Benachrichtigung bei verpassten Anrufen;
   Anruf mit Notiz per Chat oder E-Mail an Kollegen weitergeben
-- **Chat** mit Kollegen (Präsenz, Verlauf, Dateien, Abwesenheit bei Inaktivität)
+- **Chat** mit Kollegen (Präsenz, Verlauf, Dateien, Abwesenheit bei Inaktivität), Gruppenchats
+  der Anlagen-Gruppen und spontane Gruppenchats wie in der STARFACE-App
 - **Voicemail** abhören und verwalten
+- **Geplante Konferenzen** anlegen, ändern, löschen und starten (Termin, Wiederholung, Teilnehmer)
 - **Türsprechstellen**: Kamerabild im Call Manager, sobald die Tür anruft, mit „Tür öffnen“;
   weitere Kameras als Kachel (RTSP, Motion JPEG, Einzelbild)
 - **Funktionstasten** (BLF, Kurzwahl, Heranholen, Parken, Gruppen, Ruhe …) anzeigen, nutzen und bearbeiten
 - **Erreichbarkeit**: Umleitungen, iFMC, signalisierte Rufnummer
 - **Arbeitsbereich** als Reiter oder frei angeordnete Kacheln
+- **Headset-Tasten** von Jabra, Poly und EPOS (USB-HID-Telefonie): annehmen, auflegen,
+  stummschalten; das Headset klingelt und zeigt Gespräch und Stummschaltung an
 - **Einstellungen**: Audiogeräte, Klingeltöne, Busylight (Kuando), Erscheinungsbild,
   Sprache (Deutsch, English, Français, Italiano)
 - **Desktop-Integration**: Symbol im Infobereich, Autostart, Schnellwahl-Fenster,
@@ -101,8 +105,9 @@ Unterschiede:
 - **Autostart** läuft über die Desktop-Umgebung; GNOME fragt beim Einschalten einmal nach.
 - **`tel:`-Links abschalten** geht nicht in StarCLX, ein anderes Programm wählt man in den
   Systemeinstellungen unter Standardanwendungen.
-- **Busylight** braucht die udev-Regel auf dem System, einmalig:
+- **Busylight** und **Headset-Tasten** brauchen die udev-Regeln auf dem System, einmalig:
   `flatpak run --command=cat ch.crazmoe.StarCLX /app/share/starclx/60-starclx-busylight.rules | sudo tee /etc/udev/rules.d/60-starclx-busylight.rules`
+  bzw. dasselbe mit `60-starclx-headset.rules`
 - **Türkameras mit RTSP** nutzen das `ffmpeg` des Systems (siehe unten), es muss also dort
   installiert sein.
 - Eine eigene Firmen-CA, die nur im System hinterlegt ist, kann im Flatpak fehlen;
@@ -194,6 +199,7 @@ Tag `v<Version>` von Hand bewirkt dasselbe.
 | `crates/sf-audio` | Audiogeräte, Klingeltöne, Testton (PulseAudio/PipeWire) |
 | `crates/sf-chat` | XMPP-Chat |
 | `crates/sf-busylight` | Kuando Busylight über hidraw |
+| `crates/sf-headset` | Headset-Tasten (USB-HID-Telefonie) über hidraw |
 | `crates/sf-doorcam` | Türkameras: RTSP (über ffmpeg), Motion JPEG, Einzelbild |
 | `apps/desktop` | Desktop-App: Tauri 2, Oberfläche in Svelte 5 / TypeScript |
 | `apps/sfctl` | Kommandozeile für Skripte, siehe [README](apps/sfctl/README.md) |

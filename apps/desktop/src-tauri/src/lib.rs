@@ -125,6 +125,7 @@ async fn set_session(app: &AppHandle, session: Option<Session>) {
             hub: s.hub().clone(),
             host,
             user_id: s.info().user_id.clone(),
+            display_name: SessionInfo::from(s.info()).display_name,
         })
     });
     *app.state::<AppState>().session.lock().await = session;
@@ -462,9 +463,11 @@ pub fn run() {
         .manage(audio::AudioState::default())
         .manage(bus::Bus::default())
         .manage(plugins::call::CallState::default())
+        .manage(plugins::conference::ConferenceState::default())
         .manage(plugins::doorcam::DoorCamState::default())
         .manage(plugins::journal::JournalState::default())
         .manage(busylight::BusylightState::default())
+        .manage(plugins::headset::HeadsetState::default())
         .manage(AppState {
             pending: Mutex::default(),
             session: Mutex::default(),
@@ -556,6 +559,8 @@ pub fn run() {
             quick_hide,
             busylight::busylight_info,
             busylight::busylight_test,
+            plugins::headset::headset_info,
+            plugins::headset::headset_test,
             restore_session,
             certs::check_certificate,
             certs::trust_certificate,
@@ -593,6 +598,8 @@ pub fn run() {
             chat::chat_recent,
             chat::chat_conversation,
             chat::chat_send,
+            chat::chat_create_room,
+            chat::chat_leave_room,
             chat::chat_transfers,
             chat::chat_pick_files,
             chat::chat_send_files,
@@ -642,6 +649,10 @@ pub fn run() {
             voicemail::voicemail_move,
             voicemail::voicemail_delete,
             voicemail::voicemail_via_phone,
+            plugins::conference::conferences,
+            plugins::conference::conference_save,
+            plugins::conference::conference_delete,
+            plugins::conference::conference_start,
             chat::pick_download_dir,
             log::log_export,
             log::log_open_dir,

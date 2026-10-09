@@ -9,6 +9,7 @@
   import Reach from "./plugins/reach/Reach.svelte";
   import Toggle from "./Toggle.svelte";
   import BusylightSettings from "./plugins/busylight/Settings.svelte";
+  import HeadsetSettings from "./plugins/headset/Settings.svelte";
   import CallActionsSettings from "./plugins/callactions/Settings.svelte";
   import DoorCamSettings from "./plugins/doorcam/Settings.svelte";
   import { type Hotkeys, loadPrefs, prefs, savePrefs, type Prefs } from "./prefs.svelte";
@@ -39,6 +40,7 @@
     { id: "softphone", icon: "call", label: "Softphone" },
     { id: "notifications", icon: "bell", label: t("Benachrichtigungen") },
     { id: "audio", icon: "headset", label: t("Audio") },
+    { id: "headset", icon: "headset", label: t("Headset-Tasten") },
     { id: "ringtones", icon: "music", label: t("Klingeltöne") },
     { id: "signaling", icon: "numbers", label: t("Rufnummer signalisieren") },
     { id: "callmanager", icon: "forward", label: "Call Manager" },
@@ -394,6 +396,8 @@
           <DeviceList bind:order={draft.microphones} devices={devices.microphones} />
         </div>
       </section>
+
+      <HeadsetSettings bind:draft />
 
       <section id="ringtones">
         <h3>{t("Klingeltöne")}</h3>
