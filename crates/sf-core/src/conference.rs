@@ -189,11 +189,11 @@ pub async fn save(hub: &OneHub, draft: Draft) -> Result<(), SaveError> {
     }) {
         return Err(SaveError::Invalid(Invalid::Participant));
     }
-    let participants = draft
-        .participants
-        .into_iter()
-        .map(participant_proto)
-        .collect();
+    let mut participants = draft.participants;
+    for p in &mut participants {
+        complete(hub, p).await;
+    }
+    let participants = participants.into_iter().map(participant_proto).collect();
     let start_time = Some(timestamp(draft.start));
     let mut svc = hub.conference();
     match draft.id.filter(|id| !id.is_empty()) {
@@ -219,6 +219,56 @@ pub async fn save(hub: &OneHub, draft: Draft) -> Result<(), SaveError> {
     }
     .map_err(|s| SaveError::Hub(s.into()))?;
     Ok(())
+}
+
+/// Ergänzt bei Benutzern der Anlage interne Nummer und E-Mail-Adresse. Ohne
+/// Nummer bricht die Anlage das Anlegen mit „Internal error“ ab; die
+/// Windows-App schickt sie deshalb immer mit.
+async fn complete(hub: &OneHub, p: &mut Participant) {
+    let Some(user_id) = p.user_id.clone().filter(|u| !u.is_empty()) else {
+        return;
+    };
+    if !p.number.trim().is_empty() && !p.email.trim().is_empty() {
+        return;
+    }
+    let user = match hub
+        .user()
+        .get_user(v1::types::GetUserRequest {
+            user_id: Some(v1::types::UserId { id: user_id }),
+        })
+        .await
+    {
+        Ok(r) => r.into_inner().user.unwrap_or_default(),
+        Err(e) => {
+            tracing::warn!(error = %e, "Benutzer für Konferenzteilnehmer nicht gelesen");
+            return;
+        }
+    };
+    if p.number.trim().is_empty() {
+        p.number = internal_number(&user);
+    }
+    if p.email.trim().is_empty() {
+        p.email = user.email;
+    }
+}
+
+/// Interne Hauptnummer des Benutzers, sonst seine erste interne Nummer
+fn internal_number(user: &v1::types::User) -> String {
+    use v1::types::phone_number::Number;
+    let internal =
+        |n: &&v1::types::PhoneNumber| matches!(n.number, Some(Number::InternalNumber(_)));
+    let primary = user
+        .primary_internal_phone_number_id
+        .as_ref()
+        .and_then(|id| {
+            user.phone_numbers
+                .iter()
+                .find(|n| n.phone_number_id.as_ref() == Some(id))
+        });
+    primary
+        .or_else(|| user.phone_numbers.iter().find(internal))
+        .map(crate::account::format_number)
+        .unwrap_or_default()
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -329,6 +379,40 @@ mod tests {
         let back = participant_view(proto);
         assert_eq!(back.user_id.as_deref(), Some("42"));
         assert!(back.moderator && back.call_on_start);
+    }
+
+    #[test]
+    fn primary_internal_number_wins() {
+        use v1::types::phone_number::Number;
+        let num = |id: &str, n: Number| v1::types::PhoneNumber {
+            phone_number_id: Some(v1::types::PhoneNumberId { id: id.into() }),
+            is_fax: false,
+            number: Some(n),
+        };
+        let internal = |e: &str| {
+            Number::InternalNumber(v1::types::InternalNumber {
+                extension: e.into(),
+            })
+        };
+        let mut user = v1::types::User {
+            phone_numbers: vec![
+                num(
+                    "1",
+                    Number::InternationalNumber(v1::types::InternationalNumber {
+                        country_code: "41".into(),
+                        national_destination_code: "71".into(),
+                        subscriber_number: "7271616".into(),
+                    }),
+                ),
+                num("2", internal("11")),
+                num("3", internal("12")),
+            ],
+            ..Default::default()
+        };
+        assert_eq!(internal_number(&user), "11");
+        user.primary_internal_phone_number_id = Some(v1::types::PhoneNumberId { id: "3".into() });
+        assert_eq!(internal_number(&user), "12");
+        assert_eq!(internal_number(&v1::types::User::default()), "");
     }
 
     #[test]
