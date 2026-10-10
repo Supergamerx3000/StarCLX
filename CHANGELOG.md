@@ -1,6 +1,6 @@
 # Änderungen
 
-## Unveröffentlicht
+## 1.4.0 – 2026-10-10
 
 ### Tischtelefon steuern
 - Gewählt wird über das primäre Telefon aus dem Profilmenü: Ist es das Tischtelefon, ruft die
