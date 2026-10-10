@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { connection } from "../../connection.svelte";
   import { splitter } from "../../splitter";
   import { invoke } from "@tauri-apps/api/core";
   import { getCurrentWebview } from "@tauri-apps/api/webview";
@@ -336,7 +337,7 @@
         <textarea bind:value={draft} {onkeydown} rows="2" placeholder={chat.status.online ? t("Nachricht schreiben (Enter sendet, Umschalt+Enter neue Zeile)") : t("Chat nicht verbunden")} disabled={!chat.status.online}></textarea>
         <button class="send" type="submit" title={t("Senden")} disabled={!draft.trim() || !chat.status.online}><Icon name="send" size={20} /></button>
       </form>
-      {#if error}<p class="error">{error}</p>{/if}
+      {#if error && connection.online}<p class="error">{error}</p>{/if}
       {#if dropping}<div class="drop">{t("Loslassen, um an {name} zu senden", { name: nameOf(chat.open) })}</div>{/if}
     {:else}
       <p class="muted center">{t("Kontakt auswählen, um zu chatten.")}</p>

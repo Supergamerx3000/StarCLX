@@ -354,6 +354,14 @@ const TEXTS: &[(&str, [&str; 3])] = &[
         ["No number", "Aucun numéro", "Nessun numero"],
     ),
     (
+        "Keine Verbindung zur Anlage",
+        [
+            "No connection to the PBX",
+            "Pas de connexion à l'autocommutateur",
+            "Nessuna connessione al centralino",
+        ],
+    ),
+    (
         "Nicht angemeldet",
         ["Not signed in", "Non connecté", "Non connesso"],
     ),

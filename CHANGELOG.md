@@ -12,6 +12,13 @@
 - Bestehende Anmeldungen ziehen beim ersten Start automatisch in die Kontenliste um, ebenso das
   vorherige primäre Telefon und die Umleitungstasten; beides gilt jetzt je Konto
 
+### Verbindungsabbruch
+- Ist die Anlage nicht mehr erreichbar (z. B. VPN getrennt), zeigt das Hauptfenster einen einzigen
+  Hinweis „Keine Verbindung zur Anlage“ statt Fehlermeldungen in jedem Modul; die Einzelfehler
+  stehen nur im Protokoll. Aktionen brechen ohne Verbindung sofort ab, statt zu hängen.
+- Sobald die Anlage wieder antwortet, verbindet StarCLX automatisch neu und lädt alles nach wie
+  nach dem Standby (Token, Softphone, Funktionstasten, Voicemail, Umleitungen, Adressbuch)
+
 ## 1.4.0 – 2026-10-10
 
 ### Tischtelefon steuern

@@ -43,7 +43,7 @@ pub fn start(app: &AppHandle) {
     });
 }
 
-async fn resume(app: &AppHandle) {
+pub(crate) async fn resume(app: &AppHandle) {
     let state = app.state::<AppState>();
     // Erst das Token, sonst schlagen die Neuladungen mit 401 fehl.
     let Some(resumer) = state.session.lock().await.as_ref().map(|s| s.resumer()) else {

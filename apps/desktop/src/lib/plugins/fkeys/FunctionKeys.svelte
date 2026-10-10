@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { connection } from "../../connection.svelte";
   // Arbeitsbereich „Funktionstasten“: Tasten der Anlage zum Auslösen.
   import { onMount } from "svelte";
   import FkeyTile from "./FkeyTile.svelte";
@@ -22,8 +23,8 @@
 </script>
 
 <div class="fk">
-  {#if fkeys.error}<p class="error">{t(fkeys.error)}</p>{/if}
-  {#if fkeys.notice}<p class="error">{fkeys.notice}</p>{/if}
+  {#if fkeys.error && connection.online}<p class="error">{t(fkeys.error)}</p>{/if}
+  {#if fkeys.notice && connection.online}<p class="error">{fkeys.notice}</p>{/if}
   <div class="grid" style="grid-template-columns: repeat({columns}, minmax(0, 1fr))">
     {#each shown as k (k.id)}
       <FkeyTile key={k} onclick={() => press(k)} />

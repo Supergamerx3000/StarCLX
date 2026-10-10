@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { connection, initConnection } from "$lib/connection.svelte";
   // Schnellwahl aus dem Tray: Rufnummernfeld mit Adressbuchsuche und nur die
   // Besetztlampenfelder. Klick ruft an bzw. holt einen klingelnden Anruf heran.
   import { invoke } from "@tauri-apps/api/core";
@@ -15,6 +16,7 @@
 
   onMount(() => {
     initPhone();
+    initConnection();
     loadPrefs().catch(() => {});
     loadFkeys();
     // Beim Einblenden neu laden; so gilt auch eine inzwischen geänderte Sprache.
@@ -41,8 +43,9 @@
 
 <main class="quick">
   <DialSearch />
-  {#if phone.notice}<p class="notice">{phone.notice}</p>{/if}
-  {#if fkeys.notice}<p class="notice">{fkeys.notice}</p>{/if}
+  {#if !connection.online}<p class="notice">{t("Keine Verbindung zur Anlage")}</p>
+  {:else if phone.notice}<p class="notice">{phone.notice}</p>{/if}
+  {#if fkeys.notice && connection.online}<p class="notice">{fkeys.notice}</p>{/if}
   <div class="list">
     {#each blfs as k (k.id)}
       <FkeyTile key={k} onclick={() => press(k)} />

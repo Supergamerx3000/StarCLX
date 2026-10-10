@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { connection } from "./connection.svelte";
   import { invoke } from "@tauri-apps/api/core";
   import Icon from "./Icon.svelte";
   import { phone, run, canDial } from "./plugins/call/phone.svelte";
@@ -93,9 +94,9 @@
   <button class="dialbtn" class:armed={text.trim() && ready} type="submit" title={t("Anrufen")} disabled={!ready || dialing || !text.trim()}>
     <Icon name="call" />
   </button>
-  {#if open && text.trim().length >= 2 && (results.length || searchError)}
+  {#if open && text.trim().length >= 2 && (results.length || (searchError && connection.online))}
     <div class="results">
-      {#if searchError}<p class="err">{t("Suche nicht möglich: {e}", { e: searchError })}</p>{/if}
+      {#if searchError && connection.online}<p class="err">{t("Suche nicht möglich: {e}", { e: searchError })}</p>{/if}
       {#each results as c (c.id + c.name)}
         <div class="hit">
           <div class="who">

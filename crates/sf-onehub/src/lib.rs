@@ -85,6 +85,23 @@ impl Error {
         }
     }
 
+    /// Die Anlage war nicht zu erreichen (Netz weg, VPN getrennt, Zeitüberschreitung),
+    /// im Gegensatz zu einer Antwort der Anlage selbst.
+    pub fn unreachable(&self) -> bool {
+        match self {
+            Error::Transport(_) => true,
+            Error::Status(s) => {
+                matches!(
+                    s.code(),
+                    tonic::Code::Unavailable
+                        | tonic::Code::DeadlineExceeded
+                        | tonic::Code::Cancelled
+                        | tonic::Code::Unknown
+                ) && self.retry_after().is_none()
+            }
+        }
+    }
+
     /// Wartezeit, wenn die Anlage wegen eines Rate-Limits abweist
     /// (gRPC `ResourceExhausted` oder HTTP 429), sonst `None`.
     pub fn retry_after(&self) -> Option<Duration> {
@@ -365,6 +382,15 @@ mod tests {
             Error::Status(Status::unavailable("Verbindung weg")).retry_after(),
             None
         );
+    }
+
+    #[test]
+    fn unreachable_only_without_answer() {
+        assert!(Error::Status(Status::unavailable("tcp connect error")).unreachable());
+        assert!(Error::Status(Status::deadline_exceeded("timeout")).unreachable());
+        assert!(!Error::Status(Status::unavailable("HTTP 429")).unreachable());
+        assert!(!Error::Status(Status::unauthenticated("Token abgelaufen")).unreachable());
+        assert!(!Error::Status(Status::permission_denied("kein Recht")).unreachable());
     }
 
     #[test]

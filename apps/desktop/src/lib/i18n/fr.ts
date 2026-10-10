@@ -563,5 +563,7 @@ const dict: Record<string, string> = {
   "Gespeicherte Konten": "Comptes enregistrés",
   "Konto entfernen": "Supprimer le compte",
   "Oder an einer Anlage anmelden:": "Ou se connecter à un autocommutateur :",
+  "Keine Verbindung zur Anlage": "Pas de connexion à l'autocommutateur",
+  "StarCLX verbindet sich automatisch neu, sobald die Anlage wieder erreichbar ist (z. B. VPN wieder verbunden).": "StarCLX se reconnecte automatiquement dès que l'autocommutateur est de nouveau joignable (p. ex. VPN reconnecté).",
 };
 export default dict;

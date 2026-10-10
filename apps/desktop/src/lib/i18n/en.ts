@@ -563,5 +563,7 @@ const dict: Record<string, string> = {
   "Gespeicherte Konten": "Saved accounts",
   "Konto entfernen": "Remove account",
   "Oder an einer Anlage anmelden:": "Or sign in to a PBX:",
+  "Keine Verbindung zur Anlage": "No connection to the PBX",
+  "StarCLX verbindet sich automatisch neu, sobald die Anlage wieder erreichbar ist (z. B. VPN wieder verbunden).": "StarCLX reconnects automatically as soon as the PBX is reachable again (e.g. VPN reconnected).",
 };
 export default dict;

@@ -27,6 +27,7 @@
   import { loadPrefs, prefs, savePrefs, type Tile } from "$lib/prefs.svelte";
   import Workspace, { tilesOf } from "$lib/Workspace.svelte";
   import { t } from "$lib/i18n.svelte";
+  import { connection, initConnection } from "$lib/connection.svelte";
 
   type SessionInfo = { server: string; server_version: string; display_name: string; user_id: string };
   type UntrustedCert = { host: string; port: number; fingerprint: string; reason: string };
@@ -116,6 +117,7 @@
       listen("resumed", () => { if (session) { loadVoicemails(); loadConferences(); } }),
     ];
     initPhone();
+    initConnection();
     takeDialRequest();
     initChat();
     initVoicemail();
@@ -351,7 +353,12 @@
     {/if}
 
     <main class="work">
-      {#if phone.status.state === "error" || (phone.status.state === "off" && phone.status.detail)}
+      {#if !connection.online}
+        <p class="banner offline" role="status">
+          <span class="reg error"></span>
+          <span><b>{t("Keine Verbindung zur Anlage")}</b> · {t("StarCLX verbindet sich automatisch neu, sobald die Anlage wieder erreichbar ist (z. B. VPN wieder verbunden).")}</span>
+        </p>
+      {:else if phone.status.state === "error" || (phone.status.state === "off" && phone.status.detail)}
         <p class="banner"><span class="reg {phone.status.state}"></span>{stateText[phone.status.state]}{#if phone.status.detail}: {t(phone.status.detail)}{/if}</p>
       {/if}
       {#if notice}<p class="banner">{notice}</p>{/if}
@@ -482,6 +489,8 @@
   .tab.lock.on { color: #111; background: var(--accent); border-radius: 6px 6px 0 0; }
   .tab.active { color: var(--text); border-bottom-color: var(--accent); }
   .banner { display: flex; align-items: center; gap: 0.5rem; margin: 0 0 0.4rem; padding: 0.5rem 0.8rem; background: var(--panel); border-left: 3px solid var(--accent); }
+  .banner.offline { border-left-color: var(--red); }
+  .banner .reg { flex: none; }
   .work { overflow: auto; padding: 0.5rem; display: flex; flex-direction: column; min-height: 0; }
   .state { display: flex; align-items: center; gap: 0.5rem; }
   .muted { color: var(--muted); }
