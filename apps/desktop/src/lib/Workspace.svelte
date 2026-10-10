@@ -141,14 +141,14 @@
   .tile > * { min-width: 0; }
   header {
     display: flex; align-items: center; gap: 0.45rem; padding: 0.3rem 0.6rem; user-select: none;
-    background: var(--bar-2); border: 1px solid var(--line); border-bottom: none; border-radius: 6px 6px 0 0; font-weight: 600; font-size: 0.9rem;
+    background: var(--bar-2); border-radius: 6px 6px 0 0; font-weight: 600; font-size: 0.9rem;
   }
   header span { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .editing header { cursor: grab; touch-action: none; }
   .editing .tile .body { outline: 1px dashed var(--accent); outline-offset: -1px; }
   .unread { background: var(--accent); color: #111; border-radius: 999px; padding: 0 0.45rem; font-size: 0.78rem; }
   .x { background: none; border: none; padding: 0.1rem; color: var(--muted); display: grid; }
-  .body { flex: 1; min-height: 0; overflow: auto; background: var(--bg); border: 1px solid var(--line); border-radius: 0 0 6px 6px; padding: 0.4rem; }
+  .body { flex: 1; min-height: 0; overflow: auto; background: var(--bg); border-radius: 0 0 6px 6px; padding: 0.4rem; }
   .grip {
     position: absolute; right: 0.25rem; bottom: 0.25rem; width: 0.9rem; height: 0.9rem; cursor: nwse-resize; touch-action: none;
     background: linear-gradient(135deg, transparent 50%, var(--muted) 50%, var(--muted) 60%, transparent 60%, transparent 75%, var(--muted) 75%, var(--muted) 85%, transparent 85%);
