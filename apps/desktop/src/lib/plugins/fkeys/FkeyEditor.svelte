@@ -419,7 +419,7 @@
   .checks { display: flex; flex-wrap: wrap; gap: 0.3rem 0.9rem; }
   .actions { display: flex; gap: 0.6rem; margin-top: 0.4rem; }
   .spacer { flex: 1; }
-  .primary { background: var(--accent); border-color: var(--accent); color: #111; font-weight: 600; }
+  .primary { background: var(--accent); border-color: var(--accent); color: var(--on-accent); font-weight: 600; }
   .danger { display: flex; align-items: center; gap: 0.3rem; color: var(--red); }
   @media (max-width: 800px) { .editor { grid-template-columns: 1fr; } }
 </style>

@@ -133,7 +133,7 @@
   .row span { color: var(--muted); font-size: 0.9rem; }
   .actions { display: flex; gap: 0.6rem; margin-top: 0.2rem; }
   .spacer { flex: 1; }
-  .primary { background: var(--accent); border-color: var(--accent); color: #111; font-weight: 600; }
+  .primary { background: var(--accent); border-color: var(--accent); color: var(--on-accent); font-weight: 600; }
   .danger { display: flex; align-items: center; gap: 0.3rem; color: var(--red); }
   .muted { color: var(--muted); }
   .notice { color: var(--accent); margin: 0; }
