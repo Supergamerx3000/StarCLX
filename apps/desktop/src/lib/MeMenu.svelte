@@ -282,6 +282,7 @@
   .opt { display: flex; align-items: center; gap: 0.6rem; background: none; border: none; text-align: left; padding: 0.5rem 0.6rem; border-radius: 4px; }
   .opt:hover:not(:disabled) { background: var(--panel-2); }
   .opt.sel { font-weight: 600; }
+  .opt:disabled { opacity: 0.4; cursor: not-allowed; }
   .hint { display: block; max-width: 18rem; padding: 0.4rem 0.6rem 0.2rem; font-size: 0.8rem; color: var(--muted); }
   .hint.warn { color: var(--accent-text); }
   .tick { margin-left: auto; color: var(--accent-text); display: grid; }
