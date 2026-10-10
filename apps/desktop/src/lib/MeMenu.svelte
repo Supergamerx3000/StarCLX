@@ -153,7 +153,7 @@
         {#each phones as p (p.id)}
           <button class="opt" class:sel={p.primary} onclick={() => setPrimary(p.id)}>{phoneName(p)}{#if p.primary}<span class="tick"><Icon name="check" size={16} /></span>{/if}</button>
         {:else}<span class="muted pad">{t("Keine Telefone")}</span>{/each}
-        <span class="muted pad">{t("Beim Wählen ruft die Anlage zuerst dieses Telefon an. Annehmen geht nur am Softphone.")}</span>
+        <span class="muted pad">{t("Das Wählen erfolgt über dieses Telefon.")}</span>
       {:else if sub === "number"}
         <span class="title">{t("Rufnummer signalisieren")}</span>
         {#each numbers as n (n.id)}
