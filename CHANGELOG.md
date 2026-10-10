@@ -8,6 +8,9 @@
   Telefon). Bisher wählte StarCLX immer über das Softphone.
 - Der Call Manager zeigt und steuert Anrufe auch ohne Softphone (auflegen, halten, Rückfrage,
   verbinden, Konferenz usw.); annehmen und stummschalten gehen weiterhin nur am Softphone
+- Ist das Softphone das primäre Telefon, gibt StarCLX diese Rolle beim Beenden, Abmelden oder
+  Ausschalten des Softphones an das vorher primäre Telefon zurück; die Anlage stellt das nicht
+  selbst um, sonst liefe Wählen aus anderen Clients ins Leere
 
 ### Behoben
 - Nach einem Kontowechsel zeigte der Chat noch Gespräche und letzte Nachrichten des vorher

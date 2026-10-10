@@ -551,6 +551,6 @@ const dict: Record<string, string> = {
   "Gegenseite unterstützt die Übertragung nicht": "L’autre partie ne prend pas en charge ce transfert",
   "unbekannter Client": "client inconnu",
   "SIP-Zertifikat bestätigen": "Confirmer le certificat SIP",
-  "Beim Wählen ruft die Anlage zuerst dieses Telefon an. Annehmen geht nur am Softphone.": "Lors de la numérotation, la centrale appelle d'abord ce téléphone. Répondre ne fonctionne que sur le softphone.",
+  "Das Wählen erfolgt über dieses Telefon.": "Les appels sont composés via ce téléphone.",
 };
 export default dict;

@@ -21,7 +21,10 @@ pub struct CallState {
 }
 
 pub async fn session_ended(app: &AppHandle) {
-    app.state::<CallState>().phone.lock().await.take();
+    let phone = app.state::<CallState>().phone.lock().await.take();
+    if let Some(phone) = phone {
+        hand_over_primary(app, &phone).await;
+    }
     audio::update_ringer(app, None);
     bus::publish(app, Event::PhoneStopped);
     update_phone_status(app, |s| *s = PhoneStatus::default());
@@ -249,10 +252,11 @@ async fn start_softphone(
     }
     match started {
         Ok(phone) => {
-            if prefs.primary_on_login
-                && let Some(id) = phone.phone_id()
-            {
-                make_primary(hub, id).await;
+            if let Some(id) = phone.phone_id() {
+                remember_primary(app, hub, id).await;
+                if prefs.primary_on_login {
+                    make_primary(app, hub, id).await;
+                }
             }
             update_phone_status(app, |s| s.state = "ready".into());
             Some(phone)
@@ -343,9 +347,39 @@ pub async fn phone_trust_sip_certificate(
     Ok(())
 }
 
-async fn make_primary(hub: &sf_onehub::OneHub, phone_id: &str) {
+async fn make_primary(app: &AppHandle, hub: &sf_onehub::OneHub, phone_id: &str) {
+    remember_primary(app, hub, phone_id).await;
     if let Err(e) = sf_core::account::set_primary_phone(hub, phone_id).await {
         tracing::warn!(error = %e, "Softphone nicht als primäres Telefon gesetzt");
+    }
+}
+
+/// Merkt sich das primäre Telefon, solange es nicht das Softphone ist; es
+/// bekommt die Rolle beim Beenden zurück.
+pub async fn remember_primary(app: &AppHandle, hub: &sf_onehub::OneHub, softphone_id: &str) {
+    match sf_core::account::primary_phone_id(hub).await {
+        Ok(Some(id)) if id != softphone_id => {
+            settings::update(app, |s| s.primary_before = Some(id));
+        }
+        Ok(_) => {}
+        Err(e) => tracing::warn!(error = %e, "Primäres Telefon nicht abrufbar"),
+    }
+}
+
+/// Ohne laufendes Softphone darf es nicht primäres Telefon bleiben: Die
+/// Anlage stellt das nicht selbst um, Click-to-Dial anderer Clients liefe
+/// ins Leere. Die Rolle geht ans vorherige primäre Telefon zurück.
+async fn hand_over_primary(app: &AppHandle, phone: &Phone) {
+    let Some(own) = phone.phone_id() else {
+        return;
+    };
+    let prefer = settings::load(app).primary_before;
+    let handover = sf_core::account::hand_over_primary(phone.hub(), own, prefer.as_deref());
+    match tokio::time::timeout(std::time::Duration::from_secs(3), handover).await {
+        Ok(Ok(Some(id))) => tracing::info!(%id, "Primäres Telefon zurückgegeben"),
+        Ok(Ok(None)) => {}
+        Ok(Err(e)) => tracing::warn!(error = %e, "Primäres Telefon nicht zurückgegeben"),
+        Err(_) => tracing::warn!("Primäres Telefon nicht zurückgegeben: keine Antwort"),
     }
 }
 
@@ -387,7 +421,7 @@ pub async fn answer(app: &AppHandle, call_id: &str) -> Result<(), String> {
             && let Some(id) = p.phone_id()
             && let Ok(hub) = crate::hub(&app.state::<AppState>()).await
         {
-            make_primary(&hub, id).await;
+            make_primary(app, &hub, id).await;
         }
         Ok(())
     })
@@ -487,7 +521,13 @@ async fn with_phone(
 }
 
 async fn restart_phone(app: &AppHandle) {
-    app.state::<CallState>().phone.lock().await.take();
+    let phone = app.state::<CallState>().phone.lock().await.take();
+    // Softphone in den Einstellungen ausgeschaltet: Rolle abgeben
+    if let Some(phone) = phone
+        && !settings::load(app).prefs.softphone
+    {
+        hand_over_primary(app, &phone).await;
+    }
     let state = app.state::<AppState>();
     let session = state.session.lock().await;
     let Some(session) = session.as_ref() else {
