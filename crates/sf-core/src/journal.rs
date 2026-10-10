@@ -30,6 +30,9 @@ pub struct Entry {
     /// Wer den Gruppenanruf angenommen hat
     pub answered_by: String,
     pub comment: String,
+    /// Wer die Notiz zuletzt geändert hat, und wann (Unix-Zeit in ms, 0 = unbekannt)
+    pub comment_author: String,
+    pub comment_modified: i64,
     pub called_back: bool,
     pub voicemail: bool,
 }
@@ -198,7 +201,10 @@ fn apply(
         E::JournalEntryCommentUpdated(e) => {
             let id = id_of(&e.journal_entry_id);
             if let Some(x) = entries.iter_mut().find(|x| x.id == id) {
-                x.comment = e.comment.map(|c| c.comment).unwrap_or_default();
+                let c = e.comment.unwrap_or_default();
+                x.comment = c.comment;
+                x.comment_author = c.comment_author;
+                x.comment_modified = millis(&c.comment_modified);
             }
             None
         }
@@ -220,11 +226,11 @@ fn millis(ts: &Option<prost_types::Timestamp>) -> i64 {
 
 fn view_of(e: &v1::journal::JournalEntry) -> Entry {
     let remote = e.remote_participant.clone().unwrap_or_default();
-    let mut comment = String::new();
+    let mut comment = v1::journal::JournalEntryComment::default();
     let mut called_back = false;
     for ext in e.extensions.iter().filter_map(|x| x.extension.as_ref()) {
         match ext {
-            Extension::Comment(c) => comment.clone_from(&c.comment),
+            Extension::Comment(c) => comment.clone_from(c),
             Extension::CallBack(c) => called_back = c.called_back,
             _ => {}
         }
@@ -244,7 +250,9 @@ fn view_of(e: &v1::journal::JournalEntry) -> Entry {
         duration_secs: e.duration.as_ref().map_or(0, |d| d.seconds),
         group: group.group_name,
         answered_by: group.group_call_answered_by,
-        comment,
+        comment_modified: millis(&comment.comment_modified),
+        comment_author: comment.comment_author,
+        comment: comment.comment,
         called_back,
         voicemail: e.voicemail_id.as_ref().is_some_and(|v| !v.id.is_empty()),
     }
