@@ -96,7 +96,21 @@
     run(() => invoke("phone_trust_sip_certificate", { fingerprint: phone.status.sip_certificate }));
   const setDnd = () => run(() => invoke("fkey_dnd", { enabled: !dnd }));
   const setPrimary = (id: string) => run(async () => { await invoke("set_primary_phone", { id }); await loadPhones(); });
-  const setNumber = (id: string) => run(async () => { await invoke("set_signaling_number", { id }); await loadNumbers(); await loadSignaling(); });
+  // Manche Anlagen (STARFACE 10) signalisieren eine Nummer nur, wenn es für
+  // sie eine Funktionstaste „Rufnummer signalisieren“ gibt; ohne melden sie sie
+  // gesperrt oder setzen sie und unterdrücken sie dann trotzdem.
+  let numberHint = $state("");
+  const lockedNumbers = $derived(numbers.some((n) => n.read_only && !n.suppressed));
+  const setNumber = (id: string) =>
+    run(async () => {
+      const wanted = numbers.find((n) => n.id === id);
+      await invoke("set_signaling_number", { id });
+      await loadNumbers();
+      await loadSignaling();
+      numberHint = wanted && !wanted.suppressed && numbers.find((n) => n.selected)?.suppressed
+        ? t("Die Anlage signalisiert {number} nicht. Lege dafür eine Funktionstaste „Rufnummer signalisieren“ an.", { number: wanted.number })
+        : "";
+    });
   const setRedirect = (r: Redirect) => run(async () => { await invoke("redirect_enable", { id: r.id, enabled: !r.enabled }); await loadRedirects(); });
   const setAll = (enabled: boolean) =>
     run(async () => {
@@ -175,9 +189,14 @@
       {:else if sub === "number"}
         <span class="title">{t("Rufnummer signalisieren")}</span>
         {#each numbers as n (n.id)}
-          <button class="opt" class:sel={n.selected} disabled={n.read_only} onclick={() => setNumber(n.id)}>
+          <button class="opt" class:sel={n.selected} disabled={n.read_only} title={n.read_only && !n.suppressed ? t("Von der Anlage gesperrt") : undefined} onclick={() => setNumber(n.id)}>
             {#if n.group}<span class="grp"><Icon name="groups" size={16} /> {n.group}:</span>{/if}{numberLabel(n)}{#if n.selected}<span class="tick"><Icon name="check" size={16} /></span>{/if}</button>
         {/each}
+        {#if numberHint}
+          <span class="hint warn">{numberHint}</span>
+        {:else if lockedNumbers}
+          <span class="hint">{t("Ausgegraute Nummern gibt die Anlage erst frei, wenn es für sie eine Funktionstaste „Rufnummer signalisieren“ gibt.")}</span>
+        {/if}
       {:else if sub === "account"}
         <span class="title">{t("Konto wechseln")}</span>
         {#each others as a (a.server + a.user_id)}
@@ -259,6 +278,8 @@
   .opt { display: flex; align-items: center; gap: 0.6rem; background: none; border: none; text-align: left; padding: 0.5rem 0.6rem; border-radius: 4px; }
   .opt:hover:not(:disabled) { background: var(--panel-2); }
   .opt.sel { font-weight: 600; }
+  .hint { display: block; max-width: 18rem; padding: 0.4rem 0.6rem 0.2rem; font-size: 0.8rem; color: var(--muted); }
+  .hint.warn { color: var(--accent-text); }
   .tick { margin-left: auto; color: var(--accent-text); display: grid; }
   .pad { padding: 0.4rem 0.6rem; }
   .all { margin: 0 0.4rem 0.5rem; padding: 0.45rem; font-weight: 600; }
