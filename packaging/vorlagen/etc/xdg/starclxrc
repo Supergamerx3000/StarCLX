@@ -60,6 +60,8 @@
 ## Darstellung
 # system, dark oder light
 #theme=system
+# Akzentfarbe als #rrggbb, leer = Orange
+#accent=
 #language=de
 # tabs (Reiter) oder free (frei angeordnete Kacheln)
 #workspace=tabs

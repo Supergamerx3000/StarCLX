@@ -173,6 +173,8 @@ pub struct Prefs {
     pub chat_presets: Vec<ChatPreset>,
     /// Erscheinungsbild: "system", "dark" oder "light"
     pub theme: String,
+    /// Akzentfarbe (#rrggbb) für Knöpfe und Markierungen; leer = Orange
+    pub accent: String,
     /// Sprache der Oberfläche (bisher nur "de")
     pub language: String,
     pub start_minimized: bool,
@@ -232,6 +234,7 @@ impl Default for Prefs {
             chat_text: String::new(),
             chat_presets: Vec::new(),
             theme: "system".into(),
+            accent: String::new(),
             language: "de".into(),
             start_minimized: false,
             autostart: false,
