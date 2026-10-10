@@ -259,8 +259,8 @@
   .bar { display: flex; align-items: center; gap: 0.3rem; flex-wrap: wrap; }
   .chip { padding: 0.3rem 0.8rem; border-radius: 999px; font-size: 0.9rem; background: var(--panel); }
   .chip.active { background: var(--accent); color: #111; border-color: var(--accent); }
-  .filter { margin-left: auto; display: flex; align-items: center; gap: 0.4rem; padding: 0 0.6rem; background: var(--bar-2); border: 1px solid var(--line); border-radius: 999px; }
-  .filter input { border: none; background: none; outline: none; padding: 0.4rem 0; width: 12rem; }
+  .filter { margin-left: auto; min-width: 0; display: flex; align-items: center; gap: 0.4rem; padding: 0 0.6rem; background: var(--bar-2); border: 1px solid var(--line); border-radius: 999px; }
+  .filter input { border: none; background: none; outline: none; padding: 0.4rem 0; width: 12rem; min-width: 0; text-overflow: ellipsis; }
   .list { flex: 1; overflow: auto; border-radius: 4px; padding: 0.2rem 0.8rem 0.8rem; }
   h3 { font-size: 0.85rem; color: var(--muted); font-weight: 600; margin: 0.9rem 0 0.3rem; text-transform: uppercase; letter-spacing: 0.04em; }
   .row { display: flex; align-items: center; gap: 0.8rem; padding: 0.45rem 0.3rem; border-top: 1px solid var(--line); }

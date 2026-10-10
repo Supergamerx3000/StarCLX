@@ -164,8 +164,9 @@
   .divider:hover::after, .divider:global(.dragging)::after { background: var(--accent); }
 
   .list { overflow: auto; border-radius: 4px; padding: 0.4rem; display: flex; flex-direction: column; gap: 0.1rem; }
-  .filter { display: flex; align-items: center; gap: 0.4rem; padding: 0 0.6rem; margin-bottom: 0.3rem; background: var(--bar-2); border: 1px solid var(--line); border-radius: 999px; }
-  .filter input { border: none; background: none; flex: 1; outline: none; padding: 0.45rem 0; }
+  .filter { flex: none; min-width: 0; display: flex; align-items: center; gap: 0.4rem; padding: 0 0.6rem; margin-bottom: 0.3rem; background: var(--bar-2); border: 1px solid var(--line); border-radius: 999px; }
+  /* Ohne min-width: 0 behält das Feld seine Standardbreite und ragt in schmalen Kacheln hinaus */
+  .filter input { min-width: 0; width: 100%; text-overflow: ellipsis; border: none; background: none; flex: 1; outline: none; padding: 0.45rem 0; }
   .row { display: flex; align-items: center; gap: 0.6rem; text-align: left; background: none; border: none; padding: 0.4rem 0.5rem; }
   .row:hover { background: var(--panel-2); }
   .row.active { background: var(--accent-soft); }

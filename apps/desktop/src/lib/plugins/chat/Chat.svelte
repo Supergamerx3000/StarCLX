@@ -371,7 +371,7 @@
   header .members { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
   .msg .from { margin: 0 0.3rem 0.1rem; font-weight: 600; }
   .filter { display: flex; align-items: center; gap: 0.4rem; padding: 0 0.6rem; background: var(--bar-2); border: 1px solid var(--line); border-radius: 999px; }
-  .filter input { border: none; background: none; outline: none; flex: 1; padding: 0.4rem 0; }
+  .filter input { border: none; background: none; outline: none; flex: 1; min-width: 0; text-overflow: ellipsis; padding: 0.4rem 0; }
   .contacts { flex: 1; overflow: auto; display: flex; flex-direction: column; gap: 0.1rem; }
   .contact { display: flex; align-items: center; gap: 0.6rem; text-align: left; background: none; border: none; padding: 0.4rem; }
   .contact:hover { background: var(--panel-2); }
