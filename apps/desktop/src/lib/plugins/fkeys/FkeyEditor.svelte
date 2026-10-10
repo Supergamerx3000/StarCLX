@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { connection } from "../../connection.svelte";
   import { portal } from "../../portal";
   // Funktionstasten-Editor wie im Windows-Client: links das Raster, rechts
   // die Tastentypen. Änderungen gehen sofort an die Anlage.
@@ -271,8 +272,8 @@
     {/each}
   </div>
 </div>
-{#if fkeys.error}<p class="notice">{fkeys.error}</p>{/if}
-{#if error && !editing}<p class="notice">{error}</p>{/if}
+{#if fkeys.error && connection.online}<p class="notice">{fkeys.error}</p>{/if}
+{#if error && !editing && connection.online}<p class="notice">{error}</p>{/if}
 
 {#if editing}
   {@const k = editing}

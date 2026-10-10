@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { connection } from "./connection.svelte";
   // Eigener Chat-Status wie in der STARFACE-App: oben ein personalisierter
   // Status (Symbol und Text), darunter die festen Status und die gespeicherten.
   // Der aktuelle Status kommt von der Anlage, auch wenn ihn ein anderer Client
@@ -91,7 +92,7 @@
       <button class="del" title={t("Löschen")} onclick={() => remove(p)}><Icon name="trash" size={18} /></button>
     </div>
   {/each}
-  {#if notice}<span class="notice">{notice}</span>{/if}
+  {#if notice && connection.online}<span class="notice">{notice}</span>{/if}
 </div>
 
 <style>

@@ -224,7 +224,7 @@
 <div class="chat">
   <aside>
     <div class="state" class:on={chat.status.online}>
-      <span class="dot"></span>{chat.status.online ? t("Chat verbunden") : chat.status.detail || t("Chat nicht verbunden")}
+      <span class="dot"></span>{chat.status.online ? t("Chat verbunden") : (connection.online && chat.status.detail) || t("Chat nicht verbunden")}
     </div>
     <div class="tools">
       <label class="filter">

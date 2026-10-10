@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { connection } from "./connection.svelte";
   // Menü am Profilbild, aufgebaut wie in der STARFACE-App: Bild und Name,
   // darunter Ruhe, Chat-Status, primäres Telefon, signalisierte Rufnummer
   // und die eigenen Umleitungen (Immer); Untermenüs öffnen sich daneben.
@@ -119,7 +120,8 @@
     <span class="muted">STARFACE {session.server_version} · {session.server.replace(/^https?:\/\//, "")}</span>
     {#if licenseLabel}<span class="muted">{t("Lizenz")}: {licenseLabel}</span>{/if}
     <span class="muted state"><span class="reg {phone.status.state}"></span>{stateText[phone.status.state]}</span>
-    {#if phone.status.state === "error" && phone.status.detail}<span class="notice">{t(phone.status.detail)}</span>{/if}
+    {#if !connection.online}<span class="notice">{t("Keine Verbindung zur Anlage")}</span>
+    {:else if phone.status.state === "error" && phone.status.detail}<span class="notice">{t(phone.status.detail)}</span>{/if}
     {#if phone.status.state === "error" && phone.status.sip_certificate}
       <code class="fp">{phone.status.sip_certificate}</code>
       <button class="certok" onclick={trustSipCert}>{t("SIP-Zertifikat bestätigen")}</button>
@@ -149,7 +151,7 @@
     {#if activeRedirects}<span class="count">{activeRedirects}</span>{/if}
     <span class="more"><Icon name="chevron" size={20} /></span>
   </button>
-  {#if notice}<span class="notice">{notice}</span>{/if}
+  {#if notice && connection.online}<span class="notice">{notice}</span>{/if}
 
   <hr />
   <button class="row plain" onclick={onsettings}><span class="ic"><Icon name="settings" size={20} /></span><span class="lbl">{t("Einstellungen")}</span></button>
