@@ -50,7 +50,8 @@ pub async fn redirect_enable(
     id: String,
     enabled: bool,
 ) -> Result<(), String> {
-    redirect::set_redirect_enabled(&hub(&state).await?, &id, enabled)
+    let (rest, hub, _) = crate::plugins::fkeys::rest(&state).await?;
+    redirect::set_enabled(&hub, &rest, &id, enabled)
         .await
         .map_err(|e| e.to_string())
 }
@@ -62,7 +63,8 @@ pub async fn redirect_update(
     target: RedirectTarget,
     timeout_secs: Option<i64>,
 ) -> Result<(), String> {
-    redirect::update_redirect(&hub(&state).await?, &id, &target, timeout_secs)
+    let (rest, hub, _) = crate::plugins::fkeys::rest(&state).await?;
+    redirect::update(&hub, &rest, &id, &target, timeout_secs)
         .await
         .map_err(|e| e.to_string())
 }

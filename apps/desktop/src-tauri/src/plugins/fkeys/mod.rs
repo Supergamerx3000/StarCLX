@@ -41,7 +41,7 @@ pub async fn session_ended(app: &AppHandle) {
     state.avatars.lock().unwrap().clear();
 }
 
-async fn rest(state: &AppState) -> Result<(Rest, sf_onehub::OneHub, String), String> {
+pub(crate) async fn rest(state: &AppState) -> Result<(Rest, sf_onehub::OneHub, String), String> {
     let (hub, server, user) = state
         .session
         .lock()
