@@ -190,7 +190,7 @@
         <span class="title">{t("Rufnummer signalisieren")}</span>
         {#each numbers as n (n.id)}
           <button class="opt" class:sel={n.selected} disabled={n.read_only} title={n.read_only && !n.suppressed ? t("Von der Anlage gesperrt") : undefined} onclick={() => setNumber(n.id)}>
-            {#if n.group}<span class="grp"><Icon name="groups" size={16} /> {n.group}:</span>{/if}{numberLabel(n)}{#if n.selected}<span class="tick"><Icon name="check" size={16} /></span>{/if}</button>
+            {#if n.group}<span class="grp"><Icon name="groups" size={16} /> {n.group}:</span>{/if}<span class="num">{numberLabel(n)}</span>{#if n.selected}<span class="tick"><Icon name="check" size={16} /></span>{/if}</button>
         {/each}
         {#if numberHint}
           <span class="hint warn">{numberHint}</span>
@@ -242,7 +242,10 @@
   .dndb { position: absolute; left: -0.3rem; top: -0.2rem; display: grid; color: var(--red); background: #fff; border-radius: 50%; }
   .rdb { position: absolute; left: -0.2rem; bottom: 0; width: 1.45rem; height: 1.45rem; border-radius: 50%; display: grid; place-items: center; background: #111; color: #fff; border: 2px solid #fff; }
   .count { min-width: 1.2rem; height: 1.2rem; padding: 0 0.3rem; border-radius: 999px; display: grid; place-items: center; font-size: 0.75rem; font-weight: 700; background: var(--accent); color: var(--on-accent); }
-  .grp { display: inline-flex; align-items: center; gap: 0.25rem; font-weight: 600; margin-right: 0.3rem; }
+  .grp { display: inline-flex; align-items: center; gap: 0.25rem; font-weight: 600; margin-right: 0.3rem; white-space: nowrap; }
+  /* Reicht der Platz nicht, rutscht die Nummer als Ganzes in die nächste Zeile */
+  .opt:has(.grp) { flex-wrap: wrap; row-gap: 0.1rem; }
+  .num { white-space: nowrap; }
   .head strong { font-size: 1.05rem; }
   .muted { color: var(--muted); font-size: 0.82rem; }
   .state { display: flex; align-items: center; gap: 0.35rem; }
@@ -270,7 +273,8 @@
   .certok { align-self: center; }
 
   .sub {
-    position: absolute; left: calc(100% + 0.4rem); width: 18rem;
+    /* So breit wie nötig (Gruppenname und Nummer in einer Zeile), höchstens bis zum Fensterrand */
+    position: absolute; left: calc(100% + 0.4rem); width: max-content; min-width: 18rem; max-width: calc(100vw - 21rem);
     background: var(--panel); border: 1px solid var(--line); border-radius: 8px; box-shadow: 0 8px 24px #000a;
     display: flex; flex-direction: column; padding: 0.5rem;
   }
