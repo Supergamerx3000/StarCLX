@@ -489,9 +489,9 @@
   .scrim { position: fixed; inset: 0; z-index: 14; background: transparent; border: none; padding: 0; cursor: default; }
   .tabs { display: flex; gap: 0.2rem; padding: 0 0.6rem; background: var(--bar); border-top: 1px solid var(--bar-2); }
   .tab { display: flex; align-items: center; gap: 0.45rem; background: none; border: none; border-bottom: 3px solid transparent; border-radius: 0; padding: 0.55rem 0.9rem; color: var(--muted); }
-  .unread { background: var(--accent); color: #111; border-radius: 999px; padding: 0 0.45rem; font-size: 0.78rem; font-weight: 700; }
+  .unread { background: var(--accent); color: var(--on-accent); border-radius: 999px; padding: 0 0.45rem; font-size: 0.78rem; font-weight: 700; }
   .arrange { display: grid; place-items: center; width: 2.4rem; height: 2.4rem; border-radius: 50%; padding: 0; color: var(--muted); }
-  .tab.lock.on { color: #111; background: var(--accent); border-radius: 6px 6px 0 0; }
+  .tab.lock.on { color: var(--on-accent); background: var(--accent); border-radius: 6px 6px 0 0; }
   .tab.active { color: var(--text); border-bottom-color: var(--accent); }
   .banner { display: flex; align-items: center; gap: 0.5rem; margin: 0 0 0.4rem; padding: 0.5rem 0.8rem; background: var(--panel); border-left: 3px solid var(--accent); }
   .banner.offline { border-left-color: var(--red); }
@@ -503,7 +503,7 @@
 
   .login { max-width: 26rem; margin: 15vh auto 0; padding: 0 1rem; }
   .login form { display: flex; flex-direction: column; gap: 0.75rem; }
-  .primary { background: var(--accent); border-color: var(--accent); color: #111; font-weight: 600; }
+  .primary { background: var(--accent); border-color: var(--accent); color: var(--on-accent); font-weight: 600; }
   .link { background: none; border: none; color: var(--muted); text-decoration: underline; padding: 0; }
   .cert { margin-top: 1rem; padding: 0.75rem 1rem; border: 1px solid var(--accent); border-radius: 6px; background: var(--panel); }
   .cert h2 { margin: 0 0 0.5rem; font-size: 1rem; }

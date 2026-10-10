@@ -236,12 +236,12 @@
   .redirect.locked { opacity: 0.7; }
   .dest { display: flex; flex-wrap: wrap; align-items: center; gap: 0.6rem; margin-left: 3.4rem; }
   .secs { display: flex; align-items: center; gap: 0.3rem; }
-  .primary { background: var(--accent); border-color: var(--accent); color: #111; font-weight: 600; padding: 0.3rem 0.8rem; }
+  .primary { background: var(--accent); border-color: var(--accent); color: var(--on-accent); font-weight: 600; padding: 0.3rem 0.8rem; }
   .fmc { display: grid; grid-template-columns: auto 1fr auto auto; align-items: center; gap: 0.6rem; border-bottom: 1px solid var(--line); }
   .x { background: none; border: none; padding: 0.2rem; color: var(--muted); display: grid; }
   .editor { display: flex; flex-direction: column; gap: 0.5rem; border: 1px solid var(--line); border-radius: 4px; padding: 0.7rem; margin-top: 0.4rem; }
   .sched { display: flex; flex-wrap: wrap; align-items: center; gap: 0.3rem; }
   .day { padding: 0.2rem 0.45rem; font-size: 0.85rem; }
-  .day.on { background: var(--accent); border-color: var(--accent); color: #111; }
+  .day.on { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
   .actions { display: flex; gap: 0.6rem; }
 </style>

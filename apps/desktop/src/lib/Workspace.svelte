@@ -146,7 +146,7 @@
   header span { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .editing header { cursor: grab; touch-action: none; }
   .editing .tile .body { outline: 1px dashed var(--accent); outline-offset: -1px; }
-  .unread { background: var(--accent); color: #111; border-radius: 999px; padding: 0 0.45rem; font-size: 0.78rem; }
+  .unread { background: var(--accent); color: var(--on-accent); border-radius: 999px; padding: 0 0.45rem; font-size: 0.78rem; }
   .x { background: none; border: none; padding: 0.1rem; color: var(--muted); display: grid; }
   .body { flex: 1; min-height: 0; overflow: auto; background: var(--tile); border-radius: 0 0 6px 6px; padding: 0.4rem; }
   .grip {

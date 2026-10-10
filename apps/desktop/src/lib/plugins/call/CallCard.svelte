@@ -274,7 +274,7 @@
     background: var(--panel-2); border: none; color: inherit; padding: 0.6rem 0.8rem; border-radius: 4px; cursor: pointer;
   }
   .row:hover:not(:disabled) { background: var(--accent-soft); }
-  .row.accent { background: var(--accent); color: #111; }
+  .row.accent { background: var(--accent); color: var(--on-accent); }
   .row:disabled { opacity: 0.45; cursor: default; }
   .row .chev { margin-left: auto; transition: transform 0.15s; }
   .row .chev.open { transform: rotate(180deg); }

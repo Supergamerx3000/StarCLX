@@ -222,7 +222,7 @@
   .bub { position: absolute; right: -0.4rem; top: -0.2rem; width: 1.6rem; height: 1.45rem; }
   .dndb { position: absolute; left: -0.3rem; top: -0.2rem; display: grid; color: var(--red); background: #fff; border-radius: 50%; }
   .rdb { position: absolute; left: -0.2rem; bottom: 0; width: 1.45rem; height: 1.45rem; border-radius: 50%; display: grid; place-items: center; background: #111; color: #fff; border: 2px solid #fff; }
-  .count { min-width: 1.2rem; height: 1.2rem; padding: 0 0.3rem; border-radius: 999px; display: grid; place-items: center; font-size: 0.75rem; font-weight: 700; background: var(--accent); color: #111; }
+  .count { min-width: 1.2rem; height: 1.2rem; padding: 0 0.3rem; border-radius: 999px; display: grid; place-items: center; font-size: 0.75rem; font-weight: 700; background: var(--accent); color: var(--on-accent); }
   .grp { display: inline-flex; align-items: center; gap: 0.25rem; font-weight: 600; margin-right: 0.3rem; }
   .head strong { font-size: 1.05rem; }
   .muted { color: var(--muted); font-size: 0.82rem; }

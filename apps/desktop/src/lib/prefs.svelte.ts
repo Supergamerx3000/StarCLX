@@ -101,12 +101,25 @@ export function applyAccent(accent = prefs.value?.accent ?? "") {
   if (!/^#[0-9a-f]{6}$/i.test(accent)) {
     style.removeProperty("--accent");
     style.removeProperty("--accent-soft");
+    style.removeProperty("--on-accent");
     return;
   }
   // Wie im Layout: im hellen Erscheinungsbild etwas deckender
   const light = document.documentElement.dataset.theme === "light";
   style.setProperty("--accent", accent);
   style.setProperty("--accent-soft", accent + (light ? "40" : "33"));
+  style.setProperty("--on-accent", readableOn(accent));
+}
+
+/** Dunkler oder heller Text, je nachdem welcher auf `hex` besser lesbar ist (WCAG-Kontrast) */
+function readableOn(hex: string) {
+  const lin = (i: number) => {
+    const c = parseInt(hex.slice(i, i + 2), 16) / 255;
+    return c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4;
+  };
+  const l = 0.2126 * lin(1) + 0.7152 * lin(3) + 0.0722 * lin(5);
+  // Kontrast zu Schwarz (#111 ≈ 0.0056) gegen Kontrast zu Weiss
+  return (l + 0.05) / 0.0556 >= 1.05 / (l + 0.05) ? "#111" : "#fff";
 }
 
 export const prefs = $state({ value: null as Prefs | null });

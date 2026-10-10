@@ -363,7 +363,7 @@
   .pick > input { padding: 0.4rem 0.6rem; border-radius: 6px; border: 1px solid var(--line); background: var(--bar-2); color: inherit; }
   .pick .contact { cursor: pointer; }
   .pickactions { display: flex; gap: 0.4rem; justify-content: flex-end; flex-wrap: wrap; }
-  .pickactions .primary { background: var(--accent); color: #111; border-color: var(--accent); }
+  .pickactions .primary { background: var(--accent); color: var(--on-accent); border-color: var(--accent); }
   .pickactions .primary:disabled { opacity: 0.4; }
   .av.room { color: var(--muted); }
   .leave { margin-left: auto; padding: 0.2rem 0.7rem; font-size: 0.85rem; }
@@ -384,7 +384,7 @@
   .presence.online, .presence.chat { background: var(--green); }
   .presence.away, .presence.xa { background: var(--accent); }
   .presence.dnd { background: var(--red); }
-  .badge { background: var(--accent); color: #111; border-radius: 999px; padding: 0 0.45rem; font-size: 0.8rem; font-weight: 700; }
+  .badge { background: var(--accent); color: var(--on-accent); border-radius: 999px; padding: 0 0.45rem; font-size: 0.8rem; font-weight: 700; }
   .conv { position: relative; display: flex; flex-direction: column; min-height: 0; background: var(--panel); border-radius: 4px; }
   .conv.dropping { outline: 2px dashed var(--accent); outline-offset: -4px; }
   .drop { position: absolute; inset: 0; display: grid; place-items: center; background: color-mix(in srgb, var(--panel) 80%, transparent); font-weight: 600; pointer-events: none; border-radius: 4px; }
@@ -398,7 +398,7 @@
   .factions { display: flex; gap: 0.4rem; flex-wrap: wrap; }
   .factions:empty { display: none; }
   .factions button { padding: 0.2rem 0.7rem; font-size: 0.85rem; }
-  .factions .primary { background: var(--accent); color: #111; border-color: var(--accent); }
+  .factions .primary { background: var(--accent); color: var(--on-accent); border-color: var(--accent); }
   .attach { width: 2.6rem; height: 2.6rem; padding: 0; border-radius: 50%; display: grid; place-items: center; background: none; border: 1px solid var(--line); color: inherit; }
   .attach:disabled { opacity: 0.4; }
   header { display: flex; align-items: center; gap: 0.7rem; padding: 0.6rem 0.9rem; border-bottom: 1px solid var(--line); }
@@ -415,7 +415,7 @@
   .msg small { color: var(--muted); font-size: 0.72rem; margin: 0.1rem 0.3rem; }
   .compose { display: flex; gap: 0.5rem; align-items: flex-end; padding: 0.6rem; border-top: 1px solid var(--line); }
   textarea { flex: 1; resize: none; font: inherit; padding: 0.5rem 0.7rem; border-radius: 8px; border: 1px solid var(--line); background: var(--bar-2); color: inherit; }
-  .send { width: 2.6rem; height: 2.6rem; padding: 0; border-radius: 50%; display: grid; place-items: center; background: var(--accent); border: none; color: #111; }
+  .send { width: 2.6rem; height: 2.6rem; padding: 0; border-radius: 50%; display: grid; place-items: center; background: var(--accent); border: none; color: var(--on-accent); }
   .send:disabled { opacity: 0.4; }
   .muted { color: var(--muted); }
   .center { text-align: center; margin: auto; }

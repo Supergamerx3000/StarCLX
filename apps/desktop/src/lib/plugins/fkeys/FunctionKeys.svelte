@@ -74,5 +74,5 @@
   input[type="number"] { width: 5rem; }
   .actions { display: flex; gap: 0.6rem; margin-top: 0.4rem; }
   .spacer { flex: 1; }
-  .primary { background: var(--accent); border-color: var(--accent); color: #111; font-weight: 600; }
+  .primary { background: var(--accent); border-color: var(--accent); color: var(--on-accent); font-weight: 600; }
 </style>

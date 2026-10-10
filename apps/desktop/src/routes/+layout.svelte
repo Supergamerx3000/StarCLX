@@ -26,6 +26,8 @@
     --muted: #a3a9b0;
     --accent: #f5a31a;
     --accent-soft: #f5a31a33;
+    /* Text auf Akzent-Flächen; bei eigener Akzentfarbe hell oder dunkel je nach Farbe */
+    --on-accent: #111;
     --green: #5cb82b;
     --red: #d9262d;
     color: var(--text);

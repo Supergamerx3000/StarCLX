@@ -748,7 +748,7 @@
     padding: 0.8rem 1.2rem; border-top: 1px solid var(--line); background: var(--bg);
   }
   footer button { min-width: 8rem; }
-  .primary { background: var(--accent); border-color: var(--accent); color: #111; font-weight: 600; }
+  .primary { background: var(--accent); border-color: var(--accent); color: var(--on-accent); font-weight: 600; }
   @media (max-width: 700px) {
     .settings { grid-template-columns: 1fr; grid-template-rows: auto auto 1fr auto; }
     nav { flex-direction: row; padding: 0.4rem 0.6rem; gap: 0.3rem; overflow-x: auto; }
