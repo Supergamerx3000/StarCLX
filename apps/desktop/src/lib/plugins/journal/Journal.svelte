@@ -190,8 +190,8 @@
             <small>{e.number || t("Unbekannt")}</small>
             {#if e.comment && selected !== e.id}<span class="note">📝 {e.comment}</span>{/if}
           </span>
-          <span class="time">{time(e.start)}</span>
-          <span class="dur">{dur(e.duration_secs)}</span>
+          <!-- Wie Kontakt und Nummer: oben die Uhrzeit, darunter die Dauer -->
+          <span class="when"><span class="time">{time(e.start)}</span><small class="dur">{dur(e.duration_secs)}</small></span>
           {#if hasExtra}
             <!-- Gruppe als Chip, darunter wer angenommen hat -->
             <span class="extra">
@@ -280,9 +280,9 @@
   .row + .row { margin-top: 0.15rem; }
   .row:hover { border-color: var(--accent); }
   .row.selected { background: var(--accent-soft); }
-  /* Feste Spalten wie eine Tabelle: Richtung | Name | Uhrzeit | Dauer */
+  /* Feste Spalten wie eine Tabelle: Richtung | Kontakt/Nummer | Uhrzeit/Dauer */
   .open {
-    flex: 1; min-width: 0; display: grid; grid-template-columns: 1.5rem minmax(0, 1fr) 3.2rem 5.2rem; align-items: center; gap: 0.8rem;
+    flex: 1; min-width: 0; display: grid; grid-template-columns: 1.5rem minmax(0, 1fr) 4.5rem; align-items: center; gap: 0.8rem;
     padding: 0; background: none; border: none; color: inherit; text-align: left; cursor: pointer;
   }
   .dir { display: grid; color: var(--green); }
@@ -291,11 +291,11 @@
   .who { flex: 1; min-width: 0; display: flex; flex-direction: column; }
   .who strong, .who small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .who small { color: var(--muted); }
-  .time, .dur { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
-  .dur { color: var(--muted); font-size: 0.85rem; }
+  .when { display: flex; flex-direction: column; align-items: flex-end; font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .dur { color: var(--muted); font-size: 0.75rem; }
   .cb { flex: none; width: 2rem; display: grid; place-items: center; }
   /* Spalte für Gruppe/Voicemail nur, wenn eine Zeile sie braucht */
-  .list.wide .open { grid-template-columns: 1.5rem minmax(0, 1fr) 3.2rem 5.2rem minmax(0, 9rem); }
+  .list.wide .open { grid-template-columns: 1.5rem minmax(0, 1fr) 4.5rem minmax(0, 9rem); }
   .extra { min-width: 0; display: flex; flex-direction: column; align-items: flex-start; gap: 0.15rem; }
   .tag { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding: 0 0.5rem; border: 1px solid var(--muted); border-radius: 999px; font-size: 0.78rem; }
   .by { max-width: 100%; display: inline-flex; align-items: center; gap: 0.2rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 0.78rem; color: var(--muted); }
