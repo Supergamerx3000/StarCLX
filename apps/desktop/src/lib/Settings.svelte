@@ -89,7 +89,7 @@
     { key: "hangup", label: t("Aktuellen Anruf beenden") },
     { key: "toggle_view", label: t("Ansicht umschalten") },
   ]);
-  let desktop = $state({ wayland: false, gnome: false, command: "" });
+  let desktop = $state({ wayland: false, gnome: false, portal: false, command: "" });
   let recording = $state<string | null>(null);
 
   /** `<Control><Shift>w` → `Strg+Umschalt+W` */
@@ -560,12 +560,18 @@
           {#if desktop.gnome}
             <Toggle bind:checked={draft.hotkeys.enabled} disabled={lk("hotkeys")} label={t("Tastenkürzel systemweit in GNOME eintragen")} />
             <p class="small muted">{t("Die Kürzel gelten dann in allen Programmen und überschreiben dort gleiche Kombinationen. Andere eigene Tastenkürzel bleiben unverändert.")}</p>
+          {:else if desktop.portal}
+            <Toggle bind:checked={draft.hotkeys.enabled} disabled={lk("hotkeys")} label={t("Tastenkürzel beim Desktop anmelden")} />
+            <p class="small muted">{t("Beim ersten Mal fragt der Desktop nach, ob er die Kürzel übernehmen soll. Sie wirken, solange StarCLX läuft. Ändern lassen sie sich danach in den Systemeinstellungen des Desktops; die Tasten hier sind nur ein Vorschlag für neue Kürzel.")}</p>
+            {#if draft.hotkeys.enabled}
+              <button onclick={() => invoke("configure_hotkeys").catch((e) => (notice = String(e)))}>{t("In den Systemeinstellungen ändern …")}</button>
+            {/if}
           {:else}
             <p class="muted">{t("Dieser Desktop erlaubt Programmen keine globalen Tastenkürzel. Lege in den Systemeinstellungen eine eigene Tastenkombination mit diesem Befehl an:")}</p>
             <code>{desktop.command}</code>
             <p class="small muted">{t("Aktionen:")} dial-selection, dial-clipboard, answer, hangup, toggle-view</p>
           {/if}
-          <div class="keys" class:off={desktop.gnome && !draft.hotkeys.enabled}>
+          <div class="keys" class:off={(desktop.gnome || desktop.portal) && !draft.hotkeys.enabled}>
             {#each hotkeyRows as r}
               <div class="keyrow">
                 <span>{r.label}</span>
