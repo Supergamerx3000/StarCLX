@@ -35,6 +35,8 @@ export type Prefs = {
   /** Gespeicherte eigene Status */
   chat_presets: { availability: string; text: string }[];
   theme: "system" | "dark" | "light";
+  /** Akzentfarbe (#rrggbb); leer = Orange */
+  accent: string;
   language: string;
   start_minimized: boolean;
   autostart: boolean;
@@ -86,8 +88,26 @@ const darkQuery = typeof window !== "undefined" ? window.matchMedia("(prefers-co
 function applyTheme(theme: Prefs["theme"] = prefs.value?.theme ?? "system") {
   const dark = theme === "dark" || (theme === "system" && (darkQuery?.matches ?? true));
   document.documentElement.dataset.theme = dark ? "dark" : "light";
+  applyAccent();
 }
 darkQuery?.addEventListener("change", () => applyTheme());
+
+/** Standard-Akzentfarbe (Orange wie in der STARFACE-App) */
+export const DEFAULT_ACCENT = "#f5a31a";
+
+/** Setzt die Akzentfarbe; ohne eigene Farbe gelten die Werte aus dem Layout. */
+export function applyAccent(accent = prefs.value?.accent ?? "") {
+  const style = document.documentElement.style;
+  if (!/^#[0-9a-f]{6}$/i.test(accent)) {
+    style.removeProperty("--accent");
+    style.removeProperty("--accent-soft");
+    return;
+  }
+  // Wie im Layout: im hellen Erscheinungsbild etwas deckender
+  const light = document.documentElement.dataset.theme === "light";
+  style.setProperty("--accent", accent);
+  style.setProperty("--accent-soft", accent + (light ? "40" : "33"));
+}
 
 export const prefs = $state({ value: null as Prefs | null });
 

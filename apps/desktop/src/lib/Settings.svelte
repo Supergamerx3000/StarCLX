@@ -13,7 +13,7 @@
   import HeadsetSettings from "./plugins/headset/Settings.svelte";
   import CallActionsSettings from "./plugins/callactions/Settings.svelte";
   import DoorCamSettings from "./plugins/doorcam/Settings.svelte";
-  import { type Hotkeys, loadPrefs, locked, prefs, savePrefs, type Prefs } from "./prefs.svelte";
+  import { applyAccent, DEFAULT_ACCENT, type Hotkeys, loadPrefs, locked, prefs, savePrefs, type Prefs } from "./prefs.svelte";
   import { setLanguage, t } from "./i18n.svelte";
   import { avatarOf, fkeys } from "./plugins/fkeys/fkeys.svelte";
 
@@ -317,9 +317,10 @@
     content.querySelector(`#${id}`)?.scrollIntoView({ behavior: "smooth", block: "start" });
   }
 
-  /** Schliessen ohne Speichern: probeweise gewählte Sprache zurücknehmen */
+  /** Schliessen ohne Speichern: probeweise gewählte Sprache und Farbe zurücknehmen */
   function cancel() {
     setLanguage(prefs.value?.language);
+    applyAccent();
     onclose();
   }
 
@@ -516,6 +517,20 @@
             <label class="radio"><input type="radio" name="theme" {value} bind:group={draft.theme} disabled={lk("theme")} /> {label}</label>
           {/each}
           <hr />
+          <!-- Wirkt sofort zur Vorschau; gespeichert wird mit „Speichern“ -->
+          <div class="field">
+            <span>{t("Akzentfarbe")}</span>
+            <span class="accent">
+              <input
+                type="color"
+                value={draft.accent || DEFAULT_ACCENT}
+                disabled={lk("accent")}
+                oninput={(e) => { if (draft) { draft.accent = e.currentTarget.value; applyAccent(draft.accent); } }}
+              />
+              <button disabled={lk("accent") || !draft.accent} onclick={() => { if (draft) { draft.accent = ""; applyAccent(""); } }}>{t("Zurücksetzen")}</button>
+            </span>
+          </div>
+          <hr />
           <label class="field">
             <span>{t("Sprache")}</span>
             <!-- Wirkt sofort zur Vorschau; gespeichert wird mit „Speichern“ -->
@@ -707,6 +722,8 @@
   .path { display: flex; gap: 0.6rem; max-width: 34rem; }
   .path input, .field input { flex: 1; padding: 0.35rem 0.5rem; background: var(--panel-2); color: inherit; border: 1px solid var(--line); border-radius: 4px; }
   .field { display: flex; flex-direction: column; gap: 0.3rem; margin-top: 0.6rem; max-width: 34rem; }
+  .accent { display: flex; align-items: center; gap: 0.6rem; }
+  .accent input { flex: none; width: 3rem; height: 2rem; padding: 0.1rem; background: var(--panel-2); border: 1px solid var(--line); border-radius: 4px; cursor: pointer; }
   .field select { padding: 0.35rem 0.5rem; background: var(--panel-2); color: inherit; border: 1px solid var(--line); border-radius: 4px; max-width: 16rem; }
   .keys { display: flex; flex-direction: column; margin-top: 0.4rem; }
   .keys.off { opacity: 0.5; }

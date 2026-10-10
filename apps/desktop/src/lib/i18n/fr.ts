@@ -312,6 +312,8 @@ const dict: Record<string, string> = {
   "Statustext beim Abmelden": "Texte de statut à la déconnexion",
   "z. B. Feierabend": "p. ex. Fin de journée",
   "Erscheinungsbild": "Apparence",
+  "Akzentfarbe": "Couleur d’accentuation",
+  "Zurücksetzen": "Réinitialiser",
   "Dunkel": "Sombre",
   "Hell": "Clair",
   "System": "Système",
