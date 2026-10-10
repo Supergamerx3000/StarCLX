@@ -85,6 +85,17 @@
   </screenshots>
   <content_rating type="oars-1.1"/>
   <releases>
+    <release version="1.4.0" date="2026-10-10">
+      <description>
+        <ul>
+          <li>Dial via your desk phone when it is the primary phone; the call manager controls calls without the softphone</li>
+          <li>Global shortcuts also work on KDE Plasma and other desktops with the GlobalShortcuts portal</li>
+          <li>Administrators can preset or lock settings system-wide in /etc/xdg/starclxrc</li>
+          <li>All call forwardings can be changed in the settings, even without a function key</li>
+          <li>Chat no longer shows conversations of a previously signed-in account</li>
+        </ul>
+      </description>
+    </release>
     <release version="1.3.8" date="2026-10-08">
       <description>
         <ul>
