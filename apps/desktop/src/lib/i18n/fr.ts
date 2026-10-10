@@ -478,7 +478,6 @@ const dict: Record<string, string> = {
   "Verfügbar": "Disponible",
   "Bitte nicht stören": "Ne pas déranger",
   "Umleitung aktiv": "Renvoi actif",
-  "Mein Status": "Mon statut",
   "Eigener Statustext": "Texte de statut personnalisé",
   "Statustext setzen": "Définir le texte de statut",
   "Rufnummer unterdrücken": "Masquer le numéro",

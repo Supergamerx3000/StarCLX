@@ -210,7 +210,7 @@ async function loadRedirects() {
 
 /** „Umleitung (Art)“ mit Zielabfrage: fragt beim Einschalten nach der Nummer
  *  und stellt beim Ausschalten wieder her, was vorher eingestellt war. */
-export const asksTarget = (k: FunctionKey) => k.functionKeyType === "FORWARD" && fkeys.askKeys.includes(k.id);
+const asksTarget = (k: FunctionKey) => k.functionKeyType === "FORWARD" && fkeys.askKeys.includes(k.id);
 
 export async function setAsksTarget(keyId: string, ask: boolean) {
   await invoke("fkey_set_ask", { keyId, ask });
@@ -307,7 +307,7 @@ export function chatText(s: UserState | undefined): string {
 const ownDnd = () => fkeys.presence[fkeys.me]?.dnd ?? false;
 
 /** Umleitungen, die eine Taste schaltet */
-export function redirectsOf(k: FunctionKey): Redirect[] {
+function redirectsOf(k: FunctionKey): Redirect[] {
   const own = fkeys.redirects.filter((r) => !r.group);
   switch (k.functionKeyType) {
     case "FORWARD":
@@ -532,7 +532,7 @@ export function blank(type: string): FunctionKey {
 /** Laufendes Ziehen eines Gesprächs (für Vorschau und Hervorhebung) */
 export const callDrag = $state({ call: null as Call | null, x: 0, y: 0, over: "" });
 /** Erste Gespräche, deren Rückfrage per Besetztlampenfeld gestartet wurde */
-export const blfTransfers = $state<Record<string, boolean>>({});
+const blfTransfers = $state<Record<string, boolean>>({});
 
 let pending: { call: Call; x: number; y: number } | null = null;
 
@@ -583,7 +583,7 @@ export function startCallDrag(e: PointerEvent, call: Call) {
 }
 
 /** Rückfrage zum Kollegen der Taste; Auflegen vermittelt danach */
-export async function transferTo(call: Call, k: FunctionKey) {
+async function transferTo(call: Call, k: FunctionKey) {
   const a = account(k);
   if (!a?.number) return void (phone.notice = t("Für diese Taste ist keine Rufnummer bekannt."));
   if (await action("consult", call.id, a.number)) blfTransfers[call.id] = true;
