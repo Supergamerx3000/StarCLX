@@ -175,7 +175,7 @@
     </label>
   </div>
   {#if error && connection.online}<p class="error">{t("Rufliste: {e}", { e: error })}</p>{/if}
-  <div class="list" class:extra={hasExtra}>
+  <div class="list" class:wide={hasExtra}>
     {#each days as day (day.label)}
       <h3>{day.label}</h3>
       {#each day.items as e (e.id)}
@@ -295,7 +295,7 @@
   .dur { color: var(--muted); font-size: 0.85rem; }
   .cb { flex: none; width: 2rem; display: grid; place-items: center; }
   /* Spalte für Gruppe/Voicemail nur, wenn eine Zeile sie braucht */
-  .list.extra .open { grid-template-columns: 1.5rem minmax(0, 1fr) 3.2rem 5.2rem minmax(0, 9rem); }
+  .list.wide .open { grid-template-columns: 1.5rem minmax(0, 1fr) 3.2rem 5.2rem minmax(0, 9rem); }
   .extra { min-width: 0; display: flex; flex-direction: column; align-items: flex-start; gap: 0.15rem; }
   .tag { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding: 0 0.5rem; border: 1px solid var(--muted); border-radius: 999px; font-size: 0.78rem; }
   .by { max-width: 100%; display: inline-flex; align-items: center; gap: 0.2rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 0.78rem; color: var(--muted); }
