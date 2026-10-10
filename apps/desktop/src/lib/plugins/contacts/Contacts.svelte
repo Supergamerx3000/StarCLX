@@ -163,7 +163,7 @@
   .divider::after { content: ""; position: absolute; inset: 0 3px; border-radius: 2px; }
   .divider:hover::after, .divider:global(.dragging)::after { background: var(--accent); }
 
-  .list { overflow: auto; background: var(--panel); border-radius: 4px; padding: 0.4rem; display: flex; flex-direction: column; gap: 0.1rem; }
+  .list { overflow: auto; border-radius: 4px; padding: 0.4rem; display: flex; flex-direction: column; gap: 0.1rem; }
   .filter { display: flex; align-items: center; gap: 0.4rem; padding: 0 0.6rem; margin-bottom: 0.3rem; background: var(--bar-2); border: 1px solid var(--line); border-radius: 999px; }
   .filter input { border: none; background: none; flex: 1; outline: none; padding: 0.45rem 0; }
   .row { display: flex; align-items: center; gap: 0.6rem; text-align: left; background: none; border: none; padding: 0.4rem 0.5rem; }
@@ -175,7 +175,7 @@
   .av { flex: none; width: 2.2rem; height: 2.2rem; border-radius: 50%; display: grid; place-items: center; background: var(--panel-2); font-size: 0.8rem; font-weight: 600; }
   .av.big { width: 3.4rem; height: 3.4rem; font-size: 1.1rem; }
   .more { margin-top: 0.4rem; }
-  .detail { overflow: auto; background: var(--panel); border-radius: 4px; padding: 1rem 1.2rem; }
+  .detail { overflow: auto; border-radius: 4px; padding: 1rem 1.2rem; }
   .head { display: flex; align-items: center; gap: 0.9rem; margin-bottom: 0.8rem; }
   .head h3 { margin: 0; font-size: 1.15rem; }
   .head p { margin: 0.1rem 0 0; }

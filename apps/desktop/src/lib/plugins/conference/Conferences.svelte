@@ -114,7 +114,7 @@
   .chip { padding: 0.3rem 0.8rem; border-radius: 999px; font-size: 0.9rem; background: var(--panel); }
   .chip.active { background: var(--accent); color: #111; border-color: var(--accent); }
   .new { font-size: 0.9rem; }
-  .list { flex: 1; overflow: auto; background: var(--panel); border-radius: 4px; padding: 0.2rem 0.8rem 0.8rem; }
+  .list { flex: 1; overflow: auto; border-radius: 4px; padding: 0.2rem 0.8rem 0.8rem; }
   .row { display: flex; align-items: center; gap: 0.8rem; padding: 0.45rem 0.3rem; border-top: 1px solid var(--line); }
   .row.live strong { color: var(--green); }
   .what { flex: 1; min-width: 0; display: flex; flex-direction: column; }
