@@ -53,11 +53,12 @@ impl Probe {
         }
     }
 
-    fn read(&self) -> Desktop {
+    /// Fragt nur ab, was die Einstellungen auch auswerten
+    fn read(&self, prefs: &Prefs) -> Desktop {
         Desktop {
-            idle: self.idle(),
-            screensaver: self.screensaver(),
-            locked: self.locked(),
+            idle: prefs.away_on_idle.then(|| self.idle()).flatten(),
+            screensaver: prefs.away_on_screensaver && self.screensaver(),
+            locked: prefs.away_on_lock && self.locked(),
         }
     }
 
@@ -150,7 +151,7 @@ pub fn start(app: &AppHandle) {
             loop {
                 std::thread::sleep(POLL);
                 let prefs = settings::load(&app).prefs;
-                let now = is_away(&prefs, probe.read());
+                let now = is_away(&prefs, probe.read(&prefs));
                 if now != away {
                     away = now;
                     AWAY.store(away, std::sync::atomic::Ordering::Relaxed);

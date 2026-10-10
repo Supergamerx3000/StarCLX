@@ -49,7 +49,16 @@ export function initPhone() {
   listen<PhoneStatus>("phone", (e) => (phone.status = e.payload));
   listen<string>("phone-error", (e) => (phone.notice = e.payload));
   invoke<PhoneStatus>("phone_status").then((s) => (phone.status = s));
-  setInterval(() => (phone.now = Date.now()), 1000);
+  // Die Uhr für Gesprächsdauern tickt nur, solange es Anrufe gibt; im
+  // Leerlauf (etwa im Tray) weckt sie die Oberfläche nicht jede Sekunde.
+  $effect.root(() => {
+    $effect(() => {
+      if (!phone.status.calls.length) return;
+      phone.now = Date.now();
+      const timer = setInterval(() => (phone.now = Date.now()), 1000);
+      return () => clearInterval(timer);
+    });
+  });
 }
 
 /** Führt einen Befehl aus; Fehler landen als Hinweis im Call Manager. */
