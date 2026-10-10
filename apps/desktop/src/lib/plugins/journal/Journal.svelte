@@ -179,10 +179,17 @@
       <h3>{day.label}</h3>
       {#each day.items as e (e.id)}
         <div class="row" class:missed={e.missed && e.incoming} class:selected={selected === e.id}>
-          <button class="open" title={t("Details")} aria-expanded={selected === e.id} onclick={() => select(e)}>
           <span class="dir" title={e.missed ? t("Verpasst") : e.incoming ? t("Eingehend") : t("Ausgehend")}>
             <Icon name={e.missed && e.incoming ? "missed" : e.incoming ? "incoming" : "outgoing"} size={20} />
           </span>
+          <!-- Zurückgerufen wie in der STARFACE-App: Symbol vorne; beim Überfahren blass zum Markieren -->
+          <button
+            class="cb"
+            class:done={e.called_back}
+            title={e.called_back ? t("Als nicht zurückgerufen markieren") : t("Als zurückgerufen markieren")}
+            onclick={() => act(e.called_back ? "not_called_back" : "called_back", e.id)}
+          ><Icon name="history" size={18} /></button>
+          <button class="open" title={t("Details")} aria-expanded={selected === e.id} onclick={() => select(e)}>
           <!-- Wie in der STARFACE-App: oben der Kontakt (sonst „---“), darunter nur die Nummer -->
           <span class="who">
             <strong>{e.name || "---"}</strong>
@@ -200,27 +207,12 @@
           <!-- Wie Kontakt und Nummer: oben die Uhrzeit, darunter die Dauer -->
           <span class="when"><span class="time">{time(e.start)}</span><small class="dur">{dur(e.duration_secs)}</small></span>
           </button>
-          <!-- Eigene Spalte, damit „zurückgerufen“ immer sichtbar ist -->
-          <span class="cb">
-            {#if e.missed && e.incoming}
-              <button
-                class="icon"
-                class:done={e.called_back}
-                title={e.called_back ? t("Als nicht zurückgerufen markieren") : t("Als zurückgerufen markieren")}
-                onclick={() => act(e.called_back ? "not_called_back" : "called_back", e.id)}
-              >✓</button>
-            {/if}
-          </span>
-          <div class="acts">
-            {#if external(e.number) && !e.name && !known[e.number]}
-              <button class="icon" title={t("Ins Adressbuch übernehmen")} onclick={() => newContact({ number: e.number })}><Icon name="person" size={18} /></button>
-            {/if}
-            <button class="icon" title={t("Notiz")} onclick={() => selected !== e.id && select(e)}>✎</button>
-            <button class="icon" title={t("Weitergeben (Chat oder E-Mail)")} onclick={() => (sharing = e)}><Icon name="send" size={18} /></button>
+          <!-- Hinter der Uhrzeit nur Anrufen, erst beim Überfahren -->
+          <span class="callcol">
             {#if e.number}
               <button class="call" title={t("Anrufen")} disabled={!ready} onclick={() => run("phone_dial", { number: e.number })}><Icon name="call" size={18} /></button>
             {/if}
-          </div>
+          </span>
         </div>
         {#if selected === e.id}
           <dl class="details">
@@ -237,6 +229,13 @@
                 <input type="checkbox" checked={e.called_back} onchange={(ev) => act(ev.currentTarget.checked ? "called_back" : "not_called_back", e.id)} />
                 {e.called_back ? t("Ja") : t("Nein")}
               </label>
+            </dd>
+            <dt>{t("Aktionen")}</dt>
+            <dd class="dacts">
+              {#if external(e.number) && !e.name && !known[e.number]}
+                <button onclick={() => newContact({ number: e.number })}><Icon name="person" size={16} /> {t("Ins Adressbuch übernehmen")}</button>
+              {/if}
+              <button onclick={() => (sharing = e)}><Icon name="send" size={16} /> {t("Weitergeben (Chat oder E-Mail)")}</button>
             </dd>
             <dt>{t("Kommentar")}</dt>
             <dd>
@@ -272,12 +271,12 @@
   .row + .row { margin-top: 0.15rem; }
   .row:hover { border-color: var(--accent); }
   .row.selected { background: var(--accent-soft); }
-  /* Feste Spalten wie eine Tabelle: Richtung | Kontakt/Nummer | (Gruppe/Annehmer) | Uhrzeit/Dauer */
+  /* Feste Spalten wie eine Tabelle: Kontakt/Nummer | (Gruppe/Annehmer) | Uhrzeit/Dauer; Richtung und Zurückgerufen davor */
   .open {
-    flex: 1; min-width: 0; display: grid; grid-template-columns: 1.5rem minmax(0, 1fr) 4.5rem; align-items: center; gap: 0.8rem;
+    flex: 1; min-width: 0; display: grid; grid-template-columns: minmax(0, 1fr) 4.5rem; align-items: center; gap: 0.8rem;
     padding: 0; background: none; border: none; color: inherit; text-align: left; cursor: pointer;
   }
-  .dir { display: grid; color: var(--green); }
+  .dir { flex: none; width: 1.5rem; display: grid; color: var(--green); }
   .row:not(.missed) .dir { color: var(--muted); }
   .row.missed .dir, .row.missed .who strong { color: #ff6b6b; }
   .who { flex: 1; min-width: 0; display: flex; flex-direction: column; }
@@ -285,22 +284,20 @@
   .who small { color: var(--muted); }
   .when { display: flex; flex-direction: column; align-items: flex-end; font-variant-numeric: tabular-nums; white-space: nowrap; }
   .dur { color: var(--muted); font-size: 0.75rem; }
-  .cb { flex: none; width: 2rem; display: grid; place-items: center; }
+  .cb { flex: none; width: 1.8rem; height: 1.8rem; padding: 0; display: grid; place-items: center; background: none; border: none; border-radius: 50%; color: var(--muted); opacity: 0; }
+  .row:hover .cb, .cb:focus-visible { opacity: 0.45; }
+  .cb:hover { opacity: 1 !important; color: var(--text); }
+  .cb.done { opacity: 1; color: var(--text); }
+  .callcol { flex: none; width: 2.1rem; display: grid; place-items: center; }
+  .callcol .call { visibility: hidden; }
+  .row:hover .callcol .call, .row:focus-within .callcol .call, .row.selected .callcol .call { visibility: visible; }
+  .dacts { display: flex; flex-wrap: wrap; gap: 0.4rem; }
+  .dacts button { display: inline-flex; align-items: center; gap: 0.35rem; padding: 0.25rem 0.6rem; }
   /* Spalte für Gruppe/Voicemail nur, wenn eine Zeile sie braucht */
-  .list.wide .open { grid-template-columns: 1.5rem minmax(0, 1fr) minmax(0, 9rem) 4.5rem; }
+  .list.wide .open { grid-template-columns: minmax(0, 1fr) minmax(0, 9rem) 4.5rem; }
   .extra { min-width: 0; display: flex; flex-direction: column; align-items: flex-start; gap: 0.15rem; }
   .tag { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding: 0 0.5rem; border: 1px solid var(--muted); border-radius: 999px; font-size: 0.78rem; }
   .by { max-width: 100%; display: inline-flex; align-items: center; gap: 0.2rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 0.78rem; color: var(--muted); }
-  /* Aktionen schweben beim Überfahren rechts über der Zeile, ohne Platz zu belegen;
-     links neben der Spalte „zurückgerufen“ (Zeilenabstand + Spalte + Lücke), damit der Haken klickbar bleibt */
-  .acts {
-    position: absolute; right: calc(0.5rem + 2rem + 0.4rem); top: 50%; transform: translateY(-50%); display: none; align-items: center; gap: 0.25rem;
-    padding: 0.15rem 0.25rem; background: var(--panel); border-radius: 999px; box-shadow: 0 2px 8px #0005;
-  }
-  .row:hover .acts, .row:focus-within .acts, .row.selected .acts { display: flex; }
-  .icon { width: 2rem; height: 2rem; padding: 0; display: grid; place-items: center; background: none; border: 1px solid transparent; border-radius: 50%; color: var(--muted); }
-  .icon:hover { border-color: var(--line); color: var(--text); }
-  .icon.done { color: var(--green); border-color: var(--green); }
   /* Anrufen: zurückhaltend, grün erst direkt unter der Maus */
   .call { width: 2.1rem; height: 2.1rem; padding: 0; border-radius: 50%; display: grid; place-items: center; background: var(--panel-2); border: none; color: var(--text); }
   .call:hover:not(:disabled) { background: var(--green); color: #fff; }
