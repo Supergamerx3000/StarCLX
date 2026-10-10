@@ -33,7 +33,6 @@
   let selected = $state<string | null>(null);
   let commentText = $state("");
   // Löschen braucht einen zweiten Klick
-  let confirmDelete = $state<string | null>(null);
 
   const ready = $derived(canDial());
 
@@ -218,13 +217,6 @@
             {/if}
             <button class="icon" title={t("Notiz")} onclick={() => selected !== e.id && select(e)}>✎</button>
             <button class="icon" title={t("Weitergeben (Chat oder E-Mail)")} onclick={() => (sharing = e)}><Icon name="send" size={18} /></button>
-            <button
-              class="icon"
-              class:warn={confirmDelete === e.id}
-              title={confirmDelete === e.id ? t("Nochmals klicken zum Löschen") : t("Löschen")}
-              onclick={() => (confirmDelete === e.id ? act("delete", e.id) : (confirmDelete = e.id))}
-              onblur={() => confirmDelete === e.id && (confirmDelete = null)}
-            ><Icon name="trash" size={18} /></button>
             {#if e.number}
               <button class="call" title={t("Anrufen")} disabled={!ready} onclick={() => run("phone_dial", { number: e.number })}><Icon name="call" size={18} /></button>
             {/if}
@@ -308,7 +300,6 @@
   .row:hover .acts, .row:focus-within .acts, .row.selected .acts { display: flex; }
   .icon { width: 2rem; height: 2rem; padding: 0; display: grid; place-items: center; background: none; border: 1px solid transparent; border-radius: 50%; color: var(--muted); }
   .icon:hover { border-color: var(--line); color: var(--text); }
-  .icon.warn { color: #fff; background: var(--red); }
   .icon.done { color: var(--green); border-color: var(--green); }
   /* Anrufen: zurückhaltend, grün erst direkt unter der Maus */
   .call { width: 2.1rem; height: 2.1rem; padding: 0; border-radius: 50%; display: grid; place-items: center; background: var(--panel-2); border: none; color: var(--text); }

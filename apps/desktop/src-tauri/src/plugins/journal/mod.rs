@@ -90,8 +90,9 @@ pub async fn journal_entries(
         .unwrap_or_default())
 }
 
-/// Rufliste bearbeiten: "delete", "called_back", "not_called_back" oder
-/// "comment" (mit `text`).
+/// Rufliste bearbeiten: "called_back", "not_called_back" oder "comment"
+/// (mit `text`). Löschen gibt es bewusst nicht: In Firmen muss die Rufliste
+/// vollständig bleiben.
 #[tauri::command]
 pub async fn journal_action(
     state: State<'_, JournalState>,
@@ -102,7 +103,6 @@ pub async fn journal_action(
     let journal = state.journal.lock().await;
     let journal = journal.as_ref().ok_or(t("Nicht angemeldet"))?;
     match action.as_str() {
-        "delete" => journal.delete(&id).await,
         "called_back" => journal.set_called_back(&id, true).await,
         "not_called_back" => journal.set_called_back(&id, false).await,
         "comment" => journal.set_comment(&id, &text.unwrap_or_default()).await,

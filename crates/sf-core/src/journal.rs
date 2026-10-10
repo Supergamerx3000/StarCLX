@@ -85,16 +85,6 @@ impl Journal {
         self.entries.lock().unwrap().clone()
     }
 
-    pub async fn delete(&self, id: &str) -> sf_onehub::Result<()> {
-        self.hub
-            .journal()
-            .delete_journal_entry(v1::journal::DeleteJournalEntryRequest {
-                journal_entry_id: Some(entry_id(id)),
-            })
-            .await?;
-        Ok(())
-    }
-
     pub async fn set_called_back(&self, id: &str, called_back: bool) -> sf_onehub::Result<()> {
         self.hub
             .journal()
