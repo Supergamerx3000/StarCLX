@@ -9,7 +9,6 @@ license.workspace = true
 sf-tls.workspace = true
 reqwest.workspace = true
 thiserror.workspace = true
-tracing.workspace = true
 url.workspace = true
 percent-encoding = "2"
 tokio = { workspace = true, features = ["process", "io-util", "time"] }
