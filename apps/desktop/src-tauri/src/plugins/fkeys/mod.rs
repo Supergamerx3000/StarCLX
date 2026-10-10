@@ -531,7 +531,10 @@ pub struct RedirectOptions {
 
 #[tauri::command]
 pub fn fkey_redirect_options(app: AppHandle) -> RedirectOptions {
-    let r = crate::settings::load(&app).fkey_redirects;
+    let r = crate::settings::load(&app)
+        .active()
+        .map(|a| a.fkey_redirects.clone())
+        .unwrap_or_default();
     RedirectOptions {
         ask: r.ask.into_iter().collect(),
         programmed: r.saved.into_keys().collect(),
@@ -541,10 +544,11 @@ pub fn fkey_redirect_options(app: AppHandle) -> RedirectOptions {
 #[tauri::command]
 pub fn fkey_set_ask(app: AppHandle, key_id: String, ask: bool) {
     crate::settings::update(&app, |s| {
+        let Some(a) = s.active_mut() else { return };
         if ask {
-            s.fkey_redirects.ask.insert(key_id);
+            a.fkey_redirects.ask.insert(key_id);
         } else {
-            s.fkey_redirects.ask.remove(&key_id);
+            a.fkey_redirects.ask.remove(&key_id);
         }
     });
 }
@@ -572,8 +576,9 @@ pub async fn fkey_redirect_program(
     // Erst merken, dann ändern: bricht etwas ab, lässt sich trotzdem
     // zurückstellen.
     crate::settings::update(&app, |s| {
+        let Some(a) = s.active_mut() else { return };
         for r in &targets {
-            s.fkey_redirects
+            a.fkey_redirects
                 .saved
                 .entry(r.id.clone())
                 .or_insert_with(|| SavedRedirect {
@@ -615,10 +620,8 @@ pub async fn fkey_redirect_restore(
         .map_err(|e| e.to_string())?;
     for r in list.iter().filter(|r| ids.contains(&r.id)) {
         let saved = crate::settings::load(&app)
-            .fkey_redirects
-            .saved
-            .get(&r.id)
-            .cloned();
+            .active()
+            .and_then(|a| a.fkey_redirects.saved.get(&r.id).cloned());
         let enabled = match &saved {
             Some(s) => {
                 if s.target != RedirectTarget::default() {
@@ -638,7 +641,9 @@ pub async fn fkey_redirect_restore(
                 .map_err(|e| e.to_string())?;
         }
         crate::settings::update(&app, |s| {
-            s.fkey_redirects.saved.remove(&r.id);
+            if let Some(a) = s.active_mut() {
+                a.fkey_redirects.saved.remove(&r.id);
+            }
         });
     }
     Ok(())
@@ -651,7 +656,7 @@ mod tests {
     #[test]
     fn redirect_options_survive_old_settings() {
         let s: crate::settings::Settings = serde_json::from_str(r#"{"last_server":"x"}"#).unwrap();
-        assert_eq!(s.fkey_redirects, FkeyRedirects::default());
+        assert!(s.accounts.is_empty());
         let r: FkeyRedirects = serde_json::from_str(
             r#"{"ask":["1001"],"saved":{"r1":{"target":{"number":"0791234567","mailbox":null},"timeout_secs":20,"enabled":false}}}"#,
         )

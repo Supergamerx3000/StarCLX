@@ -555,5 +555,13 @@ const dict: Record<string, string> = {
   "SIP-Zertifikat bestätigen": "Conferma il certificato SIP",
   "Das Wählen erfolgt über dieses Telefon.": "Le chiamate vengono composte tramite questo telefono.",
   "Ausgegraute Einstellungen sind von der IT vorgegeben.": "Le impostazioni in grigio sono stabilite dal reparto IT.",
+  "Konto wechseln": "Cambia account",
+  "Keine weiteren Konten gespeichert": "Nessun altro account salvato",
+  "Während eines Gesprächs lässt sich das Konto nicht wechseln": "Non è possibile cambiare account durante una chiamata",
+  "Konto hinzufügen": "Aggiungi account",
+  "Das bisherige Konto bleibt gespeichert, ist aber getrennt: Anrufe dafür kommen hier nicht an.": "L’account attuale resta salvato ma viene disconnesso: le sue chiamate non arrivano qui.",
+  "Gespeicherte Konten": "Account salvati",
+  "Konto entfernen": "Rimuovi account",
+  "Oder an einer Anlage anmelden:": "Oppure accedi a un centralino:",
 };
 export default dict;

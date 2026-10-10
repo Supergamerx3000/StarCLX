@@ -76,6 +76,43 @@ const TEXTS: &[(&str, [&str; 3])] = &[
     ),
     ("Abmelden", ["Sign out", "Se déconnecter", "Disconnetti"]),
     ("Beenden", ["Quit", "Quitter", "Esci"]),
+    // Konten
+    (
+        "Konto wechseln",
+        ["Switch account", "Changer de compte", "Cambia account"],
+    ),
+    (
+        "Während eines Gesprächs lässt sich das Konto nicht wechseln",
+        [
+            "The account cannot be switched during a call",
+            "Impossible de changer de compte pendant un appel",
+            "Non è possibile cambiare account durante una chiamata",
+        ],
+    ),
+    (
+        "Diese Anlage ist vom System nicht freigegeben",
+        [
+            "This PBX is not permitted by the system",
+            "Cet autocommutateur n’est pas autorisé par le système",
+            "Questo centralino non è consentito dal sistema",
+        ],
+    ),
+    (
+        "Bitte für dieses Konto erneut anmelden",
+        [
+            "Please sign in again for this account",
+            "Veuillez vous reconnecter pour ce compte",
+            "Accedi di nuovo per questo account",
+        ],
+    ),
+    (
+        "Automatische Anmeldung fehlgeschlagen: {e}",
+        [
+            "Automatic sign-in failed: {e}",
+            "Échec de la connexion automatique : {e}",
+            "Accesso automatico non riuscito: {e}",
+        ],
+    ),
     (
         "StarCLX: abgemeldet",
         [

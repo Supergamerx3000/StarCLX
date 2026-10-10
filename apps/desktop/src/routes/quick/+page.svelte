@@ -2,10 +2,11 @@
   // Schnellwahl aus dem Tray: Rufnummernfeld mit Adressbuchsuche und nur die
   // Besetztlampenfelder. Klick ruft an bzw. holt einen klingelnden Anruf heran.
   import { invoke } from "@tauri-apps/api/core";
+  import { listen } from "@tauri-apps/api/event";
   import { onMount } from "svelte";
   import DialSearch from "$lib/DialSearch.svelte";
   import FkeyTile from "$lib/plugins/fkeys/FkeyTile.svelte";
-  import { fkeys, loadFkeys, press } from "$lib/plugins/fkeys/fkeys.svelte";
+  import { fkeys, loadFkeys, press, resetFkeys } from "$lib/plugins/fkeys/fkeys.svelte";
   import { initPhone, phone } from "$lib/plugins/call/phone.svelte";
   import { loadPrefs } from "$lib/prefs.svelte";
   import { t } from "$lib/i18n.svelte";
@@ -23,7 +24,12 @@
       loadPrefs().catch(() => {});
     };
     document.addEventListener("visibilitychange", reload);
-    return () => document.removeEventListener("visibilitychange", reload);
+    // Kontowechsel: Tasten des alten Kontos weg, die des neuen laden
+    const offs = [listen("switching", resetFkeys), listen("logged-out", resetFkeys), listen("session", () => loadFkeys())];
+    return () => {
+      document.removeEventListener("visibilitychange", reload);
+      offs.forEach((p) => p.then((off) => off()));
+    };
   });
 
   function onkeydown(e: KeyboardEvent) {

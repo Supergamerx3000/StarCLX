@@ -21,7 +21,7 @@
   import Icon, { type IconName } from "$lib/Icon.svelte";
   import Settings from "$lib/Settings.svelte";
   import MeMenu from "$lib/MeMenu.svelte";
-  import { avatarOf, ownChat } from "$lib/plugins/fkeys/fkeys.svelte";
+  import { avatarOf, ownChat, resetFkeys } from "$lib/plugins/fkeys/fkeys.svelte";
   import ChatBubble from "$lib/ChatBubble.svelte";
   import { canDial, initPhone, phone, run, isRingingIn } from "$lib/plugins/call/phone.svelte";
   import { loadPrefs, prefs, savePrefs, type Tile } from "$lib/prefs.svelte";
@@ -30,6 +30,7 @@
 
   type SessionInfo = { server: string; server_version: string; display_name: string; user_id: string };
   type UntrustedCert = { host: string; port: number; fingerprint: string; reason: string };
+  type Account = { server: string; user_id: string; display_name: string; active: boolean };
 
   let server = $state("");
   let phase = $state<"restoring" | "login" | "waiting" | "session">("restoring");
@@ -37,12 +38,77 @@
   let session = $state<SessionInfo | null>(null);
   /** Zertifikat der Anlage, das der Benutzer bestätigen muss */
   let untrusted = $state<UntrustedCert | null>(null);
+  /** Gespeicherte Konten für die Anmeldeseite */
+  let accounts = $state<Account[]>([]);
+  /** Weiteres Konto hinzufügen: der Login fragt immer nach den Zugangsdaten */
+  let adding = $state(false);
+
+  /** Daten des bisherigen Kontos verwerfen */
+  function clearSessionData() {
+    session = null;
+    voicemail.list = [];
+    conferences.list = [];
+    conferenceEdit.id = null;
+    resetFkeys();
+    menuOpen = false;
+    settingsOpen = false;
+  }
+
+  function showLogin(text: string) {
+    clearSessionData();
+    notice = text;
+    phase = "login";
+    loadAccounts();
+  }
+
+  async function loadAccounts() {
+    accounts = await invoke<Account[]>("accounts").catch((): Account[] => []);
+  }
+
+  async function switchAccount(a: Account) {
+    notice = "";
+    try {
+      await invoke("switch_account", { server: a.server, userId: a.user_id });
+    } catch (e) {
+      notice = String(e);
+    }
+  }
+
+  async function forgetAccount(a: Account) {
+    try {
+      await invoke("forget_account", { server: a.server, userId: a.user_id });
+    } catch (e) {
+      notice = String(e);
+    }
+    if (a.active) showLogin(t("Abgemeldet"));
+    else loadAccounts();
+  }
+
+  /** Laufendes Konto trennen (bleibt gespeichert) und ein weiteres anmelden */
+  async function addAccount() {
+    try {
+      await invoke("disconnect");
+    } catch (e) {
+      notice = String(e);
+      menuOpen = false;
+      return;
+    }
+    if (!serverLocked) server = "";
+    adding = true;
+    showLogin("");
+  }
+
+  const accountHost = (a: Account) => a.server.replace(/^https?:\/\//, "");
 
   onMount(() => {
     const offs = [
-      listen<SessionInfo>("session", (e) => { session = e.payload; notice = ""; phase = "session"; loadVoicemails(); loadConferences(); }),
+      listen<SessionInfo>("session", (e) => { session = e.payload; notice = ""; adding = false; phase = "session"; loadVoicemails(); loadConferences(); }),
       listen<string>("login-error", (e) => { notice = e.payload; phase = "login"; }),
-      listen<string>("logged-out", (e) => { session = null; notice = e.payload; phase = "login"; voicemail.list = []; conferences.list = []; conferenceEdit.id = null; }),
+      listen<string>("logged-out", (e) => showLogin(e.payload)),
+      // Kontowechsel: erst trennen, dann das andere Konto verbinden
+      listen("switching", () => { clearSessionData(); notice = ""; phase = "restoring"; }),
+      listen<{ server: string; notice: string }>("account-login", (e) => { server = e.payload.server; adding = false; showLogin(e.payload.notice); }),
+      listen<string>("switch-error", (e) => { notice = e.payload; }),
       listen<{ action: string; text: string | null }>("hotkey", (e) => hotkey(e.payload.action, e.payload.text)),
       listen("dial-request", takeDialRequest),
       // Nach dem Standby: Voicemails neu holen (Funktionstasten und
@@ -118,6 +184,7 @@
       notice = t("Automatische Anmeldung fehlgeschlagen: {e}", { e: String(e) });
     }
     phase = "login";
+    loadAccounts();
   }
 
   /** Anlage vom System vorgegeben (/etc/xdg/starclxrc) */
@@ -138,7 +205,7 @@
         phase = "login";
         return;
       }
-      await invoke("start_login", { server, browser: viaBrowser });
+      await invoke("start_login", { server, browser: viaBrowser, fresh: adding });
     } catch (e) {
       notice = String(e);
       phase = "login";
@@ -219,8 +286,7 @@
     } catch (e) {
       notice = t("Abmelden unvollständig: {e}", { e: String(e) });
     }
-    session = null;
-    phase = "login";
+    showLogin(notice);
   }
 
   function initials(name: string) {
@@ -246,7 +312,7 @@
         </button>
         {#if menuOpen}
           <button class="scrim" aria-label={t("Menü schliessen")} onclick={() => (menuOpen = false)}></button>
-          <MeMenu {session} onsettings={() => { menuOpen = false; settingsOpen = true; }} onlogout={logout} />
+          <MeMenu {session} onsettings={() => { menuOpen = false; settingsOpen = true; }} onlogout={logout} onswitch={switchAccount} onadd={addAccount} />
         {/if}
       </div>
       <DialSearch />
@@ -328,7 +394,22 @@
   {#if phase === "restoring"}
     <p>{t("Verbinde …")}</p>
   {:else}
-    <h1>{t("Anmelden")}</h1>
+    <h1>{adding ? t("Konto hinzufügen") : t("Anmelden")}</h1>
+    {#if accounts.length}
+      <div class="accounts">
+        <span class="muted">{t("Gespeicherte Konten")}</span>
+        {#each accounts as a (a.server + a.user_id)}
+          <div class="account">
+            <button class="pick" onclick={() => switchAccount(a)}>
+              <strong>{a.display_name || accountHost(a)}</strong>
+              {#if a.display_name}<small class="muted">{accountHost(a)}</small>{/if}
+            </button>
+            <button class="drop" title={t("Konto entfernen")} aria-label={t("Konto entfernen")} onclick={() => forgetAccount(a)}><Icon name="close" size={18} /></button>
+          </div>
+        {/each}
+        <span class="muted">{t("Oder an einer Anlage anmelden:")}</span>
+      </div>
+    {/if}
     <form onsubmit={login}>
       <input placeholder={t("https://anlage.example.com")} bind:value={server} readonly={serverLocked} required />
       <!-- Bleibt klickbar: schliesst der Benutzer das Anmeldefenster, kann er neu beginnen. -->
@@ -387,6 +468,12 @@
   .brand img { width: 1.6em; height: 1.6em; }
   .brand.big { font-size: 1.6rem; margin-bottom: 1.5rem; }
 
+  .accounts { display: flex; flex-direction: column; gap: 0.4rem; margin-bottom: 0.8rem; }
+  .accounts .muted { color: var(--muted); font-size: 0.85rem; }
+  .account { display: flex; gap: 0.3rem; }
+  .account .pick { flex: 1; min-width: 0; display: flex; flex-direction: column; align-items: flex-start; text-align: left; padding: 0.5rem 0.7rem; }
+  .account .pick small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 100%; }
+  .account .drop { display: grid; place-items: center; padding: 0 0.5rem; }
   .scrim { position: fixed; inset: 0; z-index: 14; background: transparent; border: none; padding: 0; cursor: default; }
   .tabs { display: flex; gap: 0.2rem; padding: 0 0.6rem; background: var(--bar); border-top: 1px solid var(--bar-2); }
   .tab { display: flex; align-items: center; gap: 0.45rem; background: none; border: none; border-bottom: 3px solid transparent; border-radius: 0; padding: 0.55rem 0.9rem; color: var(--muted); }
