@@ -17,6 +17,8 @@
     --bg: #1f2226;
     --bar: #16181b;
     --bar-2: #2a2d31;
+    /* Kacheln im Arbeitsbereich: heller als der Hintergrund, dunkler als Listen */
+    --tile: #26292d;
     --panel: #2b2f34;
     --panel-2: #373b41;
     --line: #3d4248;
@@ -34,6 +36,7 @@
     --bg: #eef0f3;
     --bar: #ffffff;
     --bar-2: #e4e7eb;
+    --tile: #f7f8fa;
     --panel: #ffffff;
     --panel-2: #e6e9ed;
     --line: #d3d8de;
