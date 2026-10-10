@@ -15,6 +15,8 @@
 ### Behoben
 - Nach einem Kontowechsel zeigte der Chat noch Gespräche und letzte Nachrichten des vorher
   angemeldeten Kontos; sie werden jetzt beim Abmelden verworfen
+- Unter Einstellungen → Erreichbarkeit → Umleitungen fehlten Umleitungen, solange es für sie
+  keine Funktionstaste „Umleitung“ gab; jetzt sind alle Umleitungen immer einstellbar
 
 ## 1.3.9 – 2026-10-08
 

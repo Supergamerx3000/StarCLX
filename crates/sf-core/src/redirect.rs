@@ -77,12 +77,11 @@ fn kind_of(t: i32) -> &'static str {
 }
 
 fn view_of(r: v1::redirect::RedirectResponse) -> Option<Redirect> {
+    // `visible` nicht auswerten: Die Anlage setzt es nur für Rufnummern, für
+    // die es eine Umleitungs-Funktionstaste gibt. Einstellbar sein müssen die
+    // Umleitungen aber immer.
     let read_only = r.read_only;
-    let visible = r.visible;
     let r = r.redirect?;
-    if !visible {
-        return None;
-    }
     Some(Redirect {
         id: r.redirect_id?.id,
         kind: kind_of(r.redirect_type),
@@ -418,7 +417,7 @@ mod tests {
     }
 
     #[test]
-    fn hidden_redirects_dropped_and_sorted() {
+    fn hidden_redirects_kept_and_sorted() {
         let r =
             |id: &str, t: v1::types::RedirectType, visible: bool| v1::redirect::RedirectResponse {
                 redirect: Some(v1::types::Redirect {
@@ -441,7 +440,7 @@ mod tests {
         order(&mut list);
         assert_eq!(
             list.iter().map(|r| r.kind).collect::<Vec<_>>(),
-            ["always", "timeout"]
+            ["always", "busy", "timeout"]
         );
         assert!(list[0].read_only);
     }
