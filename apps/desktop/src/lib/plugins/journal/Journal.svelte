@@ -190,9 +190,11 @@
             </small>
             {#if e.comment && selected !== e.id}<span class="note">📝 {e.comment}</span>{/if}
           </span>
-          <span class="when">{time(e.start)}<small>{dur(e.duration_secs)}</small></span>
+          <span class="time">{time(e.start)}</span>
+          <span class="dur">{dur(e.duration_secs)}</span>
           </button>
-          <div class="acts">
+          <!-- Eigene Spalte, damit „zurückgerufen“ immer sichtbar ist -->
+          <span class="cb">
             {#if e.missed && e.incoming}
               <button
                 class="icon"
@@ -201,6 +203,8 @@
                 onclick={() => act(e.called_back ? "not_called_back" : "called_back", e.id)}
               >✓</button>
             {/if}
+          </span>
+          <div class="acts">
             {#if external(e.number) && !e.name && !known[e.number]}
               <button class="icon" title={t("Ins Adressbuch übernehmen")} onclick={() => newContact({ number: e.number })}><Icon name="person" size={18} /></button>
             {/if}
@@ -264,23 +268,30 @@
   .list { flex: 1; overflow: auto; border-radius: 4px; padding: 0.2rem 0.8rem 0.8rem; }
   h3 { font-size: 0.85rem; color: var(--muted); font-weight: 600; margin: 0.9rem 0 0.3rem; text-transform: uppercase; letter-spacing: 0.04em; }
   /* Wie in der STARFACE-App: ruhige Zeilen, Aktionen erst beim Überfahren */
-  .row { display: flex; align-items: center; gap: 0.8rem; padding: 0.45rem 0.5rem; border: 1px solid transparent; border-radius: 6px; }
+  .row { position: relative; display: flex; align-items: center; gap: 0.4rem; padding: 0.45rem 0.5rem; border: 1px solid transparent; border-radius: 6px; }
   .row + .row { margin-top: 0.15rem; }
   .row:hover { border-color: var(--accent); }
   .row.selected { background: var(--accent-soft); }
-  .open { flex: 1; min-width: 0; display: flex; align-items: center; gap: 0.8rem; padding: 0; background: none; border: none; color: inherit; text-align: left; cursor: pointer; }
+  /* Feste Spalten wie eine Tabelle: Richtung | Name | Uhrzeit | Dauer */
+  .open {
+    flex: 1; min-width: 0; display: grid; grid-template-columns: 1.5rem minmax(0, 1fr) 3.2rem 5.2rem; align-items: center; gap: 0.8rem;
+    padding: 0; background: none; border: none; color: inherit; text-align: left; cursor: pointer;
+  }
   .dir { display: grid; color: var(--green); }
   .row:not(.missed) .dir { color: var(--muted); }
   .row.missed .dir, .row.missed .who strong { color: #ff6b6b; }
   .who { flex: 1; min-width: 0; display: flex; flex-direction: column; }
   .who strong, .who small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .who small { color: var(--muted); }
-  .when { display: flex; flex-direction: column; align-items: flex-end; font-variant-numeric: tabular-nums; }
-  .when small { color: var(--muted); font-size: 0.75rem; }
-  .acts { display: flex; align-items: center; gap: 0.25rem; }
-  /* „Zurückgerufen“ bleibt als Information immer sichtbar */
-  .acts > :not(.done) { opacity: 0; transition: opacity 0.1s; }
-  .row:hover .acts > *, .row:focus-within .acts > *, .row.selected .acts > * { opacity: 1; }
+  .time, .dur { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .dur { color: var(--muted); font-size: 0.85rem; }
+  .cb { flex: none; width: 2rem; display: grid; place-items: center; }
+  /* Aktionen schweben beim Überfahren rechts über der Zeile, ohne Platz zu belegen */
+  .acts {
+    position: absolute; right: 0.4rem; top: 50%; transform: translateY(-50%); display: none; align-items: center; gap: 0.25rem;
+    padding: 0.15rem 0.25rem; background: var(--panel); border-radius: 999px; box-shadow: 0 2px 8px #0005;
+  }
+  .row:hover .acts, .row:focus-within .acts, .row.selected .acts { display: flex; }
   .icon { width: 2rem; height: 2rem; padding: 0; display: grid; place-items: center; background: none; border: 1px solid transparent; border-radius: 50%; color: var(--muted); }
   .icon:hover { border-color: var(--line); color: var(--text); }
   .icon.warn { color: #fff; background: var(--red); }
