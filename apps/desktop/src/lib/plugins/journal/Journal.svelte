@@ -21,6 +21,8 @@
     group: string;
     answered_by: string;
     comment: string;
+    comment_author: string;
+    comment_modified: number;
     called_back: boolean;
     voicemail: boolean;
   };
@@ -152,6 +154,8 @@
     if (e.incoming) return e.missed ? t("Eingehend, verpasst") : t("Eingehend, angenommen");
     return e.missed ? t("Ausgehend, nicht erreicht") : t("Ausgehend, verbunden");
   }
+  // Wie in der STARFACE-App: 10.10.2026 23:14
+  const stamp = (ms: number) => new Date(ms).toLocaleString(locale(), { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" });
   const fullDate = (ms: number) =>
     new Date(ms).toLocaleString(locale(), { weekday: "short", day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit", second: "2-digit" });
 
@@ -182,19 +186,37 @@
           <span class="dir" title={e.missed ? t("Verpasst") : e.incoming ? t("Eingehend") : t("Ausgehend")}>
             <Icon name={e.missed && e.incoming ? "missed" : e.incoming ? "incoming" : "outgoing"} size={20} />
           </span>
-          <!-- Zurückgerufen wie in der STARFACE-App: Symbol vorne; beim Überfahren blass zum Markieren -->
-          <button
-            class="cb"
-            class:done={e.called_back}
-            title={e.called_back ? t("Als nicht zurückgerufen markieren") : t("Als zurückgerufen markieren")}
-            onclick={() => act(e.called_back ? "not_called_back" : "called_back", e.id)}
-          ><Icon name="history" size={18} /></button>
-          <button class="open" title={t("Details")} aria-expanded={selected === e.id} onclick={() => select(e)}>
+          <!-- Keine <button>, weil Notiz und Zurückgerufen eigene Knöpfe darin sind -->
+          <div class="open" role="button" tabindex="0" aria-expanded={selected === e.id} onclick={() => select(e)} onkeydown={(ev) => (ev.key === "Enter" || ev.key === " ") && (ev.preventDefault(), select(e))}>
           <!-- Wie in der STARFACE-App: oben der Kontakt (sonst „---“), darunter nur die Nummer -->
-          <span class="who">
-            <strong>{e.name || "---"}</strong>
-            <small>{e.number || t("Unbekannt")}</small>
-            {#if e.comment && selected !== e.id}<span class="note">📝 {e.comment}</span>{/if}
+          <span class="whocell">
+            <span class="who">
+              <strong>{e.name || "---"}</strong>
+              <small>{e.number || t("Unbekannt")}</small>
+            </span>
+            <!-- Wie in der STARFACE-App hinter Kontakt und Nummer: Notiz (mit Vorschau) und Zurückgerufen -->
+            {#if e.comment}
+              <span class="notewrap">
+                <span class="noteicon" aria-label={t("Kommentar")}>
+                  <svg viewBox="0 0 24 24"><path class="paper" d="M4 4h16v11l-5 5H4z" /><path class="lines" d="M7.5 9h9M7.5 12.5h6" /></svg>
+                </span>
+                <span class="notetip" role="tooltip">
+                  <strong>{t("Kommentar hinzugefügt")}</strong>
+                  <span class="notetext">{e.comment}</span>
+                  {#if e.comment_author || e.comment_modified}
+                    <small>{e.comment_author}{#if e.comment_modified}<br />{stamp(e.comment_modified)}{/if}</small>
+                  {/if}
+                </span>
+              </span>
+            {/if}
+            <button
+              class="cb"
+              class:done={e.called_back}
+              title={e.called_back ? t("Als nicht zurückgerufen markieren") : t("Als zurückgerufen markieren")}
+              onclick={(ev) => { ev.stopPropagation(); act(e.called_back ? "not_called_back" : "called_back", e.id); }}
+            >
+              <svg viewBox="0 0 24 24"><path d="M6.6 7.2A7.5 7.5 0 1 1 4.6 13.5" /><path d="M6.8 3.4v4h4" /><path d="M8.6 12.3l2.4 2.4 4.3-4.6" /></svg>
+            </button>
           </span>
           {#if hasExtra}
             <!-- Gruppe als Chip, darunter wer angenommen hat -->
@@ -206,7 +228,7 @@
           {/if}
           <!-- Wie Kontakt und Nummer: oben die Uhrzeit, darunter die Dauer -->
           <span class="when"><span class="time">{time(e.start)}</span><small class="dur">{dur(e.duration_secs)}</small></span>
-          </button>
+          </div>
           <!-- Hinter der Uhrzeit nur Anrufen, erst beim Überfahren -->
           <span class="callcol">
             {#if e.number}
@@ -284,10 +306,27 @@
   .who small { color: var(--muted); }
   .when { display: flex; flex-direction: column; align-items: flex-end; font-variant-numeric: tabular-nums; white-space: nowrap; }
   .dur { color: var(--muted); font-size: 0.75rem; }
-  .cb { flex: none; width: 1.8rem; height: 1.8rem; padding: 0; display: grid; place-items: center; background: none; border: none; border-radius: 50%; color: var(--muted); opacity: 0; }
-  .row:hover .cb, .cb:focus-visible { opacity: 0.45; }
-  .cb:hover { opacity: 1 !important; color: var(--text); }
-  .cb.done { opacity: 1; color: var(--text); }
+  .whocell { min-width: 0; display: flex; align-items: center; gap: 0.5rem; }
+  .who { flex: 0 1 auto; }
+  .cb { flex: none; width: 1.7rem; height: 1.7rem; padding: 0; display: grid; place-items: center; background: none; border: none; border-radius: 50%; color: var(--text); opacity: 0; }
+  .cb svg { width: 1.2rem; height: 1.2rem; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+  .row:hover .cb, .cb:focus-visible { opacity: 0.4; }
+  .cb:hover { opacity: 1 !important; background: var(--panel-2); }
+  .cb.done { opacity: 1; }
+  /* Notiz: weisses Blatt, Vorschau beim Überfahren */
+  .notewrap { position: relative; flex: none; display: grid; }
+  .noteicon { display: grid; cursor: default; }
+  .noteicon svg { width: 1.25rem; height: 1.25rem; }
+  .noteicon .paper { fill: var(--text); }
+  .noteicon .lines { stroke: var(--tile); stroke-width: 1.8; stroke-linecap: round; }
+  .notetip {
+    display: none; position: absolute; left: 0; top: calc(100% + 0.35rem); z-index: 20; width: max-content; max-width: 18rem;
+    flex-direction: column; gap: 0.35rem; padding: 0.5rem 0.7rem; background: var(--panel); border: 1px solid var(--line); border-radius: 6px; box-shadow: 0 6px 18px #0008;
+    font-size: 0.85rem; white-space: normal;
+  }
+  .notewrap:hover .notetip { display: flex; }
+  .notetext { white-space: pre-wrap; overflow-wrap: anywhere; }
+  .notetip small { color: var(--muted); }
   .callcol { flex: none; width: 2.1rem; display: grid; place-items: center; }
   .callcol .call { visibility: hidden; }
   .row:hover .callcol .call, .row:focus-within .callcol .call, .row.selected .callcol .call { visibility: visible; }
@@ -302,7 +341,6 @@
   .call { width: 2.1rem; height: 2.1rem; padding: 0; border-radius: 50%; display: grid; place-items: center; background: var(--panel-2); border: none; color: var(--text); }
   .call:hover:not(:disabled) { background: var(--green); color: #fff; }
   .call:disabled { opacity: 0.4; }
-  .note { padding: 0.1rem 0; color: var(--text); font-size: 0.85rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .details { display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: 0.35rem 1rem; margin: 0; padding: 0.6rem 0.8rem 0.8rem 2.6rem; background: var(--accent-soft); }
   .details dt { color: var(--muted); font-size: 0.9rem; }
   .details dd { margin: 0; overflow-wrap: anywhere; }

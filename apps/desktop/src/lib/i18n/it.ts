@@ -524,6 +524,7 @@ const dict: Record<string, string> = {
   "Ja": "Sì",
   "Nein": "No",
   "Kommentar": "Commento",
+  "Kommentar hinzugefügt": "Commento aggiunto",
   "Aktionen": "Azioni",
   "Türkameras": "Telecamere porta",
   "Tür öffnen": "Apri porta",
