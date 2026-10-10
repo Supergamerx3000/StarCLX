@@ -56,6 +56,9 @@
     }),
   );
 
+  // Eigene Spalte für Gruppe, Voicemail und wer angenommen hat
+  const hasExtra = $derived(shown.some((e) => e.group || e.voicemail || e.answered_by));
+
   // Nach Tagen gruppiert
   const days = $derived.by(() => {
     const groups: { label: string; items: Entry[] }[] = [];
@@ -172,7 +175,7 @@
     </label>
   </div>
   {#if error && connection.online}<p class="error">{t("Rufliste: {e}", { e: error })}</p>{/if}
-  <div class="list">
+  <div class="list" class:extra={hasExtra}>
     {#each days as day (day.label)}
       <h3>{day.label}</h3>
       {#each day.items as e (e.id)}
@@ -181,17 +184,22 @@
           <span class="dir" title={e.missed ? t("Verpasst") : e.incoming ? t("Eingehend") : t("Ausgehend")}>
             <Icon name={e.missed && e.incoming ? "missed" : e.incoming ? "incoming" : "outgoing"} size={20} />
           </span>
+          <!-- Wie in der STARFACE-App: oben der Kontakt (sonst „---“), darunter nur die Nummer -->
           <span class="who">
-            <strong>{e.name || e.number || t("Unbekannt")}</strong>
-            <small>
-              {#if e.name && e.number}{e.number}{/if}
-              {#if e.group} · {t("Gruppe {name}", { name: e.group })}{#if e.answered_by}, {t("angenommen von {name}", { name: e.answered_by })}{/if}{/if}
-              {#if e.voicemail} · Voicemail{/if}
-            </small>
+            <strong>{e.name || "---"}</strong>
+            <small>{e.number || t("Unbekannt")}</small>
             {#if e.comment && selected !== e.id}<span class="note">📝 {e.comment}</span>{/if}
           </span>
           <span class="time">{time(e.start)}</span>
           <span class="dur">{dur(e.duration_secs)}</span>
+          {#if hasExtra}
+            <!-- Gruppe als Chip, darunter wer angenommen hat -->
+            <span class="extra">
+              {#if e.group}<span class="tag" title={t("Gruppe {name}", { name: e.group })}>{e.group}</span>{/if}
+              {#if e.voicemail}<span class="tag">Voicemail</span>{/if}
+              {#if e.answered_by}<span class="by" title={t("angenommen von {name}", { name: e.answered_by })}><Icon name="person" size={14} />{e.answered_by}</span>{/if}
+            </span>
+          {/if}
           </button>
           <!-- Eigene Spalte, damit „zurückgerufen“ immer sichtbar ist -->
           <span class="cb">
@@ -286,6 +294,11 @@
   .time, .dur { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
   .dur { color: var(--muted); font-size: 0.85rem; }
   .cb { flex: none; width: 2rem; display: grid; place-items: center; }
+  /* Spalte für Gruppe/Voicemail nur, wenn eine Zeile sie braucht */
+  .list.extra .open { grid-template-columns: 1.5rem minmax(0, 1fr) 3.2rem 5.2rem minmax(0, 9rem); }
+  .extra { min-width: 0; display: flex; flex-direction: column; align-items: flex-start; gap: 0.15rem; }
+  .tag { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding: 0 0.5rem; border: 1px solid var(--muted); border-radius: 999px; font-size: 0.78rem; }
+  .by { max-width: 100%; display: inline-flex; align-items: center; gap: 0.2rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 0.78rem; color: var(--muted); }
   /* Aktionen schweben beim Überfahren rechts über der Zeile, ohne Platz zu belegen */
   .acts {
     position: absolute; right: 0.4rem; top: 50%; transform: translateY(-50%); display: none; align-items: center; gap: 0.25rem;
