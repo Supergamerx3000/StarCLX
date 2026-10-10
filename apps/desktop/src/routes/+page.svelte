@@ -170,10 +170,15 @@
     if (canDial()) {
       run("phone_dial", { number: dialPending.number });
       dialPending = null;
-    } else if (phone.now > dialPending.until) {
-      phone.notice = t("Softphone nicht bereit, {number} nicht gewählt", { number: dialPending.number });
-      dialPending = null;
+      return;
     }
+    const pending = dialPending;
+    const timer = setTimeout(() => {
+      if (dialPending !== pending) return;
+      phone.notice = t("Softphone nicht bereit, {number} nicht gewählt", { number: pending.number });
+      dialPending = null;
+    }, Math.max(0, pending.until - Date.now()));
+    return () => clearTimeout(timer);
   });
 
   async function restore() {
