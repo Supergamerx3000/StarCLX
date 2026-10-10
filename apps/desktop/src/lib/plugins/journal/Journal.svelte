@@ -33,6 +33,8 @@
   let error = $state("");
   /** Ausgewählter Eintrag, dessen Details aufgeklappt sind */
   let selected = $state<string | null>(null);
+  /** Eintrag, dessen Schnelloptionen-Menü offen ist */
+  let menuFor = $state<string | null>(null);
   let commentText = $state("");
   // Löschen braucht einen zweiten Klick
 
@@ -229,10 +231,21 @@
           <!-- Wie Kontakt und Nummer: oben die Uhrzeit, darunter die Dauer -->
           <span class="when"><span class="time">{time(e.start)}</span><small class="dur">{dur(e.duration_secs)}</small></span>
           </div>
-          <!-- Hinter der Uhrzeit nur Anrufen, erst beim Überfahren -->
-          <span class="callcol">
+          <!-- Hinter der Uhrzeit: Schnelloptionen (⋯) und Anrufen, erst beim Überfahren -->
+          <span class="callcol" class:open-menu={menuFor === e.id}>
+            <button class="more" title={t("Weitere Optionen")} aria-expanded={menuFor === e.id} onclick={() => (menuFor = menuFor === e.id ? null : e.id)}><Icon name="more" size={18} /></button>
             {#if e.number}
               <button class="call" title={t("Anrufen")} disabled={!ready} onclick={() => run("phone_dial", { number: e.number })}><Icon name="call" size={18} /></button>
+            {/if}
+            {#if menuFor === e.id}
+              <button class="scrim" aria-label={t("Menü schliessen")} onclick={() => (menuFor = null)}></button>
+              <span class="quick" role="menu">
+                <button role="menuitem" onclick={() => { menuFor = null; if (selected !== e.id) select(e); }}><span>✎</span>{t("Notiz")}</button>
+                <button role="menuitem" onclick={() => { menuFor = null; sharing = e; }}><Icon name="send" size={16} />{t("Weitergeben (Chat oder E-Mail)")}</button>
+                {#if external(e.number) && !e.name && !known[e.number]}
+                  <button role="menuitem" onclick={() => { menuFor = null; newContact({ number: e.number }); }}><Icon name="person" size={16} />{t("Ins Adressbuch übernehmen")}</button>
+                {/if}
+              </span>
             {/if}
           </span>
         </div>
@@ -328,9 +341,18 @@
   .notewrap:hover .notetip { display: flex; }
   .notetext { white-space: pre-wrap; overflow-wrap: anywhere; }
   .notetip small { color: var(--muted); }
-  .callcol { flex: none; width: 2.1rem; display: grid; place-items: center; }
-  .callcol .call { visibility: hidden; }
-  .row:hover .callcol .call, .row:focus-within .callcol .call, .row.selected .callcol .call { visibility: visible; }
+  .callcol { position: relative; flex: none; width: 4.5rem; display: flex; align-items: center; justify-content: flex-end; gap: 0.3rem; }
+  .callcol > .more, .callcol > .call { visibility: hidden; }
+  .row:hover .callcol > *, .row:focus-within .callcol > *, .row.selected .callcol > *, .callcol.open-menu > * { visibility: visible; }
+  .more { width: 2rem; height: 2rem; padding: 0; display: grid; place-items: center; background: none; border: none; border-radius: 50%; color: var(--muted); }
+  .more:hover, .more[aria-expanded="true"] { background: var(--panel-2); color: var(--text); }
+  .scrim { position: fixed; inset: 0; z-index: 19; background: transparent; border: none; padding: 0; cursor: default; }
+  .quick {
+    position: absolute; right: 0; top: calc(100% + 0.2rem); z-index: 20; display: flex; flex-direction: column; min-width: 14rem; padding: 0.3rem;
+    background: var(--panel); border: 1px solid var(--line); border-radius: 8px; box-shadow: 0 6px 18px #0008;
+  }
+  .quick button { display: flex; align-items: center; gap: 0.6rem; padding: 0.45rem 0.6rem; background: none; border: none; border-radius: 4px; text-align: left; white-space: nowrap; }
+  .quick button:hover { background: var(--panel-2); }
   .dacts { display: flex; flex-wrap: wrap; gap: 0.4rem; }
   .dacts button { display: inline-flex; align-items: center; gap: 0.35rem; padding: 0.25rem 0.6rem; }
   /* Spalte für Gruppe/Voicemail nur, wenn eine Zeile sie braucht */
