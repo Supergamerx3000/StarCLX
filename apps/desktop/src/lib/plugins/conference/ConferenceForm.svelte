@@ -197,5 +197,5 @@
   .actions { display: flex; gap: 0.6rem; margin-top: 0.2rem; }
   .spacer { flex: 1; }
   .primary { background: var(--accent); border-color: var(--accent); color: var(--on-accent); font-weight: 600; }
-  .notice { color: var(--accent); margin: 0; }
+  .notice { color: var(--accent-text); margin: 0; }
 </style>

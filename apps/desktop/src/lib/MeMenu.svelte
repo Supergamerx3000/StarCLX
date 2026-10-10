@@ -246,7 +246,7 @@
   .more { display: grid; transform: rotate(-90deg); color: var(--muted); }
   .pill { font-size: 0.72rem; font-weight: 700; padding: 0.05rem 0.45rem; border-radius: 999px; background: var(--red); color: #fff; }
   hr { border: none; border-top: 1px solid var(--line); margin: 0.3rem 0 0; width: 100%; }
-  .notice { color: var(--accent); font-size: 0.85rem; padding: 0 0.3rem; }
+  .notice { color: var(--accent-text); font-size: 0.85rem; padding: 0 0.3rem; }
   .fp { font-size: 0.72rem; word-break: break-all; padding: 0 0.3rem; color: var(--muted); }
   .certok { align-self: center; }
 
@@ -259,7 +259,7 @@
   .opt { display: flex; align-items: center; gap: 0.6rem; background: none; border: none; text-align: left; padding: 0.5rem 0.6rem; border-radius: 4px; }
   .opt:hover:not(:disabled) { background: var(--panel-2); }
   .opt.sel { font-weight: 600; }
-  .tick { margin-left: auto; color: var(--accent); display: grid; }
+  .tick { margin-left: auto; color: var(--accent-text); display: grid; }
   .pad { padding: 0.4rem 0.6rem; }
   .all { margin: 0 0.4rem 0.5rem; padding: 0.45rem; font-weight: 600; }
   .rd { flex: 1; min-width: 0; display: flex; flex-direction: column; }

@@ -66,7 +66,7 @@
   .card { background: var(--panel); border-radius: 4px; padding: 0.7rem 1rem; display: flex; flex-direction: column; gap: 0.2rem; }
   .small { font-size: 0.85rem; margin: -0.3rem 0 0.6rem; }
   .muted { color: var(--muted); margin: 0.3rem 0; }
-  .notice { color: var(--accent); margin: 0; flex: 1; }
+  .notice { color: var(--accent-text); margin: 0; flex: 1; }
   .play { align-self: flex-start; display: flex; align-items: center; gap: 0.4rem; }
   .bl { display: flex; flex-direction: column; gap: 0.6rem; margin-top: 0.4rem; }
   .bl.off { opacity: 0.5; }

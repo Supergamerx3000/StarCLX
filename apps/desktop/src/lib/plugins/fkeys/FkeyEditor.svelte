@@ -407,7 +407,7 @@
   .type:disabled { opacity: 0.4; cursor: not-allowed; }
   .small { font-size: 0.85rem; }
   .muted { color: var(--muted); margin: 0.2rem 0; }
-  .notice { color: var(--accent); margin: 0.3rem 0; }
+  .notice { color: var(--accent-text); margin: 0.3rem 0; }
   .scrim { position: fixed; inset: 0; background: #0007; z-index: 30; }
   .dialog {
     position: fixed; z-index: 31; left: 50%; top: 50%; transform: translate(-50%, -50%); width: min(30rem, 92vw);

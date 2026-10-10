@@ -92,5 +92,5 @@
   .spacer { flex: 1; }
   .primary { background: var(--accent); border-color: var(--accent); color: var(--on-accent); font-weight: 600; }
   .muted { color: var(--muted); margin: 0; }
-  .notice { color: var(--accent); margin: 0; }
+  .notice { color: var(--accent-text); margin: 0; }
 </style>

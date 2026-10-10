@@ -118,5 +118,5 @@
   .del { background: none; border: none; color: var(--muted); display: grid; padding: 0.3rem 0.5rem; }
   .del:hover { color: var(--red); }
   .icon { width: 1.15rem; height: 1.05rem; flex: none; display: block; }
-  .notice { color: var(--accent); font-size: 0.85rem; padding: 0.2rem 0.6rem; }
+  .notice { color: var(--accent-text); font-size: 0.85rem; padding: 0.2rem 0.6rem; }
 </style>

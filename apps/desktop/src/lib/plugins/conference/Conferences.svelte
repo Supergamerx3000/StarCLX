@@ -129,5 +129,5 @@
   .call { width: 2.1rem; height: 2.1rem; padding: 0; border-radius: 50%; display: grid; place-items: center; background: var(--green); border: none; color: #fff; }
   .call:disabled { opacity: 0.4; }
   .muted { color: var(--muted); }
-  .error { color: var(--accent); margin: 0; }
+  .error { color: var(--accent-text); margin: 0; }
 </style>

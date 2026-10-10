@@ -60,5 +60,5 @@
   .quick { height: 100vh; box-sizing: border-box; padding: 0.7rem; display: flex; flex-direction: column; gap: 0.6rem; }
   .list { flex: 1; overflow: auto; display: flex; flex-direction: column; gap: 0.4rem; }
   .muted { color: var(--muted); }
-  .notice { color: var(--accent); margin: 0; font-size: 0.85rem; }
+  .notice { color: var(--accent-text); margin: 0; font-size: 0.85rem; }
 </style>

@@ -419,5 +419,5 @@
   .send:disabled { opacity: 0.4; }
   .muted { color: var(--muted); }
   .center { text-align: center; margin: auto; }
-  .error { color: var(--accent); margin: 0 0.8rem 0.5rem; }
+  .error { color: var(--accent-text); margin: 0 0.8rem 0.5rem; }
 </style>

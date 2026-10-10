@@ -24,7 +24,7 @@
   .knob {
     position: absolute; top: 1px; left: 1px; width: 1.05rem; height: 1.05rem; border-radius: 50%;
     background: #fff; transition: left 0.15s; display: grid; place-items: center;
-    font-size: 0.7rem; color: var(--accent); font-weight: 700;
+    font-size: 0.7rem; color: var(--accent-text); font-weight: 700;
   }
   input:checked + .track { background: var(--accent); border-color: var(--accent); }
   input:checked + .track .knob { left: calc(100% - 1.15rem); }

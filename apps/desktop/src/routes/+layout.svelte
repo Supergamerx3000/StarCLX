@@ -28,6 +28,8 @@
     --accent-soft: #f5a31a33;
     /* Text auf Akzent-Flächen; bei eigener Akzentfarbe hell oder dunkel je nach Farbe */
     --on-accent: #111;
+    /* Akzentfarbe als Schrift; bei eigener Farbe so angepasst, dass sie auf dem Hintergrund lesbar bleibt */
+    --accent-text: var(--accent);
     --green: #5cb82b;
     --red: #d9262d;
     color: var(--text);
