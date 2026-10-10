@@ -299,9 +299,10 @@
   .extra { min-width: 0; display: flex; flex-direction: column; align-items: flex-start; gap: 0.15rem; }
   .tag { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding: 0 0.5rem; border: 1px solid var(--muted); border-radius: 999px; font-size: 0.78rem; }
   .by { max-width: 100%; display: inline-flex; align-items: center; gap: 0.2rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 0.78rem; color: var(--muted); }
-  /* Aktionen schweben beim Überfahren rechts über der Zeile, ohne Platz zu belegen */
+  /* Aktionen schweben beim Überfahren rechts über der Zeile, ohne Platz zu belegen;
+     links neben der Spalte „zurückgerufen“ (Zeilenabstand + Spalte + Lücke), damit der Haken klickbar bleibt */
   .acts {
-    position: absolute; right: 0.4rem; top: 50%; transform: translateY(-50%); display: none; align-items: center; gap: 0.25rem;
+    position: absolute; right: calc(0.5rem + 2rem + 0.4rem); top: 50%; transform: translateY(-50%); display: none; align-items: center; gap: 0.25rem;
     padding: 0.15rem 0.25rem; background: var(--panel); border-radius: 999px; box-shadow: 0 2px 8px #0005;
   }
   .row:hover .acts, .row:focus-within .acts, .row.selected .acts { display: flex; }
