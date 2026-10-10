@@ -263,7 +263,10 @@
   .filter input { border: none; background: none; outline: none; padding: 0.4rem 0; width: 12rem; min-width: 0; text-overflow: ellipsis; }
   .list { flex: 1; overflow: auto; border-radius: 4px; padding: 0.2rem 0.8rem 0.8rem; }
   h3 { font-size: 0.85rem; color: var(--muted); font-weight: 600; margin: 0.9rem 0 0.3rem; text-transform: uppercase; letter-spacing: 0.04em; }
-  .row { display: flex; align-items: center; gap: 0.8rem; padding: 0.45rem 0.3rem; border-top: 1px solid var(--line); }
+  /* Wie in der STARFACE-App: ruhige Zeilen, Aktionen erst beim Überfahren */
+  .row { display: flex; align-items: center; gap: 0.8rem; padding: 0.45rem 0.5rem; border: 1px solid transparent; border-radius: 6px; }
+  .row + .row { margin-top: 0.15rem; }
+  .row:hover { border-color: var(--accent); }
   .row.selected { background: var(--accent-soft); }
   .open { flex: 1; min-width: 0; display: flex; align-items: center; gap: 0.8rem; padding: 0; background: none; border: none; color: inherit; text-align: left; cursor: pointer; }
   .dir { display: grid; color: var(--green); }
@@ -275,11 +278,16 @@
   .when { display: flex; flex-direction: column; align-items: flex-end; font-variant-numeric: tabular-nums; }
   .when small { color: var(--muted); font-size: 0.75rem; }
   .acts { display: flex; align-items: center; gap: 0.25rem; }
+  /* „Zurückgerufen“ bleibt als Information immer sichtbar */
+  .acts > :not(.done) { opacity: 0; transition: opacity 0.1s; }
+  .row:hover .acts > *, .row:focus-within .acts > *, .row.selected .acts > * { opacity: 1; }
   .icon { width: 2rem; height: 2rem; padding: 0; display: grid; place-items: center; background: none; border: 1px solid transparent; border-radius: 50%; color: var(--muted); }
   .icon:hover { border-color: var(--line); color: var(--text); }
   .icon.warn { color: #fff; background: var(--red); }
   .icon.done { color: var(--green); border-color: var(--green); }
-  .call { width: 2.1rem; height: 2.1rem; padding: 0; border-radius: 50%; display: grid; place-items: center; background: var(--green); border: none; color: #fff; }
+  /* Anrufen: zurückhaltend, grün erst direkt unter der Maus */
+  .call { width: 2.1rem; height: 2.1rem; padding: 0; border-radius: 50%; display: grid; place-items: center; background: var(--panel-2); border: none; color: var(--text); }
+  .call:hover:not(:disabled) { background: var(--green); color: #fff; }
   .call:disabled { opacity: 0.4; }
   .note { padding: 0.1rem 0; color: var(--text); font-size: 0.85rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .details { display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: 0.35rem 1rem; margin: 0; padding: 0.6rem 0.8rem 0.8rem 2.6rem; background: var(--accent-soft); }
