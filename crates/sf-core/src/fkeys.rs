@@ -11,7 +11,7 @@ use sf_onehub::sf_proto::v1;
 use tokio::sync::mpsc;
 use tokio::task::JoinHandle;
 
-type BoxError = Box<dyn std::error::Error + Send + Sync>;
+pub(crate) type BoxError = Box<dyn std::error::Error + Send + Sync>;
 
 const MAX_BACKOFF: Duration = Duration::from_secs(30);
 
@@ -140,14 +140,17 @@ impl Rest {
             .header("X-Version", "2"))
     }
 
-    async fn get<T: serde::de::DeserializeOwned>(&self, path: &str) -> Result<T, BoxError> {
+    pub(crate) async fn get<T: serde::de::DeserializeOwned>(
+        &self,
+        path: &str,
+    ) -> Result<T, BoxError> {
         Ok(check(self.req(reqwest::Method::GET, path)?.send().await?)
             .await?
             .json()
             .await?)
     }
 
-    async fn send_json(
+    pub(crate) async fn send_json(
         &self,
         method: reqwest::Method,
         path: &str,

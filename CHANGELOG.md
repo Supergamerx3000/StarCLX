@@ -17,6 +17,8 @@
   angemeldeten Kontos; sie werden jetzt beim Abmelden verworfen
 - Unter Einstellungen → Erreichbarkeit → Umleitungen fehlten Umleitungen, solange es für sie
   keine Funktionstaste „Umleitung“ gab; jetzt sind alle Umleitungen immer einstellbar
+- Umleitungen ohne Funktionstaste ließen sich in den Einstellungen nicht ändern; StarCLX
+  schaltet und ändert sie jetzt wie die Web-Oberfläche über die REST-API der Anlage
 
 ## 1.3.9 – 2026-10-08
 

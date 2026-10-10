@@ -10,6 +10,8 @@ use tokio::sync::mpsc;
 use tokio::task::JoinHandle;
 use v1::types::redirect_target::RedirectTarget as Target;
 
+use crate::fkeys::{BoxError, Rest};
+
 const MAX_BACKOFF: Duration = Duration::from_secs(30);
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
@@ -44,6 +46,10 @@ pub struct Redirect {
     /// Zuletzt benutzte Rufnummer (Vorschlag beim Umschalten)
     pub last_number: String,
     pub read_only: bool,
+    /// Ob die Anlage die Umleitung über OneHub anbietet. Verborgene (ohne
+    /// Umleitungs-Funktionstaste) ändert StarCLX wie die Web-Oberfläche über
+    /// die REST-API.
+    pub visible: bool,
 }
 
 fn mailbox(m: v1::types::Mailbox) -> Option<Mailbox> {
@@ -77,10 +83,12 @@ fn kind_of(t: i32) -> &'static str {
 }
 
 fn view_of(r: v1::redirect::RedirectResponse) -> Option<Redirect> {
-    // `visible` nicht auswerten: Die Anlage setzt es nur für Rufnummern, für
-    // die es eine Umleitungs-Funktionstaste gibt. Einstellbar sein müssen die
-    // Umleitungen aber immer.
-    let read_only = r.read_only;
+    // Die Anlage meldet Umleitungen nur als sichtbar, wenn es für sie eine
+    // Umleitungs-Funktionstaste gibt. Einstellbar sein müssen sie aber immer,
+    // wie in der Web-Oberfläche; „schreibgeschützt“ gilt darum nur für
+    // sichtbare. Was der Administrator wirklich sperrt, lehnt die REST-API ab.
+    let visible = r.visible;
+    let read_only = r.read_only && visible;
     let r = r.redirect?;
     Some(Redirect {
         id: r.redirect_id?.id,
@@ -94,6 +102,7 @@ fn view_of(r: v1::redirect::RedirectResponse) -> Option<Redirect> {
         timeout_secs: r.timeout.map_or(0, |d| d.seconds),
         last_number: r.last_destination_number,
         read_only,
+        visible,
     })
 }
 
@@ -169,6 +178,162 @@ pub async fn update_redirect(
         })
         .await?;
     Ok(())
+}
+
+/// Nur die Ziffern (und ein führendes „+“): OneHub und REST schreiben
+/// Rufnummern nicht immer gleich.
+fn digits(n: &str) -> String {
+    n.chars()
+        .filter(|c| c.is_ascii_digit() || *c == '+')
+        .collect()
+}
+
+fn rest_trigger(kind: &str) -> &'static str {
+    match kind {
+        "always" => "ALWAYS",
+        "busy" => "BUSY",
+        _ => "TIMEOUT",
+    }
+}
+
+/// Dieselbe Umleitung in der REST-Liste: zuerst über die ID, sonst über
+/// Rufnummer, Art und Gruppe.
+fn rest_match<'a>(
+    list: &'a mut [serde_json::Value],
+    r: &Redirect,
+) -> Option<&'a mut serde_json::Value> {
+    let str_of = |v: &serde_json::Value, k: &str| {
+        v.get(k)
+            .and_then(|x| x.as_str())
+            .unwrap_or_default()
+            .to_owned()
+    };
+    if let Some(i) = list.iter().position(|v| str_of(v, "id") == r.id) {
+        return list.get_mut(i);
+    }
+    let trigger = rest_trigger(r.kind);
+    let number = digits(&r.called_number);
+    let hits: Vec<usize> = list
+        .iter()
+        .enumerate()
+        .filter(|(_, v)| {
+            digits(&str_of(v, "phoneNumber")) == number
+                && v.pointer("/redirectTrigger/redirectTriggerType")
+                    .and_then(|t| t.as_str())
+                    == Some(trigger)
+                && v.get("groupNumber")
+                    .and_then(|g| g.as_bool())
+                    .unwrap_or(false)
+                    == r.group
+        })
+        .map(|(i, _)| i)
+        .collect();
+    match hits[..] {
+        [i] => list.get_mut(i),
+        _ => None,
+    }
+}
+
+/// Voicemail-Box für die REST-API: deren IDs sind Zahlen. Ist die OneHub-ID
+/// keine, über den Namen der Box suchen.
+async fn rest_mailbox(rest: &Rest, r: &Redirect, id: &str) -> Result<String, BoxError> {
+    if id.parse::<i64>().is_ok() {
+        return Ok(id.to_owned());
+    }
+    let name = r
+        .mailboxes
+        .iter()
+        .find(|m| m.id == id)
+        .map(|m| m.name.clone())
+        .ok_or("Unbekannte Voicemail-Box")?;
+    let boxes: Vec<serde_json::Value> = rest.get("/rest/voicemailboxes").await?;
+    boxes
+        .iter()
+        .find(|b| b.get("name").and_then(|n| n.as_str()) == Some(name.as_str()))
+        .and_then(|b| b.get("id"))
+        .map(|i| i.to_string().trim_matches('"').to_owned())
+        .ok_or_else(|| format!("Voicemail-Box „{name}“ nicht gefunden").into())
+}
+
+/// Ändert eine Umleitung über die REST-API, wie es die Web-Oberfläche tut.
+async fn rest_change(
+    rest: &Rest,
+    r: &Redirect,
+    enabled: Option<bool>,
+    target: Option<&RedirectTarget>,
+    timeout_secs: Option<i64>,
+) -> Result<(), BoxError> {
+    let mut list: Vec<serde_json::Value> = rest.get("/rest/redirects").await?;
+    let v =
+        rest_match(&mut list, r).ok_or("Umleitung in der REST-API der Anlage nicht gefunden")?;
+    if let Some(e) = enabled {
+        v["enabled"] = e.into();
+    }
+    if let Some(t) = target {
+        v["redirectDestination"] = match (&t.mailbox, &t.number) {
+            (Some(m), _) => serde_json::json!({
+                "redirectDestinationType": "MAILBOX",
+                "mailboxId": rest_mailbox(rest, r, m).await?,
+            }),
+            (None, n) => serde_json::json!({
+                "redirectDestinationType": "PHONENUMBER",
+                "phoneNumber": n.clone().unwrap_or_default().trim(),
+            }),
+        };
+    }
+    if let Some(s) = timeout_secs.filter(|_| r.kind == "timeout") {
+        v["redirectTrigger"] =
+            serde_json::json!({ "redirectTriggerType": "TIMEOUT", "timeout": s });
+    }
+    let id = v
+        .get("id")
+        .and_then(|i| i.as_str())
+        .unwrap_or_default()
+        .to_owned();
+    let body = v.clone();
+    rest.send_json(
+        reqwest::Method::PUT,
+        &format!("/rest/redirects/{id}"),
+        &body,
+    )
+    .await
+}
+
+async fn find(hub: &OneHub, id: &str) -> Result<Redirect, BoxError> {
+    redirects(hub)
+        .await?
+        .into_iter()
+        .find(|r| r.id == id)
+        .ok_or_else(|| "Umleitung nicht gefunden".into())
+}
+
+/// Ein- oder ausschalten; verborgene Umleitungen über die REST-API.
+pub async fn set_enabled(
+    hub: &OneHub,
+    rest: &Rest,
+    id: &str,
+    enabled: bool,
+) -> Result<(), BoxError> {
+    let r = find(hub, id).await?;
+    if r.visible {
+        return Ok(set_redirect_enabled(hub, id, enabled).await?);
+    }
+    rest_change(rest, &r, Some(enabled), None, None).await
+}
+
+/// Ziel und Wartezeit ändern; verborgene Umleitungen über die REST-API.
+pub async fn update(
+    hub: &OneHub,
+    rest: &Rest,
+    id: &str,
+    target: &RedirectTarget,
+    timeout_secs: Option<i64>,
+) -> Result<(), BoxError> {
+    let r = find(hub, id).await?;
+    if r.visible {
+        return Ok(update_redirect(hub, id, target, timeout_secs).await?);
+    }
+    rest_change(rest, &r, None, Some(target), timeout_secs).await
 }
 
 /// Zeitfenster eines Parallelrufs, Zeiten als "HH:MM"
@@ -443,5 +608,40 @@ mod tests {
             ["always", "busy", "timeout"]
         );
         assert!(list[0].read_only);
+        // Verborgene sind nie schreibgeschützt: die Anlage meint damit nur die Taste
+        assert!(!list[1].visible && !list[1].read_only);
+    }
+
+    #[test]
+    fn finds_hidden_redirect_in_rest_list() {
+        let r = Redirect {
+            id: "onehub-1".into(),
+            kind: "busy",
+            called_number: "+41 71 7220524".into(),
+            called_number_id: String::new(),
+            group: false,
+            enabled: false,
+            target: RedirectTarget::default(),
+            mailboxes: vec![],
+            timeout_secs: 0,
+            last_number: String::new(),
+            read_only: false,
+            visible: false,
+        };
+        let item = |id: &str, number: &str, t: &str, group: bool| {
+            serde_json::json!({
+                "id": id, "phoneNumber": number, "groupNumber": group, "enabled": false,
+                "redirectTrigger": { "redirectTriggerType": t },
+            })
+        };
+        let mut list = vec![
+            item("1", "+41717220524", "ALWAYS", false),
+            item("2", "+41717220524", "BUSY", true),
+            item("3", "+41717220524", "BUSY", false),
+        ];
+        assert_eq!(rest_match(&mut list, &r).unwrap()["id"], "3");
+        // Gleiche ID gewinnt
+        list.push(item("onehub-1", "100", "ALWAYS", false));
+        assert_eq!(rest_match(&mut list, &r).unwrap()["id"], "onehub-1");
     }
 }
