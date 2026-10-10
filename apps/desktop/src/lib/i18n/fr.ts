@@ -552,5 +552,6 @@ const dict: Record<string, string> = {
   "unbekannter Client": "client inconnu",
   "SIP-Zertifikat bestätigen": "Confirmer le certificat SIP",
   "Das Wählen erfolgt über dieses Telefon.": "Les appels sont composés via ce téléphone.",
+  "Ausgegraute Einstellungen sind von der IT vorgegeben.": "Les paramètres grisés sont définis par votre service informatique.",
 };
 export default dict;

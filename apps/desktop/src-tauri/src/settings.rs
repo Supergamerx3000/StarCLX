@@ -182,11 +182,27 @@ fn settings_path(app: &AppHandle) -> Option<PathBuf> {
         .map(|d| d.join("settings.json"))
 }
 
+/// Gespeicherte Einstellungen mit den Vorgaben des Systems (siehe
+/// policy.rs): Startwerte für Fehlendes, gesperrte Werte immer.
 pub fn load(app: &AppHandle) -> Settings {
-    settings_path(app)
+    let raw: Option<serde_json::Value> = settings_path(app)
         .and_then(|p| std::fs::read(p).ok())
-        .and_then(|b| serde_json::from_slice(&b).ok())
-        .unwrap_or_default()
+        .and_then(|b| serde_json::from_slice(&b).ok());
+    with_policy(raw, crate::policy::get())
+}
+
+fn with_policy(raw: Option<serde_json::Value>, policy: &crate::policy::Policy) -> Settings {
+    let mut settings: Settings = raw
+        .as_ref()
+        .and_then(|v| serde_json::from_value(v.clone()).ok())
+        .unwrap_or_default();
+    settings.prefs = policy.prefs(raw.as_ref().and_then(|v| v.get("prefs")));
+    if let Some(server) = policy.server()
+        && (settings.last_server.is_none() || policy.is_locked("server"))
+    {
+        settings.last_server = Some(server.to_string());
+    }
+    settings
 }
 
 pub fn save(app: &AppHandle, settings: &Settings) {
@@ -230,5 +246,23 @@ mod tests {
         let s: Settings = serde_json::from_str(r#"{"prefs":{"ringtone":false}}"#).unwrap();
         assert!(!s.prefs.ringtone);
         assert!(s.prefs.softphone);
+    }
+
+    #[test]
+    fn policy_applies() {
+        let policy = crate::policy::Policy::from_files(
+            ["[General]\nserver=https://pbx\nringtone[$i]=false\nautostart=true\n"].into_iter(),
+        );
+        let fresh = with_policy(None, &policy);
+        assert_eq!(fresh.last_server.as_deref(), Some("https://pbx"));
+        assert!(fresh.prefs.autostart);
+        let raw = serde_json::json!({
+            "last_server": "https://andere",
+            "prefs": { "ringtone": true, "autostart": false }
+        });
+        let user = with_policy(Some(raw), &policy);
+        assert_eq!(user.last_server.as_deref(), Some("https://andere"));
+        assert!(!user.prefs.ringtone);
+        assert!(!user.prefs.autostart);
     }
 }

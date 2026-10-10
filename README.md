@@ -136,6 +136,34 @@ Einreichen (einmalig):
 Danach liegt die App in einem eigenen Repo `github.com/flathub/io.github.crazmoe.StarCLX`; neue
 Versionen: dort Tag, Commit und die neu erzeugten `*-sources.json` per Pull Request eintragen.
 
+### Vorgaben für alle Benutzer (Rollout)
+
+Admins legen Einstellungen systemweit in `/etc/xdg/starclxrc` fest, im Format der
+KDE-Konfigdateien. Eine kommentierte Vorlage mit allen Einstellungen liegt unter
+[`packaging/vorlagen/etc/xdg/starclxrc`](packaging/vorlagen/etc/xdg/starclxrc), installiert
+unter `/usr/share/doc/starclx/vorlagen`.
+
+```ini
+[General]
+# Startwert: gilt, bis der Benutzer es selbst ändert
+server=https://pbx.firma.ch
+default_country_code=49
+# gesperrt (KDE-Kiosk): gilt immer, in StarCLX ausgegraut
+autostart[$i]=true
+verbose_log[$i]=false
+```
+
+- `schluessel=wert` ist ein Startwert für neue Benutzer, `schluessel[$i]=wert` sperrt die
+  Einstellung. `[General][$i]` sperrt alle Einträge der Gruppe.
+- Mit gesperrtem `server` lässt sich keine andere Anlage anmelden.
+- Es gelten alle Ordner aus `$XDG_CONFIG_DIRS` (ohne Angabe `/etc/xdg`), der erste hat Vorrang.
+- Unter KDE geht auch `kwriteconfig6 --file /etc/xdg/starclxrc --group General --key server https://pbx.firma.ch`.
+- Das Flatpak sieht `/etc` des Systems nur mit
+  `sudo flatpak override --system --filesystem=host-etc:ro ch.crazmoe.StarCLX`.
+
+Weitere Vorlagen in `packaging/vorlagen/etc/xdg`: `autostart/starclx.desktop` startet StarCLX
+für alle beim Anmelden, `mimeapps.list` öffnet `tel:`-Links für alle mit StarCLX (GNOME und KDE).
+
 ### Türkameras mit RTSP
 
 Türkameras mit RTSP-Strom (URL beginnt mit `rtsp://`, Video in H.264) entpackt StarCLX mit

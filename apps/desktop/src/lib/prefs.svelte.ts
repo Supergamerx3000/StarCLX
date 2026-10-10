@@ -91,8 +91,12 @@ darkQuery?.addEventListener("change", () => applyTheme());
 
 export const prefs = $state({ value: null as Prefs | null });
 
+/** Vom System gesperrte Einstellungen (/etc/xdg/starclxrc, siehe policy.rs) */
+export const locked = $state({ keys: [] as string[] });
+
 export async function loadPrefs() {
   prefs.value = await invoke<Prefs>("get_prefs");
+  locked.keys = await invoke<string[]>("locked_prefs").catch((): string[] => []);
   applyTheme(prefs.value.theme);
   setLanguage(prefs.value.language);
   return prefs.value;

@@ -56,7 +56,10 @@
         ],
         "files": {
           "/usr/lib/udev/rules.d/60-starclx-busylight.rules": "udev/60-starclx-busylight.rules",
-          "/usr/lib/udev/rules.d/60-starclx-headset.rules": "udev/60-starclx-headset.rules"
+          "/usr/lib/udev/rules.d/60-starclx-headset.rules": "udev/60-starclx-headset.rules",
+          "/usr/share/doc/starclx/vorlagen/starclxrc": "../../../packaging/vorlagen/etc/xdg/starclxrc",
+          "/usr/share/doc/starclx/vorlagen/autostart/starclx.desktop": "../../../packaging/vorlagen/etc/xdg/autostart/starclx.desktop",
+          "/usr/share/doc/starclx/vorlagen/mimeapps.list": "../../../packaging/vorlagen/etc/xdg/mimeapps.list"
         }
       },
       "appimage": {},
@@ -81,7 +84,10 @@
         ],
         "files": {
           "/usr/lib/udev/rules.d/60-starclx-busylight.rules": "udev/60-starclx-busylight.rules",
-          "/usr/lib/udev/rules.d/60-starclx-headset.rules": "udev/60-starclx-headset.rules"
+          "/usr/lib/udev/rules.d/60-starclx-headset.rules": "udev/60-starclx-headset.rules",
+          "/usr/share/doc/starclx/vorlagen/starclxrc": "../../../packaging/vorlagen/etc/xdg/starclxrc",
+          "/usr/share/doc/starclx/vorlagen/autostart/starclx.desktop": "../../../packaging/vorlagen/etc/xdg/autostart/starclx.desktop",
+          "/usr/share/doc/starclx/vorlagen/mimeapps.list": "../../../packaging/vorlagen/etc/xdg/mimeapps.list"
         }
       }
     }
