@@ -32,7 +32,8 @@ Nicht mit der STARFACE GmbH verbunden. „STARFACE“ wird nur beschreibend verw
 - **Einstellungen**: Audiogeräte, Klingeltöne, Busylight (Kuando), Erscheinungsbild,
   Sprache (Deutsch, English, Français, Italiano)
 - **Desktop-Integration**: Symbol im Infobereich, Autostart, Schnellwahl-Fenster,
-  Tastenkürzel (markierte Nummer wählen, annehmen, auflegen), `tel:`/`callto:`/`sip:`-Links,
+  Tastenkürzel (markierte Nummer wählen, annehmen, auflegen; GNOME, KDE Plasma und andere
+  Desktops mit GlobalShortcuts-Portal), `tel:`/`callto:`/`sip:`-Links,
   URL oder Programm bei Anruf
 
 Was sich seit der letzten Version geändert hat, steht in [CHANGELOG.md](CHANGELOG.md).
@@ -119,8 +120,8 @@ Unterschiede:
 
 `packaging/flathub` ist die Variante für Flathub (App-ID `io.github.crazmoe.StarCLX`). Sie wird
 ohne Netz aus dem Quellcode gebaut und hat weniger Rechte als das eigene Flatpak: Programme bei
-Anruf starten und GNOME-Tastenkürzel automatisch eintragen geht dort nicht (URLs bei Anruf,
-Autostart und `tel:`-Links schon). Die CI baut sie nicht mit; bauen lässt sie sich mit
+Anruf starten und GNOME-Tastenkürzel direkt eintragen geht dort nicht (URLs bei Anruf,
+Autostart und `tel:`-Links schon; Tastenkürzel über das Portal unter KDE Plasma und GNOME ab 48). Die CI baut sie nicht mit; bauen lässt sie sich mit
 `packaging/flathub/prepare.sh` und `flatpak-builder` (siehe Manifest).
 
 Zurzeit nicht eingereicht: Flathub nimmt keine Manifeste an, die mit KI erstellt wurden, und

@@ -153,7 +153,7 @@ const TEXTS: &[(&str, [&str; 3])] = &[
             "Salva messaggio vocale",
         ],
     ),
-    // Tastenkürzel (Namen in GNOME)
+    // Tastenkürzel (Namen in GNOME bzw. im Portal)
     (
         "Markierte Rufnummer wählen",
         [
@@ -482,11 +482,35 @@ const TEXTS: &[(&str, [&str; 3])] = &[
         ],
     ),
     (
-        "Tastenkürzel lassen sich nur unter GNOME automatisch eintragen.",
+        "Dieser Desktop bietet keine globalen Tastenkürzel an. Lege den angezeigten Befehl in den Systemeinstellungen selbst auf eine Taste.",
         [
-            "Keyboard shortcuts can only be registered automatically under GNOME.",
-            "Les raccourcis clavier ne peuvent être inscrits automatiquement que sous GNOME.",
-            "Le scorciatoie da tastiera si possono registrare automaticamente solo con GNOME.",
+            "This desktop does not offer global keyboard shortcuts. Assign the command shown to a key yourself in the system settings.",
+            "Ce bureau ne propose pas de raccourcis clavier globaux. Attribuez vous-même la commande affichée à une touche dans les paramètres système.",
+            "Questo desktop non offre scorciatoie da tastiera globali. Assegna tu stesso il comando mostrato a un tasto nelle impostazioni di sistema.",
+        ],
+    ),
+    (
+        "Keine Verbindung zum Desktop (D-Bus)",
+        [
+            "No connection to the desktop (D-Bus)",
+            "Pas de connexion au bureau (D-Bus)",
+            "Nessuna connessione al desktop (D-Bus)",
+        ],
+    ),
+    (
+        "Die Tastenkürzel sind noch nicht angemeldet.",
+        [
+            "The keyboard shortcuts are not registered yet.",
+            "Les raccourcis clavier ne sont pas encore inscrits.",
+            "Le scorciatoie da tastiera non sono ancora registrate.",
+        ],
+    ),
+    (
+        "Der Desktop kann die Tastenkürzel nicht selbst anzeigen. Du findest sie in den Systemeinstellungen.",
+        [
+            "The desktop cannot show the keyboard shortcuts itself. You will find them in the system settings.",
+            "Le bureau ne peut pas afficher lui-même les raccourcis clavier. Vous les trouverez dans les paramètres système.",
+            "Il desktop non può mostrare da solo le scorciatoie da tastiera. Le trovi nelle impostazioni di sistema.",
         ],
     ),
     (

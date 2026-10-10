@@ -69,6 +69,8 @@ jobs:
         run: |
           dbus-run-session -- sh -c 'echo -n ci | gnome-keyring-daemon --unlock --components=secrets >/dev/null; sleep 1; \
             cargo test -p sf-auth --test system_keyring -- --ignored'
+      - name: Test gegen nachgebautes Tastenkürzel-Portal
+        run: dbus-run-session -- cargo test -p starclx portal_roundtrip -- --ignored
 
       - name: Oberfläche prüfen
         working-directory: apps/desktop
