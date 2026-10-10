@@ -60,7 +60,7 @@
   .fk { height: 100%; overflow: auto; display: flex; flex-direction: column; gap: 0.5rem; }
   .grid { display: grid; gap: 0.5rem; max-width: 60rem; }
   .muted { color: var(--muted); }
-  .error { color: var(--accent); margin: 0; }
+  .error { color: var(--accent-text); margin: 0; }
   .small { font-size: 0.85rem; margin: 0; }
   .scrim { position: fixed; inset: 0; background: #0007; z-index: 30; }
   .dialog {

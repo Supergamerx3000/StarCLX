@@ -56,5 +56,5 @@
     background: var(--panel); border: 1px solid var(--line); border-radius: 8px; box-shadow: 0 8px 24px #000a;
   }
   .empty { margin: 0; color: var(--muted); }
-  .notice { margin: 0; color: var(--accent); font-size: 0.9rem; }
+  .notice { margin: 0; color: var(--accent-text); font-size: 0.9rem; }
 </style>

@@ -290,5 +290,5 @@
   .comment textarea { flex: 1; padding: 0.3rem 0.5rem; resize: vertical; font: inherit; }
   .comment button { padding: 0.3rem 0.6rem; }
   .muted { color: var(--muted); }
-  .error { color: var(--accent); margin: 0; }
+  .error { color: var(--accent-text); margin: 0; }
 </style>

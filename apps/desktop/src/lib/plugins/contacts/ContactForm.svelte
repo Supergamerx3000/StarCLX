@@ -136,5 +136,5 @@
   .primary { background: var(--accent); border-color: var(--accent); color: var(--on-accent); font-weight: 600; }
   .danger { display: flex; align-items: center; gap: 0.3rem; color: var(--red); }
   .muted { color: var(--muted); }
-  .notice { color: var(--accent); margin: 0; }
+  .notice { color: var(--accent-text); margin: 0; }
 </style>

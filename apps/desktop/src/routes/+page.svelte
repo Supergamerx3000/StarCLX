@@ -475,7 +475,7 @@
   .reg.starting { background: var(--accent); }
   .reg.error { background: var(--red); }
   .spacer { flex: 1; }
-  .brand { font-weight: 700; letter-spacing: 0.12em; color: var(--accent); white-space: nowrap; }
+  .brand { font-weight: 700; letter-spacing: 0.12em; color: var(--accent-text); white-space: nowrap; }
   .brand { display: flex; align-items: center; gap: 0.4rem; letter-spacing: 0.06em; }
   .brand img { width: 1.6em; height: 1.6em; }
   .brand.big { font-size: 1.6rem; margin-bottom: 1.5rem; }
@@ -499,7 +499,7 @@
   .work { overflow: auto; padding: 0.5rem; display: flex; flex-direction: column; min-height: 0; }
   .state { display: flex; align-items: center; gap: 0.5rem; }
   .muted { color: var(--muted); }
-  .notice { color: var(--accent); }
+  .notice { color: var(--accent-text); }
 
   .login { max-width: 26rem; margin: 15vh auto 0; padding: 0 1rem; }
   .login form { display: flex; flex-direction: column; gap: 0.75rem; }

@@ -223,10 +223,10 @@
   .card { background: var(--panel); border-radius: 4px; padding: 0.7rem 1rem; display: flex; flex-direction: column; gap: 0.3rem; }
   .muted { color: var(--muted); margin: 0.3rem 0; }
   .small { font-size: 0.85rem; }
-  .notice { color: var(--accent); }
+  .notice { color: var(--accent-text); }
   .ok { color: var(--green); }
   .play, .add { align-self: flex-start; display: flex; align-items: center; gap: 0.4rem; }
-  .link { align-self: flex-start; background: none; border: none; padding: 0; color: var(--accent); text-decoration: underline; }
+  .link { align-self: flex-start; background: none; border: none; padding: 0; color: var(--accent-text); text-decoration: underline; }
   .row { display: grid; grid-template-columns: 8rem minmax(0, 16rem); align-items: center; gap: 0.8rem; }
   select, input[type="text"], input[type="number"], input[type="time"] {
     padding: 0.3rem 0.5rem; background: var(--panel-2); color: inherit; border: 1px solid var(--line); border-radius: 4px; font: inherit;

@@ -690,7 +690,7 @@
   nav { background: var(--panel); padding: 1rem 0.8rem; display: flex; flex-direction: column; gap: 0.1rem; overflow: auto; }
   .tab { display: flex; align-items: center; gap: 0.6rem; background: none; border: none; border-radius: 4px; text-align: left; padding: 0.55rem 0.5rem; font-weight: 600; }
   .tab:hover { background: var(--panel-2); }
-  .tab.active { background: var(--panel-2); color: var(--accent); }
+  .tab.active { background: var(--panel-2); color: var(--accent-text); }
   .nav { display: flex; align-items: center; gap: 0.6rem; background: none; border: none; border-radius: 4px; text-align: left; padding: 0.35rem 0.5rem 0.35rem 1.9rem; font-size: 0.92rem; color: var(--muted); }
   .nav:hover { background: var(--panel-2); color: inherit; }
   .page[hidden] { display: none; }
@@ -718,7 +718,7 @@
   .radio.disabled { opacity: 0.5; }
   .radio input { accent-color: var(--accent); width: 1.1rem; height: 1.1rem; margin: 0; }
   .muted { color: var(--muted); margin: 0.3rem 0; }
-  .notice { color: var(--accent); margin: 0; flex: 1; }
+  .notice { color: var(--accent-text); margin: 0; flex: 1; }
   .path { display: flex; gap: 0.6rem; max-width: 34rem; }
   .path input, .field input { flex: 1; padding: 0.35rem 0.5rem; background: var(--panel-2); color: inherit; border: 1px solid var(--line); border-radius: 4px; }
   .field { display: flex; flex-direction: column; gap: 0.3rem; margin-top: 0.6rem; max-width: 34rem; }
@@ -729,7 +729,7 @@
   .keys.off { opacity: 0.5; }
   .keyrow { display: grid; grid-template-columns: minmax(0, 18rem) 12rem auto; align-items: center; gap: 0.8rem; padding: 0.3rem 0; border-bottom: 1px solid var(--line); }
   .key { padding: 0.3rem 0.6rem; text-align: center; }
-  .key.rec { border-color: var(--accent); color: var(--accent); }
+  .key.rec { border-color: var(--accent); color: var(--accent-text); }
   code { background: var(--panel-2); padding: 0.4rem 0.6rem; border-radius: 4px; font-size: 0.85rem; overflow-wrap: anywhere; }
   .profile { display: flex; align-items: center; gap: 1rem; }
   .profile .pic {
