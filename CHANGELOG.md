@@ -19,6 +19,13 @@
   danach in seinen Systemeinstellungen. Sie wirken, solange StarCLX läuft. Unter GNOME bleibt
   es beim direkten Eintrag in den GNOME-Einstellungen.
 
+### Vorgaben für alle Benutzer
+- Admins können Einstellungen systemweit in `/etc/xdg/starclxrc` vorbelegen oder sperren
+  (Format der KDE-Konfigdateien, Sperre mit `[$i]` wie beim KDE-Kiosk). Gesperrte Einstellungen
+  sind in StarCLX ausgegraut, eine gesperrte Anlage lässt sich beim Anmelden nicht ändern.
+- Vorlagen in `packaging/vorlagen/etc/xdg`: alle Einstellungen kommentiert, Autostart und
+  `tel:`-Links für alle Benutzer (GNOME und KDE)
+
 ### Behoben
 - Nach einem Kontowechsel zeigte der Chat noch Gespräche und letzte Nachrichten des vorher
   angemeldeten Kontos; sie werden jetzt beim Abmelden verworfen

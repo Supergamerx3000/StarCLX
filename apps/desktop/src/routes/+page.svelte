@@ -110,6 +110,7 @@
 
   async function restore() {
     server = (await invoke<string | null>("last_server")) ?? "";
+    serverLocked = (await invoke<string[]>("locked_prefs").catch((): string[] => [])).includes("server");
     try {
       const info = await invoke<SessionInfo | null>("restore_session");
       if (info) { session = info; phase = "session"; loadVoicemails(); loadConferences(); return; }
@@ -118,6 +119,9 @@
     }
     phase = "login";
   }
+
+  /** Anlage vom System vorgegeben (/etc/xdg/starclxrc) */
+  let serverLocked = $state(false);
 
   /** Anmeldung im Systembrowser statt im eigenen Fenster */
   let viaBrowser = $state(false);
@@ -326,7 +330,7 @@
   {:else}
     <h1>{t("Anmelden")}</h1>
     <form onsubmit={login}>
-      <input placeholder={t("https://anlage.example.com")} bind:value={server} required />
+      <input placeholder={t("https://anlage.example.com")} bind:value={server} readonly={serverLocked} required />
       <!-- Bleibt klickbar: schliesst der Benutzer das Anmeldefenster, kann er neu beginnen. -->
       <button class="primary" type="submit" onclick={() => (viaBrowser = false)}>
         {phase === "waiting" ? t("Warte auf Anmeldung …") : t("Anmelden")}

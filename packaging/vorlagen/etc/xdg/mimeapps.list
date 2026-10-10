@@ -1,0 +1,9 @@
+# Rufnummern-Links (tel:, callto:, sip:) für alle Benutzer mit StarCLX öffnen.
+# Ablage: /etc/xdg/mimeapps.list (GNOME und KDE). KDE liest vorher
+# /etc/xdg/kde-mimeapps.list; steht dort schon ein anderes Programm, die
+# Zeilen auch dort eintragen. Eigene Wahl der Benutzer geht weiterhin vor.
+# Flatpak: ch.crazmoe.StarCLX.desktop statt starclx.desktop
+[Default Applications]
+x-scheme-handler/tel=starclx.desktop
+x-scheme-handler/callto=starclx.desktop
+x-scheme-handler/sip=starclx.desktop

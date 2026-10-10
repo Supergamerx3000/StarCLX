@@ -11,6 +11,7 @@ mod i18n;
 mod log;
 mod login;
 mod plugins;
+mod policy;
 mod presence;
 mod settings;
 mod shortcuts;
@@ -178,7 +179,11 @@ async fn start_login(
     server: String,
     browser: Option<bool>,
 ) -> Result<(), String> {
-    let server = certs::normalize_server(&server);
+    // Eine vom System gesperrte Anlage gilt immer
+    let server = match policy::get().server() {
+        Some(locked) if policy::get().is_locked("server") => certs::normalize_server(locked),
+        _ => certs::normalize_server(&server),
+    };
     let auth = sf_auth::Client::discover(&server)
         .await
         .map_err(|e| e.to_string())?;
@@ -204,6 +209,13 @@ async fn start_login(
     }
 }
 
+/// Vom System gesperrte Einstellungen (Schlüssel wie in `Prefs`, dazu
+/// `server`), in der Oberfläche ausgegraut
+#[tauri::command]
+fn locked_prefs() -> Vec<String> {
+    policy::get().locked.clone()
+}
+
 #[tauri::command]
 fn get_prefs(app: AppHandle) -> Prefs {
     settings::load(&app).prefs
@@ -218,6 +230,7 @@ async fn save_prefs(
     mut prefs: Prefs,
 ) -> Result<(), String> {
     let old = settings::load(&app).prefs;
+    policy::get().enforce(&mut prefs);
     // Der eigene Status kommt aus dem Menü bzw. von der Anlage; ein länger
     // offener Einstellungsdialog darf ihn nicht mit altem Stand überschreiben.
     prefs.chat_availability.clone_from(&old.chat_availability);
@@ -572,6 +585,7 @@ pub fn run() {
         })
         .invoke_handler(tauri::generate_handler![
             last_server,
+            locked_prefs,
             quick_hide,
             busylight::busylight_info,
             busylight::busylight_test,

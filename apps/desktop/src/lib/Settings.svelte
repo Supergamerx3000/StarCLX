@@ -12,7 +12,7 @@
   import HeadsetSettings from "./plugins/headset/Settings.svelte";
   import CallActionsSettings from "./plugins/callactions/Settings.svelte";
   import DoorCamSettings from "./plugins/doorcam/Settings.svelte";
-  import { type Hotkeys, loadPrefs, prefs, savePrefs, type Prefs } from "./prefs.svelte";
+  import { type Hotkeys, loadPrefs, locked, prefs, savePrefs, type Prefs } from "./prefs.svelte";
   import { setLanguage, t } from "./i18n.svelte";
   import { avatarOf, fkeys } from "./plugins/fkeys/fkeys.svelte";
 
@@ -23,6 +23,8 @@
   } = $props();
 
   let draft = $state<Prefs | null>(null);
+  /** Vom System gesperrt, nicht änderbar */
+  const lk = (key: keyof Prefs) => locked.keys.includes(key);
   let numbers = $state<SignalingNumber[]>([]);
   let numbersError = $state("");
   let signaling = $state("");
@@ -361,22 +363,25 @@
     {#if !draft}
       <p class="muted">{t("Lade …")}</p>
     {:else}
+      {#if locked.keys.length}
+        <p class="muted locked">{t("Ausgegraute Einstellungen sind von der IT vorgegeben.")}</p>
+      {/if}
       <!-- Alle Reiter bleiben gemountet, damit Eingaben beim Wechsel erhalten bleiben -->
       <div class="page" hidden={tab !== "phone"}>
       <section id="softphone">
         <h3>Softphone</h3>
         <div class="card">
-          <Toggle bind:checked={draft.softphone} label={t("Softphone verwenden")} />
-          <Toggle bind:checked={draft.primary_on_login} disabled={!draft.softphone} label={t("Softphone bei der Anmeldung am Server als primäres Telefon auswählen")} />
-          <Toggle bind:checked={draft.primary_on_answer} disabled={!draft.softphone} label={t("Bei Rufannahme das Softphone als primäres Telefon auswählen")} />
+          <Toggle bind:checked={draft.softphone} disabled={lk("softphone")} label={t("Softphone verwenden")} />
+          <Toggle bind:checked={draft.primary_on_login} disabled={!draft.softphone || lk("primary_on_login")} label={t("Softphone bei der Anmeldung am Server als primäres Telefon auswählen")} />
+          <Toggle bind:checked={draft.primary_on_answer} disabled={!draft.softphone || lk("primary_on_answer")} label={t("Bei Rufannahme das Softphone als primäres Telefon auswählen")} />
         </div>
       </section>
 
       <section id="notifications">
         <h3>{t("Benachrichtigungen")}</h3>
         <div class="card">
-          <Toggle bind:checked={draft.notify_missed} label={t("Benachrichtigung über verpasste Anrufe anzeigen (ohne Gruppenanrufe)")} />
-          <Toggle bind:checked={draft.notify_missed_group} label={t("Benachrichtigung bei verpassten Gruppenanrufen anzeigen")} />
+          <Toggle bind:checked={draft.notify_missed} disabled={lk("notify_missed")} label={t("Benachrichtigung über verpasste Anrufe anzeigen (ohne Gruppenanrufe)")} />
+          <Toggle bind:checked={draft.notify_missed_group} disabled={lk("notify_missed_group")} label={t("Benachrichtigung bei verpassten Gruppenanrufen anzeigen")} />
         </div>
       </section>
 
@@ -402,13 +407,13 @@
       <section id="ringtones">
         <h3>{t("Klingeltöne")}</h3>
         <div class="card">
-          <Toggle bind:checked={draft.ringtone} label={t("Klingelton verwenden")} />
+          <Toggle bind:checked={draft.ringtone} disabled={lk("ringtone")} label={t("Klingelton verwenden")} />
           <div class="tones" class:off={!draft.ringtone}>
             <div class="tone head"><span>{t("Intern")}</span><span>{t("Extern")}</span></div>
             {#each [...builtinTones, ...draft.custom_ringtones] as tone (tone)}
               <div class="tone">
-                <input type="radio" name="tone-int" value={tone} bind:group={draft.ringtone_internal} title={t("Interne Anrufe")} />
-                <input type="radio" name="tone-ext" value={tone} bind:group={draft.ringtone_external} title={t("Externe Anrufe")} />
+                <input type="radio" name="tone-int" value={tone} bind:group={draft.ringtone_internal} disabled={lk("ringtone_internal")} title={t("Interne Anrufe")} />
+                <input type="radio" name="tone-ext" value={tone} bind:group={draft.ringtone_external} disabled={lk("ringtone_external")} title={t("Externe Anrufe")} />
                 <button class="round" title={t("Anhören")} onclick={() => preview(tone)}><Icon name={playing === tone ? "pause" : "play"} size={16} /></button>
                 <span class="tname">{fileName(tone)}</span>
                 {#if draft.custom_ringtones.includes(tone)}
@@ -445,7 +450,7 @@
       <section id="callmanager">
         <h3>Call Manager</h3>
         <div class="card">
-          <Toggle bind:checked={draft.bring_to_front} label={t("Beim Empfang eines Anrufs die App in den Vordergrund bringen")} />
+          <Toggle bind:checked={draft.bring_to_front} disabled={lk("bring_to_front")} label={t("Beim Empfang eines Anrufs die App in den Vordergrund bringen")} />
         </div>
       </section>
 
@@ -463,8 +468,8 @@
       <section id="chat-notify">
         <h3>{t("Chat: Benachrichtigungen")}</h3>
         <div class="card">
-          <Toggle bind:checked={draft.chat_notify} label={t("Benachrichtigung bei neuer Chatnachricht anzeigen")} />
-          <Toggle bind:checked={draft.chat_sound} label={t("Ton bei neuer Chatnachricht abspielen")} />
+          <Toggle bind:checked={draft.chat_notify} disabled={lk("chat_notify")} label={t("Benachrichtigung bei neuer Chatnachricht anzeigen")} />
+          <Toggle bind:checked={draft.chat_sound} disabled={lk("chat_sound")} label={t("Ton bei neuer Chatnachricht abspielen")} />
         </div>
       </section>
 
@@ -473,7 +478,7 @@
         <div class="card">
           <p class="muted">{t("Empfangene Dateien speichern unter")}</p>
           <div class="path">
-            <input type="text" bind:value={draft.download_dir} placeholder={defaultDownloads || "Downloads"} />
+            <input type="text" bind:value={draft.download_dir} disabled={lk("download_dir")} placeholder={defaultDownloads || "Downloads"} />
             <button onclick={pickDownloadDir}>{t("Suchen")}</button>
           </div>
           <p class="small muted">{t("Leer lassen für den Standardordner. Hier landen Dateien, die du im Chat annimmst.")}</p>
@@ -483,16 +488,16 @@
       <section id="chat-status">
         <h3>{t("Status")}</h3>
         <div class="card">
-          <Toggle bind:checked={draft.away_on_idle} label={t("Bei Inaktivität (10 Minuten) Status auf „Abwesend“ setzen")} />
-          <Toggle bind:checked={draft.away_on_screensaver} label={t("Bei aktivem Bildschirmschoner Status auf „Abwesend“ setzen")} />
-          <Toggle bind:checked={draft.away_on_lock} label={t("Bei gesperrtem Bildschirm Status auf „Abwesend“ setzen")} />
+          <Toggle bind:checked={draft.away_on_idle} disabled={lk("away_on_idle")} label={t("Bei Inaktivität (10 Minuten) Status auf „Abwesend“ setzen")} />
+          <Toggle bind:checked={draft.away_on_screensaver} disabled={lk("away_on_screensaver")} label={t("Bei aktivem Bildschirmschoner Status auf „Abwesend“ setzen")} />
+          <Toggle bind:checked={draft.away_on_lock} disabled={lk("away_on_lock")} label={t("Bei gesperrtem Bildschirm Status auf „Abwesend“ setzen")} />
           <label class="field">
             <span>{t("Statustext bei automatischer Abwesenheit")}</span>
-            <input type="text" bind:value={draft.away_text} placeholder={t("z. B. Bin gleich zurück")} />
+            <input type="text" bind:value={draft.away_text} disabled={lk("away_text")} placeholder={t("z. B. Bin gleich zurück")} />
           </label>
           <label class="field">
             <span>{t("Statustext beim Abmelden")}</span>
-            <input type="text" bind:value={draft.offline_text} placeholder={t("z. B. Feierabend")} />
+            <input type="text" bind:value={draft.offline_text} disabled={lk("offline_text")} placeholder={t("z. B. Feierabend")} />
           </label>
         </div>
       </section>
@@ -505,13 +510,13 @@
         <div class="card">
           <h4>{t("Erscheinungsbild")}</h4>
           {#each [["dark", t("Dunkel")], ["light", t("Hell")], ["system", t("System")]] as [value, label]}
-            <label class="radio"><input type="radio" name="theme" {value} bind:group={draft.theme} /> {label}</label>
+            <label class="radio"><input type="radio" name="theme" {value} bind:group={draft.theme} disabled={lk("theme")} /> {label}</label>
           {/each}
           <hr />
           <label class="field">
             <span>{t("Sprache")}</span>
             <!-- Wirkt sofort zur Vorschau; gespeichert wird mit „Speichern“ -->
-            <select bind:value={draft.language} onchange={() => setLanguage(draft?.language)}>
+            <select bind:value={draft.language} disabled={lk("language")} onchange={() => setLanguage(draft?.language)}>
               <option value="de">Deutsch</option>
               <option value="en">English</option>
               <option value="fr">Français</option>
@@ -521,7 +526,7 @@
           <hr />
           <label class="field">
             <span>{t("Arbeitsbereich")}</span>
-            <select bind:value={draft.workspace}>
+            <select bind:value={draft.workspace} disabled={lk("workspace")}>
               <option value="tabs">{t("Reiter")}</option>
               <option value="free">{t("Frei anordnen")}</option>
             </select>
@@ -531,10 +536,10 @@
             <button class="add" onclick={() => draft && (draft.workspace_tiles = null)}>{t("Anordnung zurücksetzen")}</button>
           {/if}
           <hr />
-          <Toggle bind:checked={draft.autostart} label={t("Beim Anmelden am Rechner starten")} />
-          <Toggle bind:checked={draft.start_minimized} label={t("Programm minimiert starten")} />
-          <Toggle bind:checked={draft.minimize_to_tray} label={t("Beim Minimieren nur als Symbol im Infobereich anzeigen")} />
-          <Toggle bind:checked={draft.always_on_top} label={t("Immer im Vordergrund")} />
+          <Toggle bind:checked={draft.autostart} disabled={lk("autostart")} label={t("Beim Anmelden am Rechner starten")} />
+          <Toggle bind:checked={draft.start_minimized} disabled={lk("start_minimized")} label={t("Programm minimiert starten")} />
+          <Toggle bind:checked={draft.minimize_to_tray} disabled={lk("minimize_to_tray")} label={t("Beim Minimieren nur als Symbol im Infobereich anzeigen")} />
+          <Toggle bind:checked={draft.always_on_top} disabled={lk("always_on_top")} label={t("Immer im Vordergrund")} />
           {#if desktop.wayland && draft.always_on_top}
             <p class="small muted">{t("Unter Wayland bestimmt der Desktop, ob ein Fenster oben bleibt. Bei GNOME geht es über Alt+Leertaste → „Immer im Vordergrund“.")}</p>
           {/if}
@@ -553,10 +558,10 @@
         <h3>{t("Hotkeys")}</h3>
         <div class="card">
           {#if desktop.gnome}
-            <Toggle bind:checked={draft.hotkeys.enabled} label={t("Tastenkürzel systemweit in GNOME eintragen")} />
+            <Toggle bind:checked={draft.hotkeys.enabled} disabled={lk("hotkeys")} label={t("Tastenkürzel systemweit in GNOME eintragen")} />
             <p class="small muted">{t("Die Kürzel gelten dann in allen Programmen und überschreiben dort gleiche Kombinationen. Andere eigene Tastenkürzel bleiben unverändert.")}</p>
           {:else if desktop.portal}
-            <Toggle bind:checked={draft.hotkeys.enabled} label={t("Tastenkürzel beim Desktop anmelden")} />
+            <Toggle bind:checked={draft.hotkeys.enabled} disabled={lk("hotkeys")} label={t("Tastenkürzel beim Desktop anmelden")} />
             <p class="small muted">{t("Beim ersten Mal fragt der Desktop nach, ob er die Kürzel übernehmen soll. Sie wirken, solange StarCLX läuft. Ändern lassen sie sich danach in den Systemeinstellungen des Desktops; die Tasten hier sind nur ein Vorschlag für neue Kürzel.")}</p>
             {#if draft.hotkeys.enabled}
               <button onclick={() => invoke("configure_hotkeys").catch((e) => (notice = String(e)))}>{t("In den Systemeinstellungen ändern …")}</button>
@@ -583,7 +588,7 @@
       <section id="integration">
         <h3>{t("Desktop-Integration")}</h3>
         <div class="card">
-          <Toggle bind:checked={draft.handle_tel_links} label={t("Rufnummern-Links (tel:, callto:, sip:) mit StarCLX öffnen")} />
+          <Toggle bind:checked={draft.handle_tel_links} disabled={lk("handle_tel_links")} label={t("Rufnummern-Links (tel:, callto:, sip:) mit StarCLX öffnen")} />
           <p class="small muted">{t("Ein Klick auf eine Rufnummer im Browser oder Mailprogramm wählt sie mit dem Softphone.")}</p>
         </div>
       </section>
@@ -640,7 +645,7 @@
             <button onclick={exportLog}><Icon name="folder" size={18} /> {t("Protokoll speichern …")}</button>
             <button onclick={openLogDir}>{t("Ordner öffnen")}</button>
           </div>
-          <Toggle bind:checked={draft.verbose_log} label={t("Ausführlich protokollieren (Anruf- und Verbindungsdetails)")} />
+          <Toggle bind:checked={draft.verbose_log} disabled={lk("verbose_log")} label={t("Ausführlich protokollieren (Anruf- und Verbindungsdetails)")} />
           <p class="small muted">{t("Das Protokoll kann Namen und Rufnummern enthalten. Passwörter und Tokens stehen nicht darin.")}</p>
         </div>
       </section>

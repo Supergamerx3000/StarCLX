@@ -1,0 +1,85 @@
+# Systemweite Vorgaben für StarCLX
+#
+# Ablage: /etc/xdg/starclxrc (bzw. ein Ordner aus $XDG_CONFIG_DIRS)
+# Format: wie die Konfigdateien von KDE (KConfig). Mit KDE-Werkzeugen lässt
+# sich die Datei auch schreiben, z. B.:
+#   kwriteconfig6 --file /etc/xdg/starclxrc --group General --key server https://pbx.firma.ch
+#
+#   schluessel=wert       Startwert: gilt, bis der Benutzer die Einstellung ändert
+#   schluessel[$i]=wert   gesperrt (KDE-Kiosk): gilt immer, in der App ausgegraut
+#   [General][$i]         sperrt alle Einträge dieser Gruppe
+#
+# Startwerte wirken für neue Benutzer und für Einstellungen, die der Benutzer
+# noch nie gespeichert hat. Gesperrte Werte wirken sofort beim nächsten Start.
+# Ja/Nein-Werte: true/false. Listen und Objekte als JSON.
+#
+# Zum Benutzen das "#" vor den gewünschten Zeilen entfernen.
+
+[General]
+
+## Anmeldung
+# Adresse der Anlage, im Anmeldefenster vorbelegt. Gesperrt kann der Benutzer
+# keine andere Anlage wählen.
+#server=https://pbx.firma.ch
+#server[$i]=https://pbx.firma.ch
+
+## Softphone
+#softphone=true
+#primary_on_login=false
+#primary_on_answer=false
+# Bevorzugte Geräte (Namen wie in PipeWire/PulseAudio), leer: Systemstandard
+#speakers=[]
+#microphones=[]
+#ring_devices=[]
+
+## Benachrichtigungen und Klingeltöne
+#notify_missed=true
+#notify_missed_group=true
+#ringtone=true
+#ringtone_internal=Klassisch
+#ringtone_external=Klassisch
+#bring_to_front=true
+
+## Busylight und Headset
+#busylight=false
+# 0 bis 100
+#busylight_volume=50
+#headset=true
+
+## Chat
+#chat_notify=true
+#chat_sound=true
+# Ordner für empfangene Dateien, leer: Downloads
+#download_dir=
+#away_on_idle=true
+#away_on_screensaver=true
+#away_on_lock=true
+#away_text=Bin gleich zurück
+#offline_text=Feierabend
+
+## Darstellung
+# system, dark oder light
+#theme=system
+#language=de
+# tabs (Reiter) oder free (frei angeordnete Kacheln)
+#workspace=tabs
+#fkey_columns=3
+
+## Desktop-Integration
+#autostart=true
+#start_minimized=false
+#minimize_to_tray=false
+#always_on_top=false
+#handle_tel_links=true
+# Landesvorwahl ohne "+" für nationale Nummern (41 Schweiz, 49 Deutschland, 43 Österreich)
+#default_country_code=41
+
+## URL oder Programm bei Anruf (Liste, JSON)
+# trigger: ringing, answered oder outgoing; $(callerid) steht für die Rufnummer
+#call_actions=[{"enabled":true,"trigger":"ringing","filter":"","external_only":true,"target":"https://crm.firma.ch/suche?nr=$(callerid)"}]
+
+## Türkameras (Liste, JSON)
+#door_cams=[{"name":"Eingang","url":"rtsp://kamera.firma.ch/stream"}]
+
+## Protokoll
+#verbose_log=false
