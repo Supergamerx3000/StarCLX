@@ -190,8 +190,6 @@
             <small>{e.number || t("Unbekannt")}</small>
             {#if e.comment && selected !== e.id}<span class="note">📝 {e.comment}</span>{/if}
           </span>
-          <!-- Wie Kontakt und Nummer: oben die Uhrzeit, darunter die Dauer -->
-          <span class="when"><span class="time">{time(e.start)}</span><small class="dur">{dur(e.duration_secs)}</small></span>
           {#if hasExtra}
             <!-- Gruppe als Chip, darunter wer angenommen hat -->
             <span class="extra">
@@ -200,6 +198,8 @@
               {#if e.answered_by}<span class="by" title={t("angenommen von {name}", { name: e.answered_by })}><Icon name="person" size={14} />{e.answered_by}</span>{/if}
             </span>
           {/if}
+          <!-- Wie Kontakt und Nummer: oben die Uhrzeit, darunter die Dauer -->
+          <span class="when"><span class="time">{time(e.start)}</span><small class="dur">{dur(e.duration_secs)}</small></span>
           </button>
           <!-- Eigene Spalte, damit „zurückgerufen“ immer sichtbar ist -->
           <span class="cb">
@@ -280,7 +280,7 @@
   .row + .row { margin-top: 0.15rem; }
   .row:hover { border-color: var(--accent); }
   .row.selected { background: var(--accent-soft); }
-  /* Feste Spalten wie eine Tabelle: Richtung | Kontakt/Nummer | Uhrzeit/Dauer */
+  /* Feste Spalten wie eine Tabelle: Richtung | Kontakt/Nummer | (Gruppe/Annehmer) | Uhrzeit/Dauer */
   .open {
     flex: 1; min-width: 0; display: grid; grid-template-columns: 1.5rem minmax(0, 1fr) 4.5rem; align-items: center; gap: 0.8rem;
     padding: 0; background: none; border: none; color: inherit; text-align: left; cursor: pointer;
@@ -295,7 +295,7 @@
   .dur { color: var(--muted); font-size: 0.75rem; }
   .cb { flex: none; width: 2rem; display: grid; place-items: center; }
   /* Spalte für Gruppe/Voicemail nur, wenn eine Zeile sie braucht */
-  .list.wide .open { grid-template-columns: 1.5rem minmax(0, 1fr) 4.5rem minmax(0, 9rem); }
+  .list.wide .open { grid-template-columns: 1.5rem minmax(0, 1fr) minmax(0, 9rem) 4.5rem; }
   .extra { min-width: 0; display: flex; flex-direction: column; align-items: flex-start; gap: 0.15rem; }
   .tag { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding: 0 0.5rem; border: 1px solid var(--muted); border-radius: 999px; font-size: 0.78rem; }
   .by { max-width: 100%; display: inline-flex; align-items: center; gap: 0.2rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 0.78rem; color: var(--muted); }
