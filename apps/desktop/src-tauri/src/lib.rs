@@ -13,6 +13,7 @@ mod login;
 mod plugins;
 mod presence;
 mod settings;
+mod shortcuts;
 mod wake;
 mod zoom;
 
@@ -240,7 +241,7 @@ async fn save_prefs(
         )
     })?;
     if old.hotkeys != prefs.hotkeys || prefs.hotkeys.enabled {
-        desktop::apply_hotkeys(&prefs.hotkeys).map_err(|e| {
+        desktop::apply_hotkeys(&app, &prefs.hotkeys).map_err(|e| {
             tf(
                 "Gespeichert, aber Tastenkürzel nicht eingetragen: {e}",
                 &[("e", &e)],
@@ -503,7 +504,7 @@ pub fn run() {
             // Tastenkürzel neu eintragen, damit sie nach einem Update oder
             // der Umbenennung auf das aktuelle Programm zeigen.
             if prefs.hotkeys.enabled
-                && let Err(e) = desktop::apply_hotkeys(&prefs.hotkeys)
+                && let Err(e) = desktop::apply_hotkeys(app.handle(), &prefs.hotkeys)
             {
                 tracing::warn!(error = %e, "Tastenkürzel nicht eingetragen");
             }
@@ -625,6 +626,7 @@ pub fn run() {
             chat::chat_show_file,
             chat::default_download_dir,
             desktop::desktop_info,
+            shortcuts::configure_hotkeys,
             take_dial_request,
             plugins::callactions::call_action_run,
             reach::redirects,

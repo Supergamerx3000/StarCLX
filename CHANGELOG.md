@@ -12,6 +12,13 @@
   Ausschalten des Softphones an das vorher primäre Telefon zurück; die Anlage stellt das nicht
   selbst um, sonst liefe Wählen aus anderen Clients ins Leere
 
+### Tastenkürzel unter KDE und Wayland
+- Globale Tastenkürzel (markierte Nummer wählen, annehmen, auflegen usw.) gehen jetzt auch unter
+  KDE Plasma und anderen Desktops, die das GlobalShortcuts-Portal anbieten, auch im
+  Flathub-Flatpak. Der Desktop fragt beim ersten Einschalten nach; geändert werden die Kürzel
+  danach in seinen Systemeinstellungen. Sie wirken, solange StarCLX läuft. Unter GNOME bleibt
+  es beim direkten Eintrag in den GNOME-Einstellungen.
+
 ### Behoben
 - Nach einem Kontowechsel zeigte der Chat noch Gespräche und letzte Nachrichten des vorher
   angemeldeten Kontos; sie werden jetzt beim Abmelden verworfen

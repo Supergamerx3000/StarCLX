@@ -1,10 +1,12 @@
 //! Personalisierung und Desktop-Integration: Fensterverhalten,
 //! Erscheinungsbild, Tastenkürzel, Rufnummern-Links und Autostart.
 //!
-//! Unter Wayland darf eine App keine globalen Tastenkürzel abfangen. Die
-//! Kürzel werden deshalb als eigene Tastenkombinationen in GNOME eingetragen;
-//! diese starten `starclx --action …`, und single-instance reicht
-//! die Aktion an die laufende App weiter.
+//! Unter Wayland darf eine App keine globalen Tastenkürzel abfangen. Unter
+//! GNOME werden die Kürzel deshalb als eigene Tastenkombinationen
+//! eingetragen; diese starten `starclx --action …`, und single-instance
+//! reicht die Aktion an die laufende App weiter. Andere Desktops (KDE …)
+//! und das Flathub-Flatpak gehen über das GlobalShortcuts-Portal
+//! ([`crate::shortcuts`]).
 
 use std::path::PathBuf;
 
@@ -27,7 +29,7 @@ pub const ACTIONS: [(&str, &str); 5] = [
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(default)]
 pub struct Hotkeys {
-    /// In GNOME eintragen (sonst nur anzeigen)
+    /// Beim Desktop eintragen (sonst nur anzeigen)
     pub enabled: bool,
     pub dial_selection: String,
     pub dial_clipboard: String,
@@ -50,7 +52,7 @@ impl Default for Hotkeys {
 }
 
 impl Hotkeys {
-    fn binding(&self, action: &str) -> &str {
+    pub(crate) fn binding(&self, action: &str) -> &str {
         match action {
             "dial-selection" => &self.dial_selection,
             "dial-clipboard" => &self.dial_clipboard,
@@ -66,6 +68,8 @@ impl Hotkeys {
 pub struct DesktopInfo {
     wayland: bool,
     gnome: bool,
+    /// Kürzel über das GlobalShortcuts-Portal (KDE und andere)
+    portal: bool,
     /// Befehl, den man in anderen Desktops selbst auf eine Taste legen kann
     command: String,
 }
@@ -73,6 +77,28 @@ pub struct DesktopInfo {
 fn is_gnome() -> bool {
     std::env::var("XDG_CURRENT_DESKTOP")
         .is_ok_and(|d| d.split(':').any(|p| p.eq_ignore_ascii_case("gnome")))
+}
+
+/// Wie die Kürzel beim Desktop landen
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum Backend {
+    /// Eigene Tastenkombinationen in den GNOME-Einstellungen
+    Gnome,
+    /// GlobalShortcuts-Portal
+    Portal,
+    None,
+}
+
+/// GNOME-Einstellungen, solange sie erreichbar sind (auch bei GNOME vor 48,
+/// das noch kein Portal kennt); sonst das Portal, wo es eines gibt.
+fn backend() -> Backend {
+    if is_gnome() && !crate::flatpak::sandboxed() {
+        Backend::Gnome
+    } else if crate::shortcuts::available() {
+        Backend::Portal
+    } else {
+        Backend::None
+    }
 }
 
 fn is_wayland() -> bool {
@@ -104,9 +130,11 @@ fn command_for(action: &str) -> String {
 
 #[tauri::command]
 pub fn desktop_info() -> DesktopInfo {
+    let backend = backend();
     DesktopInfo {
         wayland: is_wayland(),
-        gnome: is_gnome(),
+        gnome: backend == Backend::Gnome,
+        portal: backend == Backend::Portal,
         command: command_for("<aktion>"),
     }
 }
@@ -398,23 +426,20 @@ fn merged_list(current: &[String], hotkeys: &Hotkeys) -> Vec<String> {
     list
 }
 
+/// Trägt die Tastenkürzel beim Desktop ein bzw. entfernt sie wieder.
+pub fn apply_hotkeys(app: &AppHandle, hotkeys: &Hotkeys) -> Result<(), String> {
+    match backend() {
+        Backend::Gnome => apply_gnome(hotkeys),
+        Backend::Portal => crate::shortcuts::apply(app, hotkeys),
+        Backend::None if !hotkeys.enabled => Ok(()),
+        Backend::None if crate::flatpak::sandboxed() => Err(t("Im Flatpak von Flathub lassen sich Tastenkürzel nicht automatisch eintragen. Lege den angezeigten Befehl in den Systemeinstellungen selbst auf eine Taste.").into()),
+        Backend::None => Err(t("Dieser Desktop bietet keine globalen Tastenkürzel an. Lege den angezeigten Befehl in den Systemeinstellungen selbst auf eine Taste.").into()),
+    }
+}
+
 /// Trägt die Tastenkürzel in GNOME ein bzw. entfernt sie wieder. Andere
 /// Tastenkombinationen des Benutzers bleiben unangetastet.
-pub fn apply_hotkeys(hotkeys: &Hotkeys) -> Result<(), String> {
-    if !is_gnome() {
-        return if hotkeys.enabled {
-            Err(t("Tastenkürzel lassen sich nur unter GNOME automatisch eintragen.").into())
-        } else {
-            Ok(())
-        };
-    }
-    if crate::flatpak::sandboxed() {
-        return if hotkeys.enabled {
-            Err(t("Im Flatpak von Flathub lassen sich Tastenkürzel nicht automatisch eintragen. Lege den angezeigten Befehl in den Systemeinstellungen selbst auf eine Taste.").into())
-        } else {
-            Ok(())
-        };
-    }
+fn apply_gnome(hotkeys: &Hotkeys) -> Result<(), String> {
     let current = parse_list(&gsettings(&["get", MEDIA_KEYS, "custom-keybindings"])?);
     for (action, label) in ACTIONS {
         let schema = format!("{MEDIA_KEYS}.custom-keybinding:{}", own_path(action));
