@@ -1,6 +1,8 @@
 <script lang="ts">
+  import { connection } from "../../connection.svelte";
   import { splitter } from "../../splitter";
   import { invoke } from "@tauri-apps/api/core";
+  import { listen } from "@tauri-apps/api/event";
   import { onMount } from "svelte";
   import Icon from "../../Icon.svelte";
   import { phone, run, canDial } from "../call/phone.svelte";
@@ -21,13 +23,25 @@
 
   const ready = $derived(canDial());
 
-  onMount(async () => {
+  async function loadFolders() {
     try {
       folders = await invoke<Folder[]>("contacts_folders");
-      if (folders.length) pick(folders[0].id);
+      if (folders.length && !folders.some((f) => f.id === folder)) pick(folders[0].id);
+      error = "";
     } catch (e) {
       error = String(e);
     }
+  }
+
+  onMount(() => {
+    loadFolders();
+    // Nach Standby oder Verbindungsabbruch: nur neu laden, was fehlgeschlagen ist
+    const off = listen("resumed", () => {
+      if (!error) return;
+      if (folders.length) load(true);
+      else loadFolders();
+    });
+    return () => void off.then((f) => f());
   });
 
   const writable = $derived(folders.find((f) => f.id === folder)?.writable ?? false);
@@ -90,7 +104,7 @@
         <Icon name="search" size={18} />
         <input bind:value={term} {oninput} placeholder={t("Im Adressbuch suchen")} />
       </label>
-      {#if error}<p class="muted">{error}</p>{/if}
+      {#if error && connection.online}<p class="muted">{error}</p>{/if}
       {#each contacts as c (c.id)}
         <button class="row" class:active={selected?.id === c.id} onclick={() => (selected = c)}>
           <span class="av">{initials(c.name)}</span>

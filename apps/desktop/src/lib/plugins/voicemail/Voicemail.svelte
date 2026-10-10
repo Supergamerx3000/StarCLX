@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { connection } from "../../connection.svelte";
   import { invoke } from "@tauri-apps/api/core";
   import { onMount } from "svelte";
   import Icon from "../../Icon.svelte";
@@ -102,8 +103,8 @@
       </button>
     {/each}
   </div>
-  {#if voicemail.error}<p class="error">{voicemail.error}</p>{/if}
-  {#if notice}<p class="error">{notice}</p>{/if}
+  {#if voicemail.error && connection.online}<p class="error">{voicemail.error}</p>{/if}
+  {#if notice && connection.online}<p class="error">{notice}</p>{/if}
   <div class="list">
     {#each shown as v (v.id)}
       <div class="row" class:new={v.folder === "inbox"}>

@@ -5,6 +5,7 @@
 mod audio;
 mod bus;
 mod certs;
+mod connection;
 mod desktop;
 mod flatpak;
 mod i18n;
@@ -121,6 +122,7 @@ fn set_tray_tooltip(app: &AppHandle, session: Option<&Session>) {
 
 async fn set_session(app: &AppHandle, session: Option<Session>) {
     set_tray_tooltip(app, session.as_ref());
+    connection::reset(app);
     // Erst alles von der alten Sitzung beenden, dann ggf. neu starten.
     plugins::session_ended(app).await;
     // Erst jetzt als aktives Konto merken: Beim Beenden der alten Sitzung
@@ -279,6 +281,10 @@ async fn save_prefs(
 }
 
 pub(crate) async fn hub(state: &AppState) -> Result<sf_onehub::OneHub, String> {
+    // Ohne Verbindung sofort abbrechen statt auf die Zeitüberschreitung zu warten
+    if !connection::online() {
+        return Err(t("Keine Verbindung zur Anlage").to_owned());
+    }
     state
         .session
         .lock()
@@ -737,6 +743,7 @@ pub fn run() {
             certs::init(app.handle());
             presence::start(app.handle());
             wake::start(app.handle());
+            connection::start(app.handle());
             let prefs = settings::load(app.handle()).prefs;
             log::set_verbose(prefs.verbose_log);
             i18n::set_language(&prefs.language);
@@ -830,6 +837,7 @@ pub fn run() {
             plugins::headset::headset_info,
             plugins::headset::headset_test,
             restore_session,
+            connection::connection_online,
             certs::check_certificate,
             certs::trust_certificate,
             start_login,

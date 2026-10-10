@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { connection } from "../../connection.svelte";
   // Voicemail-Ansage, Umleitungen und Parallelruf (iFMC). Alles liegt auf der
   // Anlage und wirkt sofort, unabhängig von „Speichern“.
   import { invoke } from "@tauri-apps/api/core";
@@ -212,7 +213,7 @@
     {/if}
   </div>
 </section>
-{#if error}<p class="notice">{error}</p>{/if}
+{#if error && connection.online}<p class="notice">{error}</p>{/if}
 {#if info}<p class="ok">{info}</p>{/if}
 
 <style>

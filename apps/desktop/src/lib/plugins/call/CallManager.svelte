@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { connection } from "../../connection.svelte";
   import CallCard from "./CallCard.svelte";
   import Icon from "../../Icon.svelte";
   import { isRingingIn, phone } from "./phone.svelte";
@@ -31,7 +32,7 @@
       {:else}
         <p class="empty">{t("Keine Gespräche")}</p>
       {/each}
-      {#if phone.notice}
+      {#if phone.notice && connection.online}
         <p class="notice">{phone.notice}</p>
       {/if}
     </div>

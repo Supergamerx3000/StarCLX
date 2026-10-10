@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { connection } from "../../connection.svelte";
   // Geplante Konferenzen: Liste mit Termin und Teilnehmern, starten,
   // bearbeiten, löschen. Das Formular liegt in ConferenceForm.
   import { invoke } from "@tauri-apps/api/core";
@@ -65,8 +66,8 @@
     <span class="spacer"></span>
     <button class="new" onclick={() => (conferenceEdit.id = "")}>+ {t("Neue Konferenz")}</button>
   </div>
-  {#if conferences.error}<p class="error">{conferences.error}</p>{/if}
-  {#if notice}<p class="error">{notice}</p>{/if}
+  {#if conferences.error && connection.online}<p class="error">{conferences.error}</p>{/if}
+  {#if notice && connection.online}<p class="error">{notice}</p>{/if}
   <div class="list">
     {#each shown as c (c.id)}
       <div class="row" class:live={c.state === "active"}>

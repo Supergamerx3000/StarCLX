@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { connection } from "./connection.svelte";
   import { invoke } from "@tauri-apps/api/core";
   import { getVersion } from "@tauri-apps/api/app";
   import { listen } from "@tauri-apps/api/event";
@@ -432,7 +433,9 @@
       <section id="signaling">
         <h3>{t("Rufnummer signalisieren")}</h3>
         <div class="card">
-          {#if numbersError}
+          {#if numbersError && !connection.online}
+            <p class="muted">{t("Keine Verbindung zur Anlage")}</p>
+          {:else if numbersError}
             <p class="notice">{t("Rufnummern nicht geladen: {e}", { e: numbersError })}</p>
           {:else if numbers.length === 0}
             <p class="muted">{t("Die Anlage bietet keine Auswahl an.")}</p>

@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { connection } from "../../connection.svelte";
   import { invoke } from "@tauri-apps/api/core";
   import { listen } from "@tauri-apps/api/event";
   import { onMount } from "svelte";
@@ -170,7 +171,7 @@
       <input bind:value={term} placeholder={t("Name oder Nummer")} />
     </label>
   </div>
-  {#if error}<p class="error">{t("Rufliste: {e}", { e: error })}</p>{/if}
+  {#if error && connection.online}<p class="error">{t("Rufliste: {e}", { e: error })}</p>{/if}
   <div class="list">
     {#each days as day (day.label)}
       <h3>{day.label}</h3>
