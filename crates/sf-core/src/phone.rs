@@ -346,6 +346,10 @@ impl Phone {
         }
     }
 
+    pub fn hub(&self) -> &OneHub {
+        &self.hub
+    }
+
     /// ID des App-Telefons auf der Anlage, sofern das Softphone läuft
     pub fn phone_id(&self) -> Option<&str> {
         self.phone_id.as_deref()

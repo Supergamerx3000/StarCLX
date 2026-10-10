@@ -168,6 +168,11 @@ Der Call Manager zeigt alle eigenen Anrufe der Anlage, auch die am Tischtelefon 
 Softphone ausgeschaltet oder nicht angemeldet ist. Auflegen, Ablehnen, Halten, Rückfrage,
 Verbinden, Konferenz, Umleiten, Voicemail, Aufnahme, DTMF und Call2Go gehen dann ebenfalls.
 
+Ist das Softphone das primäre Telefon, gibt StarCLX diese Rolle beim Beenden, Abmelden oder
+Ausschalten des Softphones an das Telefon zurück, das vorher primär war (gibt es das nicht mehr,
+an das erste andere eigene Telefon). Die Anlage stellt das nicht selbst um. Bricht StarCLX ab
+oder wird der Rechner hart ausgeschaltet, bleibt das Softphone primär.
+
 Grenzen: Annehmen geht nur am Softphone, weil die Anlage kein Abheben aus der Ferne anbietet; am
 Tischtelefon wird abgehoben. Stummschalten gibt es ebenfalls nur am Softphone. Ohne Softphone
 spielt StarCLX keinen Klingelton, das Tischtelefon klingelt selbst.

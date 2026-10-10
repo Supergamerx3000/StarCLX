@@ -29,6 +29,9 @@ use tauri_plugin_deep_link::DeepLinkExt;
 use tauri_plugin_opener::OpenerExt;
 use tokio::sync::{Mutex, mpsc};
 
+/// Beenden läuft: Aufräumen vor dem Beenden ist erledigt bzw. unterwegs
+static EXITING: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+
 struct PendingLogin {
     server: String,
     auth: sf_auth::Client,
@@ -276,8 +279,20 @@ async fn phones(state: State<'_, AppState>) -> Result<Vec<sf_core::account::Phon
 
 /// Primäres Telefon wählen (klingelt bei Anrufen, wählt bei Click-to-Dial)
 #[tauri::command]
-async fn set_primary_phone(state: State<'_, AppState>, id: String) -> Result<(), String> {
-    sf_core::account::set_primary_phone(&hub(&state).await?, &id)
+async fn set_primary_phone(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    id: String,
+) -> Result<(), String> {
+    let hub = hub(&state).await?;
+    // Wird das Softphone primär, bekommt das bisherige die Rolle beim
+    // Beenden zurück.
+    if let Some(soft) = plugins::call::softphone_id(&app).await
+        && soft == id
+    {
+        plugins::call::remember_primary(&app, &hub, &soft).await;
+    }
+    sf_core::account::set_primary_phone(&hub, &id)
         .await
         .map_err(|e| e.to_string())
 }
@@ -662,6 +677,20 @@ pub fn run() {
             audio::mic_test,
             audio::pick_ringtone
         ])
-        .run(tauri::generate_context!())
-        .expect("Tauri-App konnte nicht starten");
+        .build(tauri::generate_context!())
+        .expect("Tauri-App konnte nicht starten")
+        .run(|app, event| {
+            // Vor dem Beenden das Softphone abgeben, damit es nicht primäres
+            // Telefon bleibt; danach wirklich beenden.
+            if let tauri::RunEvent::ExitRequested { code, api, .. } = event
+                && !EXITING.swap(true, std::sync::atomic::Ordering::SeqCst)
+            {
+                api.prevent_exit();
+                let app = app.clone();
+                tauri::async_runtime::spawn(async move {
+                    plugins::call::session_ended(&app).await;
+                    app.exit(code.unwrap_or(0));
+                });
+            }
+        });
 }

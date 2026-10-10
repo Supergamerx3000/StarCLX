@@ -230,6 +230,36 @@ pub async fn phones(hub: &OneHub) -> sf_onehub::Result<Vec<PhoneView>> {
         .collect())
 }
 
+/// Telefon, an das das Softphone `own` die Rolle als primäres Telefon
+/// abgibt: `prefer`, sofern es das noch gibt, sonst das erste andere.
+fn handover_target(phones: &[PhoneView], own: &str, prefer: Option<&str>) -> Option<String> {
+    let others = || phones.iter().filter(|p| p.id != own);
+    prefer
+        .and_then(|id| others().find(|p| p.id == id))
+        .or_else(|| others().next())
+        .map(|p| p.id.clone())
+}
+
+/// Ist das Softphone `own` das primäre Telefon, macht ein anderes eigenes
+/// Telefon dazu (bevorzugt `prefer`). Die Anlage stellt das nicht selbst um,
+/// wenn das Softphone abgemeldet ist; sonst liefe Click-to-Dial ins Leere.
+/// Liefert das neue primäre Telefon oder `None`, wenn nichts zu tun war.
+pub async fn hand_over_primary(
+    hub: &OneHub,
+    own: &str,
+    prefer: Option<&str>,
+) -> sf_onehub::Result<Option<String>> {
+    let list = phones(hub).await?;
+    if !list.iter().any(|p| p.primary && p.id == own) {
+        return Ok(None);
+    }
+    let Some(target) = handover_target(&list, own, prefer) else {
+        return Ok(None);
+    };
+    set_primary_phone(hub, &target).await?;
+    Ok(Some(target))
+}
+
 pub async fn set_primary_phone(hub: &OneHub, phone_id: &str) -> sf_onehub::Result<()> {
     hub.me()
         .set_primary_phone(v1::me::SetPrimaryPhoneRequest {
@@ -272,5 +302,21 @@ mod tests {
             ..intl
         };
         assert_eq!(format_number(&none), "");
+    }
+
+    #[test]
+    fn primary_goes_back_to_previous_phone() {
+        let phone = |id: &str| PhoneView {
+            id: id.into(),
+            name: id.into(),
+            primary: false,
+        };
+        let list = [phone("soft"), phone("handy"), phone("tisch")];
+        let target = |prefer| handover_target(&list, "soft", prefer);
+        assert_eq!(target(Some("tisch")).as_deref(), Some("tisch"));
+        // Gibt es das vorherige nicht mehr, das erste andere Telefon
+        assert_eq!(target(Some("weg")).as_deref(), Some("handy"));
+        assert_eq!(target(None).as_deref(), Some("handy"));
+        assert_eq!(handover_target(&[phone("soft")], "soft", None), None);
     }
 }

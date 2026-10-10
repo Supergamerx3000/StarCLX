@@ -19,6 +19,10 @@ pub struct Settings {
     /// Zertifikate, die nicht nach den Systemzertifikaten gelten
     #[serde(default)]
     pub sip_certs: BTreeMap<String, String>,
+    /// Primäres Telefon, bevor das Softphone es wurde; bekommt die Rolle
+    /// beim Beenden zurück
+    #[serde(default)]
+    pub primary_before: Option<String>,
     /// Umleitungstasten mit Zielabfrage und die Einstellungen, die beim
     /// Ausschalten wiederkommen
     #[serde(default)]
