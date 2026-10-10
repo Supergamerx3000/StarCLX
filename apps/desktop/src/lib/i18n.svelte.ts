@@ -9,7 +9,7 @@ export type Language = "de" | "en" | "fr" | "it";
 const dicts: Record<string, Record<string, string>> = { en, fr, it };
 const locales: Record<Language, string> = { de: "de-CH", en: "en-GB", fr: "fr-CH", it: "it-CH" };
 
-export const i18n = $state({ lang: "de" as Language });
+const i18n = $state({ lang: "de" as Language });
 
 /** Sprache setzen; Unbekanntes fällt auf Deutsch zurück. */
 export function setLanguage(lang: string | undefined | null) {

@@ -83,7 +83,7 @@ export type Hotkeys = {
 const darkQuery = typeof window !== "undefined" ? window.matchMedia("(prefers-color-scheme: dark)") : null;
 
 /** Setzt das Erscheinungsbild; "system" folgt der Einstellung des Desktops. */
-export function applyTheme(theme: Prefs["theme"] = prefs.value?.theme ?? "system") {
+function applyTheme(theme: Prefs["theme"] = prefs.value?.theme ?? "system") {
   const dark = theme === "dark" || (theme === "system" && (darkQuery?.matches ?? true));
   document.documentElement.dataset.theme = dark ? "dark" : "light";
 }
