@@ -246,20 +246,24 @@ pub fn safe_name(name: &str) -> String {
     }
 }
 
-/// Freier Pfad in `dir`: „name.pdf“, sonst „name (1).pdf“ usw.
-pub fn free_path(dir: &Path, name: &str) -> PathBuf {
-    let path = dir.join(name);
-    if !path.exists() {
-        return path;
-    }
+/// Legt in `dir` eine neue Datei an: „name.pdf“, sonst „name (1).pdf“ usw.
+/// `create_new` folgt keinem Symlink und überschreibt nichts, auch nicht,
+/// wenn zwischen Prüfen und Anlegen jemand eine Datei unterschiebt.
+pub fn create_free(dir: &Path, name: &str) -> std::io::Result<(File, PathBuf)> {
     let (stem, ext) = match name.rfind('.') {
         Some(i) if i > 0 => (&name[..i], &name[i..]),
         _ => (name, ""),
     };
-    (1..)
-        .map(|n| dir.join(format!("{stem} ({n}){ext}")))
-        .find(|p| !p.exists())
-        .expect("unendlich viele Namen")
+    let candidates = std::iter::once(dir.join(name))
+        .chain((1..).map(|n| dir.join(format!("{stem} ({n}){ext}"))));
+    for path in candidates.take(10_000) {
+        match File::options().write(true).create_new(true).open(&path) {
+            Ok(file) => return Ok((file, path)),
+            Err(e) if e.kind() == std::io::ErrorKind::AlreadyExists => continue,
+            Err(e) => return Err(e),
+        }
+    }
+    Err(std::io::Error::other("kein freier Dateiname"))
 }
 
 /// Senden: liest die Datei blockweise und hält höchstens [`WINDOW`] Blöcke
@@ -380,8 +384,8 @@ impl Incoming {
     /// Legt die Zieldatei an (beim Annehmen).
     pub fn create(&mut self, dir: &Path) -> std::io::Result<()> {
         std::fs::create_dir_all(dir)?;
-        let path = free_path(dir, &self.t.name);
-        self.file = Some(File::create(&path)?);
+        let (file, path) = create_free(dir, &self.t.name)?;
+        self.file = Some(file);
         self.t.path = path.to_string_lossy().into_owned();
         self.t.state = TransferState::Running;
         Ok(())
@@ -538,12 +542,25 @@ mod tests {
     }
 
     #[test]
-    fn free_path_counts_up() {
+    fn create_free_counts_up() {
         let dir = temp_dir("free");
-        assert_eq!(free_path(&dir, "a.txt"), dir.join("a.txt"));
-        std::fs::write(dir.join("a.txt"), "").unwrap();
-        std::fs::write(dir.join("a (1).txt"), "").unwrap();
-        assert_eq!(free_path(&dir, "a.txt"), dir.join("a (2).txt"));
+        let made = |name| create_free(&dir, name).unwrap().1;
+        assert_eq!(made("a.txt"), dir.join("a.txt"));
+        assert_eq!(made("a.txt"), dir.join("a (1).txt"));
+        assert_eq!(made("a.txt"), dir.join("a (2).txt"));
+        let _ = std::fs::remove_dir_all(dir);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn create_free_skips_symlinks() {
+        let dir = temp_dir("symlink");
+        let target = dir.join("ziel");
+        // Auch ein Symlink ins Leere wird nicht beschrieben
+        std::os::unix::fs::symlink(&target, dir.join("a.txt")).unwrap();
+        let (_, path) = create_free(&dir, "a.txt").unwrap();
+        assert_eq!(path, dir.join("a (1).txt"));
+        assert!(!target.exists());
         let _ = std::fs::remove_dir_all(dir);
     }
 

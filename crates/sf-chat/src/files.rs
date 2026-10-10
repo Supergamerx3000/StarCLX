@@ -83,6 +83,10 @@ impl Conn {
     /// Sitzungen sein). Clients ohne Antwort (z. B. die Android-App) zählen
     /// nicht: Sie lassen ein Angebot unbeantwortet.
     fn file_target(&self, peer: &str) -> Result<String, &'static str> {
+        // Dateien gehen nur an einzelne Personen, wie beim Windows-Client
+        if self.is_room(peer) {
+            return Err("Dateien gehen nur an einzelne Kontakte");
+        }
         let clients = self
             .resources
             .get(peer)
@@ -476,6 +480,16 @@ impl Conn {
             )];
         }
         let peer = from.to_bare().to_string();
+        // Angebot aus einem Gruppenraum: der echte Absender ist nicht sicher
+        // erkennbar, und die Oberfläche zeigt dort keine Dateien
+        if self.is_room(&peer) || peer.ends_with(&format!("@{}", self.muc_service())) {
+            tracing::info!(from = %from, "Datei aus Gruppenchat abgelehnt");
+            return vec![iq(
+                Some(from),
+                id,
+                error(ErrorType::Cancel, DefinedCondition::Forbidden, ""),
+            )];
+        }
         let t = Transfer {
             id: offer.sid.clone(),
             state: TransferState::Offered,

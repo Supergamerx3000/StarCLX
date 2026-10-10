@@ -1352,6 +1352,38 @@ mod tests {
     }
 
     #[test]
+    fn no_files_in_group_rooms() {
+        let (mut alice, mut rx) = in_group();
+        assert!(alice.is_room(ROOM));
+        // Angebot über den Raum wird abgelehnt und nicht angezeigt
+        let offer = String::from(&crate::transfer::offer("s1", "a.pdf", 10));
+        let out = alice.on_stanza(stanza(&format!(
+            r#"<iq xmlns="jabber:client" type="set" id="o1" from="{ROOM}/Carl" to="{ALICE}">{offer}</iq>"#
+        )));
+        assert_eq!(out.len(), 1);
+        assert!(xml_of(&out[0]).contains("forbidden"), "{}", xml_of(&out[0]));
+        assert!(alice.incoming.is_empty());
+        assert!(transfers(&mut rx).is_empty());
+
+        // Senden in den Raum scheitert mit verständlichem Grund
+        let dir = temp_dir("room");
+        let src = dir.join("a.pdf");
+        std::fs::write(&src, "x").unwrap();
+        assert!(
+            alice
+                .on_command(Command::SendFile {
+                    to: ROOM.into(),
+                    path: src
+                })
+                .is_empty()
+        );
+        let t = transfers(&mut rx).pop().unwrap();
+        assert_eq!(t.state, TransferState::Failed);
+        assert!(t.error.contains("einzelne Kontakte"), "{}", t.error);
+        let _ = std::fs::remove_dir_all(dir);
+    }
+
+    #[test]
     fn group_messages_carry_sender_and_replay_once() {
         let (mut alice, mut rx) = in_group();
         alice.on_stanza(stanza(&format!(
