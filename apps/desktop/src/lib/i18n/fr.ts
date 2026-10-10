@@ -176,6 +176,7 @@ const dict: Record<string, string> = {
   "frei": "libre",
   "nicht erreichbar": "injoignable",
   "Gespräch geparkt": "appel parqué",
+  "mit {who}": "avec {who}",
   "Noch keine Funktionstasten. Anlegen lassen sie sich unter Einstellungen → Funktionstasten oder auf der Anlage.": "Pas encore de touches de fonction. Vous pouvez les créer sous Paramètres → Touches de fonction ou sur la centrale.",
   "Heute": "Aujourd'hui",
   "Gestern": "Hier",

@@ -26,6 +26,7 @@
     --accent-soft: #f5a31a33;
     --green: #5cb82b;
     --red: #d9262d;
+    --yellow: #f2c40f;
     color: var(--text);
     background: var(--bg);
   }

@@ -778,6 +778,60 @@ pub async fn set_dnd(hub: &OneHub, enabled: bool) -> sf_onehub::Result<()> {
     Ok(())
 }
 
+/// Ein Gespräch eines Users, wie es die STARFACE-App beim Überfahren der
+/// Taste zeigt
+#[derive(Debug, Clone, Serialize, PartialEq, Eq)]
+pub struct CallDetail {
+    /// Name des Gegenübers, sonst leer
+    pub name: String,
+    pub number: String,
+    /// "ringing", "connected", "parked", "conference" oder ""
+    pub state: &'static str,
+    /// Dauer in Sekunden
+    pub seconds: i64,
+}
+
+fn call_state(c: i32) -> &'static str {
+    use v1::types::CallState as C;
+    match C::try_from(c) {
+        Ok(C::Provisional | C::Ringing | C::RingBack) => "ringing",
+        Ok(C::Connected | C::Consult) => "connected",
+        Ok(C::Parked) => "parked",
+        Ok(C::ConferenceActive) => "conference",
+        _ => "",
+    }
+}
+
+/// Mit wem der User `user_id` gerade telefoniert. Ohne das Recht dazu
+/// verweigert die Anlage die Auskunft.
+pub async fn call_details(hub: &OneHub, user_id: &str) -> sf_onehub::Result<Vec<CallDetail>> {
+    use v1::presence::get_presence_details_response::PresenceDetail as D;
+    let resp = hub
+        .presence()
+        .get_presence_details(v1::presence::GetPresenceDetailsRequest {
+            target: Some(v1::presence::get_presence_details_request::Target::UserId(
+                v1::types::UserId {
+                    id: user_id.to_owned(),
+                },
+            )),
+            presence_detail_type: v1::presence::PresenceDetailType::Telephony as i32,
+        })
+        .await?
+        .into_inner();
+    let Some(D::TelephonyDetails(t)) = resp.presence_detail else {
+        return Ok(Vec::new());
+    };
+    Ok(t.telephony_details
+        .into_iter()
+        .map(|d| CallDetail {
+            name: d.description,
+            number: d.number,
+            state: call_state(d.call_state),
+            seconds: d.duration.map_or(0, |d| d.seconds),
+        })
+        .collect())
+}
+
 /// Parkt das Gespräch `call_id` auf dem Platz `number`. Ohne `call_id`
 /// holt die Anlage das dort geparkte Gespräch auf `phone_id` zurück.
 pub async fn park(

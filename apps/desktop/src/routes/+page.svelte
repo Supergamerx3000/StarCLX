@@ -21,7 +21,7 @@
   import Icon, { type IconName } from "$lib/Icon.svelte";
   import Settings from "$lib/Settings.svelte";
   import MeMenu from "$lib/MeMenu.svelte";
-  import { avatarOf, ownChat, resetFkeys } from "$lib/plugins/fkeys/fkeys.svelte";
+  import { avatarOf, fkeys, ownChat, resetFkeys } from "$lib/plugins/fkeys/fkeys.svelte";
   import ChatBubble from "$lib/ChatBubble.svelte";
   import { canDial, initPhone, phone, run, isRingingIn } from "$lib/plugins/call/phone.svelte";
   import { loadPrefs, prefs, savePrefs, type Tile } from "$lib/prefs.svelte";
@@ -300,6 +300,10 @@
     return name.split(/\s+/).filter(Boolean).slice(0, 2).map((w) => w[0]).join("").toUpperCase() || "?";
   }
 
+  // Ruhe kommt aus der Präsenz (wie im Menü am Profilbild)
+  const myDnd = $derived(session?.user_id ? (fkeys.presence[session.user_id]?.dnd ?? false) : false);
+  const myTel = $derived(session?.user_id ? fkeys.presence[session.user_id]?.telephony : undefined);
+
   const stateText = $derived({
     off: t("Softphone aus"),
     starting: t("Softphone startet …"),
@@ -312,10 +316,11 @@
   <div class="shell">
     <header class="top">
       <div class="menuwrap">
-        <button class="me" title="{session.display_name} · {stateText[phone.status.state]}" onclick={() => (menuOpen = !menuOpen)} aria-expanded={menuOpen}>
+        <button class="me" class:dnd={myDnd} class:ringing={myTel === "ringing"} class:busy={myTel === "active"} title="{session.display_name} · {stateText[phone.status.state]}" onclick={() => (menuOpen = !menuOpen)} aria-expanded={menuOpen}>
           {#if session.user_id && avatarOf(session.user_id)}<img class="pic" src={avatarOf(session.user_id)} alt="" />{:else}{initials(session.display_name)}{/if}
           <span class="reg {phone.status.state}"></span>
           <span class="mychat"><ChatBubble state={ownChat(session.user_id).availability} /></span>
+          {#if myDnd}<span class="mydnd" title={t("Bitte nicht stören")}><Icon name="dnd" size={16} /></span>{/if}
         </button>
         {#if menuOpen}
           <button class="scrim" aria-label={t("Menü schliessen")} onclick={() => (menuOpen = false)}></button>
@@ -471,6 +476,11 @@
   .me .reg { position: absolute; right: -1px; bottom: -1px; width: 0.6rem; height: 0.6rem; border: 2px solid var(--bar); }
   .me .pic { width: 100%; height: 100%; border-radius: 50%; object-fit: cover; }
   .me .mychat { position: absolute; right: -0.4rem; top: -0.25rem; width: 1.2rem; height: 1.1rem; }
+  /* Ring in der Telefonfarbe; Ruhe wie im Menü mit Symbol oben links */
+  .me.dnd, .me.busy { border-color: var(--red); }
+  /* Klingeln gelb wie in der STARFACE-App */
+  .me.ringing { border-color: var(--yellow); }
+  .me .mydnd { position: absolute; left: -0.3rem; top: -0.25rem; display: grid; color: var(--red); background: #fff; border-radius: 50%; }
   .reg.ready { background: var(--green); }
   .reg.starting { background: var(--accent); }
   .reg.error { background: var(--red); }
