@@ -103,6 +103,17 @@ export const fkeys = $state({
   loaded: false,
 });
 
+/** Grundzustand, z. B. beim Kontowechsel: Tasten, Präsenz und Bilder
+ *  gehören zum alten Konto (IDs können auf einer anderen Anlage wieder
+ *  vorkommen). */
+const initial = $state.snapshot(fkeys);
+
+export function resetFkeys() {
+  clearTimeout(retry);
+  retry = undefined;
+  Object.assign(fkeys, structuredClone(initial));
+}
+
 /** Zielabfrage einer Umleitungstaste: Nummer und bei Zeitüberschreitung die Wartezeit */
 export type Program = { key: FunctionKey; ids: string[]; number: string; timeout: number | null };
 

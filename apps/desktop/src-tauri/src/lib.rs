@@ -24,7 +24,7 @@ use plugins::{busylight, chat, fkeys, reach, voicemail};
 use serde::Serialize;
 use settings::Prefs;
 use sf_core::{Session, SessionEvent};
-use tauri::menu::{Menu, MenuItem};
+use tauri::menu::{Menu, MenuItem, Submenu};
 use tauri::tray::TrayIconBuilder;
 use tauri::{AppHandle, Emitter, Manager, State, WindowEvent};
 use tauri_plugin_deep_link::DeepLinkExt;
@@ -45,6 +45,8 @@ pub(crate) struct AppState {
     pending: Mutex<Option<PendingLogin>>,
     session: Mutex<Option<Session>>,
     events: mpsc::UnboundedSender<SessionEvent>,
+    /// Ein Kontowechsel zur Zeit
+    switching: Mutex<()>,
     /// Rufnummer aus einem tel:-Link, bis die Oberfläche sie abholt; leer
     /// heisst: Link ohne Nummer
     dial_request: std::sync::Mutex<Option<String>>,
@@ -121,6 +123,15 @@ async fn set_session(app: &AppHandle, session: Option<Session>) {
     set_tray_tooltip(app, session.as_ref());
     // Erst alles von der alten Sitzung beenden, dann ggf. neu starten.
     plugins::session_ended(app).await;
+    // Erst jetzt als aktives Konto merken: Beim Beenden der alten Sitzung
+    // gelten noch deren Einstellungen (z. B. das vorherige primäre Telefon).
+    if let Some(s) = &session {
+        let info = SessionInfo::from(s.info());
+        settings::update(app, |st| {
+            st.remember(&info.server, &info.user_id, &info.display_name);
+        });
+    }
+    rebuild_tray_menu(app, session.as_ref());
     let login = session.as_ref().and_then(|s| {
         let host = url::Url::parse(&s.info().server)
             .ok()?
@@ -154,10 +165,11 @@ async fn restore_session(
     if let Some(session) = state.session.lock().await.as_ref() {
         return Ok(Some(session.info().into()));
     }
-    let Some(server) = settings::load(&app).last_server else {
+    let saved = settings::load(&app);
+    let Some(server) = saved.last_server else {
         return Ok(None);
     };
-    match Session::restore(&server, state.events.clone())
+    match Session::restore(&server, saved.last_user.as_deref(), state.events.clone())
         .await
         .map_err(|e| e.to_string())?
     {
@@ -171,13 +183,15 @@ async fn restore_session(
 }
 
 /// Startet den Login im eigenen Anmeldefenster oder, mit `browser`, im
-/// Systembrowser.
+/// Systembrowser. Mit `fresh` (weiteres Konto hinzufügen) fragt der Login
+/// immer nach den Zugangsdaten, statt die letzte Anmeldung zu übernehmen.
 #[tauri::command]
 async fn start_login(
     app: AppHandle,
     state: State<'_, AppState>,
     server: String,
     browser: Option<bool>,
+    fresh: Option<bool>,
 ) -> Result<(), String> {
     // Eine vom System gesperrte Anlage gilt immer
     let server = match policy::get().server() {
@@ -192,7 +206,7 @@ async fn start_login(
         .map_err(|e| e.to_string())?
         .verifier;
     let url = auth
-        .authorize_url(&pkce, &login_state)
+        .authorize_url_with(&pkce, &login_state, fresh.unwrap_or(false))
         .map_err(|e| e.to_string())?;
     *state.pending.lock().await = Some(PendingLogin {
         server,
@@ -328,6 +342,158 @@ async fn logout(app: AppHandle, state: State<'_, AppState>) -> Result<(), String
     Ok(())
 }
 
+/// Gespeichertes Konto für die Oberfläche
+#[derive(Clone, Serialize)]
+struct AccountView {
+    server: String,
+    user_id: String,
+    display_name: String,
+    /// Gerade angemeldet
+    active: bool,
+}
+
+/// Gespeicherte Konten; ist die Anlage vom System gesperrt, nur deren
+async fn account_list(app: &AppHandle) -> Vec<AccountView> {
+    let current = app
+        .state::<AppState>()
+        .session
+        .lock()
+        .await
+        .as_ref()
+        .map(|s| (s.info().server.clone(), s.info().user_id.clone()));
+    settings::load(app)
+        .accounts
+        .into_iter()
+        .filter(|a| server_allowed(&a.server))
+        .map(|a| AccountView {
+            active: current
+                .as_ref()
+                .is_some_and(|(s, u)| *s == a.server && *u == a.user_id),
+            server: a.server,
+            user_id: a.user_id,
+            display_name: a.display_name,
+        })
+        .collect()
+}
+
+/// Gilt eine vom System gesperrte Anlage, nur diese
+fn server_allowed(server: &str) -> bool {
+    match policy::get().server() {
+        Some(locked) if policy::get().is_locked("server") => {
+            certs::normalize_server(locked) == server
+        }
+        _ => true,
+    }
+}
+
+#[tauri::command]
+async fn accounts(app: AppHandle) -> Vec<AccountView> {
+    account_list(&app).await
+}
+
+/// Trennt die laufende Sitzung, ohne abzumelden: Das Token bleibt im
+/// Schlüsselbund, das Konto lässt sich später ohne Login wieder verbinden.
+async fn disconnect_session(app: &AppHandle) {
+    let session = app.state::<AppState>().session.lock().await.take();
+    set_session(app, None).await;
+    drop(session);
+}
+
+/// Für „Konto hinzufügen“: trennen, danach zeigt die Oberfläche die Anmeldung
+#[tauri::command]
+async fn disconnect(app: AppHandle) -> Result<(), String> {
+    if plugins::call::busy(&app) {
+        return Err(t("Während eines Gesprächs lässt sich das Konto nicht wechseln").into());
+    }
+    let state = app.state::<AppState>();
+    let _guard = state.switching.lock().await;
+    disconnect_session(&app).await;
+    Ok(())
+}
+
+/// Wechselt zu einem gespeicherten Konto. Die Oberfläche erfährt das Ergebnis
+/// über „session“ oder, wenn ein neuer Login nötig ist, „account-login“.
+#[tauri::command]
+async fn switch_account(app: AppHandle, server: String, user_id: String) -> Result<(), String> {
+    switch_to(&app, server, user_id).await
+}
+
+#[derive(Clone, Serialize)]
+struct AccountLogin {
+    server: String,
+    notice: String,
+}
+
+async fn switch_to(app: &AppHandle, server: String, user_id: String) -> Result<(), String> {
+    if plugins::call::busy(app) {
+        return Err(t("Während eines Gesprächs lässt sich das Konto nicht wechseln").into());
+    }
+    if !server_allowed(&server) {
+        return Err(t("Diese Anlage ist vom System nicht freigegeben").into());
+    }
+    let state = app.state::<AppState>();
+    let _guard = state.switching.lock().await;
+    if state
+        .session
+        .lock()
+        .await
+        .as_ref()
+        .is_some_and(|s| s.info().server == server && s.info().user_id == user_id)
+    {
+        return Ok(());
+    }
+    let _ = app.emit("switching", ());
+    disconnect_session(app).await;
+    let restored = Session::restore(&server, Some(&user_id), state.events.clone()).await;
+    let notice = match restored {
+        Ok(Some(session)) => {
+            let info = SessionInfo::from(session.info());
+            set_session(app, Some(session)).await;
+            let _ = app.emit("session", info);
+            return Ok(());
+        }
+        Ok(None) => t("Bitte für dieses Konto erneut anmelden").to_owned(),
+        Err(e) => tf(
+            "Automatische Anmeldung fehlgeschlagen: {e}",
+            &[("e", &e.to_string())],
+        ),
+    };
+    // Anmeldefeld mit der gewählten Anlage vorbelegen
+    settings::update(app, |s| {
+        s.last_server = Some(server.clone());
+        s.last_user = Some(user_id);
+    });
+    let _ = app.emit("account-login", AccountLogin { server, notice });
+    Ok(())
+}
+
+/// Nimmt ein Konto aus der Liste und meldet es ab (Token widerrufen und
+/// aus dem Schlüsselbund löschen). Beim angemeldeten Konto wie „Abmelden“.
+#[tauri::command]
+async fn forget_account(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    server: String,
+    user_id: String,
+) -> Result<(), String> {
+    let _guard = state.switching.lock().await;
+    let active = state
+        .session
+        .lock()
+        .await
+        .as_ref()
+        .is_some_and(|s| s.info().server == server && s.info().user_id == user_id);
+    if active {
+        logout(app.clone(), state.clone()).await?;
+    } else {
+        Session::forget(&server, &user_id).await;
+    }
+    settings::update(&app, |s| s.forget(&server, &user_id));
+    let session = state.session.lock().await;
+    rebuild_tray_menu(&app, session.as_ref());
+    Ok(())
+}
+
 async fn finish_login(app: &AppHandle, redirect: &str) -> Result<SessionInfo, String> {
     let state = app.state::<AppState>();
     let pending = state
@@ -358,7 +524,6 @@ async fn finish_login(app: &AppHandle, redirect: &str) -> Result<SessionInfo, St
     let session = Session::start(&pending.server, pending.auth, tokens, state.events.clone())
         .await
         .map_err(|e| e.to_string())?;
-    settings::update(app, |s| s.last_server = Some(pending.server));
     let info = SessionInfo::from(session.info());
     set_session(app, Some(session)).await;
     Ok(info)
@@ -397,25 +562,72 @@ pub(crate) fn handle_urls(app: &AppHandle, urls: Vec<String>) {
     }
 }
 
-/// Menü des Tray-Symbols in der eingestellten Sprache
-fn tray_menu(app: &AppHandle) -> tauri::Result<Menu<tauri::Wry>> {
+/// Menü des Tray-Symbols in der eingestellten Sprache. Mit mehreren
+/// gespeicherten Konten gibt es „Konto wechseln“; das angemeldete ist
+/// ausgegraut.
+fn tray_menu(app: &AppHandle, session: Option<&Session>) -> tauri::Result<Menu<tauri::Wry>> {
     let open = MenuItem::with_id(app, "open", t("Öffnen"), true, None::<&str>)?;
     let quick = MenuItem::with_id(app, "quick", t("Schnellwahl"), true, None::<&str>)?;
     let logout_item = MenuItem::with_id(app, "logout", t("Abmelden"), true, None::<&str>)?;
     let quit = MenuItem::with_id(app, "quit", t("Beenden"), true, None::<&str>)?;
-    Menu::with_items(app, &[&open, &quick, &logout_item, &quit])
+    let accounts: Vec<_> = settings::load(app)
+        .accounts
+        .into_iter()
+        .enumerate()
+        .filter(|(_, a)| server_allowed(&a.server))
+        .collect();
+    if accounts.len() < 2 {
+        return Menu::with_items(app, &[&open, &quick, &logout_item, &quit]);
+    }
+    let items = accounts
+        .iter()
+        .map(|(i, a)| {
+            let active = session
+                .is_some_and(|s| s.info().server == a.server && s.info().user_id == a.user_id);
+            MenuItem::with_id(
+                app,
+                format!("account:{i}"),
+                account_label(a),
+                !active,
+                None::<&str>,
+            )
+        })
+        .collect::<tauri::Result<Vec<_>>>()?;
+    let refs: Vec<&dyn tauri::menu::IsMenuItem<tauri::Wry>> = items
+        .iter()
+        .map(|i| i as &dyn tauri::menu::IsMenuItem<tauri::Wry>)
+        .collect();
+    let switch = Submenu::with_items(app, t("Konto wechseln"), true, &refs)?;
+    Menu::with_items(app, &[&open, &quick, &switch, &logout_item, &quit])
 }
 
-/// Nach einem Sprachwechsel: Tray und offene Fenster neu beschriften
-fn relabel(app: &AppHandle, session: Option<&Session>) {
+/// „Name (anlage.example.com)“
+fn account_label(a: &settings::Account) -> String {
+    let host = a
+        .server
+        .trim_start_matches("https://")
+        .trim_start_matches("http://");
+    if a.display_name.is_empty() {
+        host.to_owned()
+    } else {
+        format!("{} ({host})", a.display_name)
+    }
+}
+
+fn rebuild_tray_menu(app: &AppHandle, session: Option<&Session>) {
     if let Some(tray) = app.tray_by_id("main") {
-        match tray_menu(app) {
+        match tray_menu(app, session) {
             Ok(menu) => {
                 let _ = tray.set_menu(Some(menu));
             }
             Err(e) => tracing::warn!(error = %e, "Tray-Menü nicht neu aufgebaut"),
         }
     }
+}
+
+/// Nach einem Sprachwechsel: Tray und offene Fenster neu beschriften
+fn relabel(app: &AppHandle, session: Option<&Session>) {
+    rebuild_tray_menu(app, session);
     set_tray_tooltip(app, session);
     if let Some(w) = app.get_webview_window("quick") {
         let _ = w.set_title(t("StarCLX Schnellwahl"));
@@ -423,7 +635,7 @@ fn relabel(app: &AppHandle, session: Option<&Session>) {
 }
 
 fn build_tray(app: &AppHandle) -> tauri::Result<()> {
-    let menu = tray_menu(app)?;
+    let menu = tray_menu(app, None)?;
     let mut tray = TrayIconBuilder::with_id("main")
         .tooltip(t("StarCLX: abgemeldet"))
         .menu(&menu)
@@ -442,7 +654,22 @@ fn build_tray(app: &AppHandle) -> tauri::Result<()> {
                 });
             }
             "quit" => app.exit(0),
-            _ => {}
+            id => {
+                let Some(account) = id
+                    .strip_prefix("account:")
+                    .and_then(|i| i.parse::<usize>().ok())
+                    .and_then(|i| settings::load(app).accounts.into_iter().nth(i))
+                else {
+                    return;
+                };
+                let app = app.clone();
+                tauri::async_runtime::spawn(async move {
+                    show_main_window(&app);
+                    if let Err(e) = switch_to(&app, account.server, account.user_id).await {
+                        let _ = app.emit("switch-error", e);
+                    }
+                });
+            }
         });
     if let Some(icon) = app.default_window_icon() {
         tray = tray.icon(icon.clone());
@@ -501,6 +728,7 @@ pub fn run() {
             pending: Mutex::default(),
             session: Mutex::default(),
             events: events_tx,
+            switching: Mutex::default(),
             dial_request: std::sync::Mutex::default(),
         })
         .setup(move |app| {
@@ -550,8 +778,18 @@ pub fn run() {
             tauri::async_runtime::spawn(async move {
                 while let Some(event) = events_rx.recv().await {
                     match event {
-                        SessionEvent::LoggedOut { reason } => {
+                        SessionEvent::LoggedOut { key, reason } => {
+                            // Meldung einer inzwischen getrennten Sitzung
+                            // (Kontowechsel) betrifft die laufende nicht
+                            let state = handle.state::<AppState>();
+                            let mut current = state.session.lock().await;
+                            if current.as_ref().is_none_or(|s| s.key() != key) {
+                                continue;
+                            }
+                            let ended = current.take();
+                            drop(current);
                             set_session(&handle, None).await;
+                            drop(ended);
                             let _ = handle.emit(
                                 "logged-out",
                                 tf("Sitzung beendet: {reason}", &[("reason", &reason)]),
@@ -596,6 +834,10 @@ pub fn run() {
             certs::trust_certificate,
             start_login,
             logout,
+            accounts,
+            switch_account,
+            disconnect,
+            forget_account,
             plugins::call::phone_status,
             plugins::call::phone_dial,
             plugins::call::phone_answer,

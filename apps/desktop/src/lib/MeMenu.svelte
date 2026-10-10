@@ -15,10 +15,20 @@
 
   type Session = { server: string; server_version: string; display_name: string; user_id: string };
   type PhoneView = { id: string; name: string; primary: boolean };
+  type Account = { server: string; user_id: string; display_name: string; active: boolean };
 
-  let { session, onsettings, onlogout }: { session: Session; onsettings: () => void; onlogout: () => void } = $props();
+  let { session, onsettings, onlogout, onswitch, onadd }: {
+    session: Session;
+    onsettings: () => void;
+    onlogout: () => void;
+    onswitch: (a: Account) => void;
+    onadd: () => void;
+  } = $props();
 
-  let sub = $state<"" | "chat" | "phone" | "number" | "redirect">("");
+  let sub = $state<"" | "chat" | "phone" | "number" | "redirect" | "account">("");
+  let accounts = $state<Account[]>([]);
+  const others = $derived(accounts.filter((a) => !a.active));
+  const host = (server: string) => server.replace(/^https?:\/\//, "");
   let phones = $state<PhoneView[]>([]);
   let numbers = $state<SignalingNumber[]>([]);
   let redirects = $state<Redirect[]>([]);
@@ -63,6 +73,7 @@
     loadPhones();
     loadNumbers();
     loadRedirects();
+    invoke<Account[]>("accounts").then((a) => (accounts = a)).catch(() => {});
     // Ohne Lizenzangabe bleibt die Zeile einfach weg
     invoke<string | null>("account_license").then((l) => (license = l)).catch(() => {});
     // Änderungen aus anderen Clients nachziehen, solange das Menü offen ist
@@ -142,6 +153,11 @@
 
   <hr />
   <button class="row plain" onclick={onsettings}><span class="ic"><Icon name="settings" size={20} /></span><span class="lbl">{t("Einstellungen")}</span></button>
+  <button class="row plain" class:open={sub === "account"} onclick={(e) => toggle("account", e)}>
+    <span class="ic"><Icon name="contacts" size={20} /></span><span class="lbl">{t("Konto wechseln")}</span>
+    {#if others.length}<span class="count">{others.length}</span>{/if}
+    <span class="more"><Icon name="chevron" size={20} /></span>
+  </button>
   <button class="row plain" onclick={onlogout}><span class="ic"><Icon name="logout" size={20} /></span><span class="lbl">{t("Abmelden")}</span></button>
 
   {#if sub}
@@ -160,6 +176,16 @@
           <button class="opt" class:sel={n.selected} disabled={n.read_only} onclick={() => setNumber(n.id)}>
             {#if n.group}<span class="grp"><Icon name="groups" size={16} /> {n.group}:</span>{/if}{numberLabel(n)}{#if n.selected}<span class="tick"><Icon name="check" size={16} /></span>{/if}</button>
         {/each}
+      {:else if sub === "account"}
+        <span class="title">{t("Konto wechseln")}</span>
+        {#each others as a (a.server + a.user_id)}
+          <button class="opt" onclick={() => onswitch(a)}>
+            <span class="rd"><span>{a.display_name || host(a.server)}</span>{#if a.display_name}<small class="muted">{host(a.server)}</small>{/if}</span>
+          </button>
+        {:else}<span class="muted pad">{t("Keine weiteren Konten gespeichert")}</span>{/each}
+        {#if phone.status.calls.length}<span class="muted pad">{t("Während eines Gesprächs lässt sich das Konto nicht wechseln")}</span>{/if}
+        <button class="all" onclick={onadd}>{t("Konto hinzufügen")}</button>
+        <span class="muted pad">{t("Das bisherige Konto bleibt gespeichert, ist aber getrennt: Anrufe dafür kommen hier nicht an.")}</span>
       {:else if sub === "redirect"}
         <span class="title">{t("Umleitung: Immer")}</span>
         {#if always.length}

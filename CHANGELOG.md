@@ -1,5 +1,17 @@
 # Änderungen
 
+## Unveröffentlicht
+
+### Mehrere Konten
+- Konten an verschiedenen Anlagen (oder mehrere Benutzer derselben Anlage) bleiben gespeichert.
+  Gewechselt wird im Profilmenü oder im Tray unter „Konto wechseln“, ohne Anlage und
+  Zugangsdaten erneut einzugeben. Es ist immer ein Konto verbunden; das bisherige wird getrennt,
+  bleibt aber angemeldet. Während eines Gesprächs ist kein Wechsel möglich.
+- „Konto hinzufügen“ fragt im Login immer nach den Zugangsdaten, auch an derselben Anlage
+- Die Anmeldeseite zeigt die gespeicherten Konten zum Verbinden oder Entfernen
+- Bestehende Anmeldungen ziehen beim ersten Start automatisch in die Kontenliste um, ebenso das
+  vorherige primäre Telefon und die Umleitungstasten; beides gilt jetzt je Konto
+
 ## 1.4.0 – 2026-10-10
 
 ### Tischtelefon steuern

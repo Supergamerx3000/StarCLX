@@ -35,6 +35,16 @@ pub fn session_started(app: &AppHandle, hub: sf_onehub::OneHub, host: String) {
     tauri::async_runtime::spawn(async move { start_phone(app, hub, host).await });
 }
 
+/// Läuft gerade ein Gespräch (auch am Tischtelefon)? Dann kein Kontowechsel.
+pub fn busy(app: &AppHandle) -> bool {
+    !app.state::<CallState>()
+        .status
+        .lock()
+        .unwrap()
+        .calls
+        .is_empty()
+}
+
 /// ID des Softphones an der Anlage, sofern es läuft
 pub async fn softphone_id(app: &AppHandle) -> Option<String> {
     app.state::<CallState>()
@@ -359,7 +369,11 @@ async fn make_primary(app: &AppHandle, hub: &sf_onehub::OneHub, phone_id: &str) 
 pub async fn remember_primary(app: &AppHandle, hub: &sf_onehub::OneHub, softphone_id: &str) {
     match sf_core::account::primary_phone_id(hub).await {
         Ok(Some(id)) if id != softphone_id => {
-            settings::update(app, |s| s.primary_before = Some(id));
+            settings::update(app, |s| {
+                if let Some(a) = s.active_mut() {
+                    a.primary_before = Some(id);
+                }
+            });
         }
         Ok(_) => {}
         Err(e) => tracing::warn!(error = %e, "Primäres Telefon nicht abrufbar"),
@@ -373,7 +387,9 @@ async fn hand_over_primary(app: &AppHandle, phone: &Phone) {
     let Some(own) = phone.phone_id() else {
         return;
     };
-    let prefer = settings::load(app).primary_before;
+    let prefer = settings::load(app)
+        .active()
+        .and_then(|a| a.primary_before.clone());
     let handover = sf_core::account::hand_over_primary(phone.hub(), own, prefer.as_deref());
     match tokio::time::timeout(std::time::Duration::from_secs(3), handover).await {
         Ok(Ok(Some(id))) => tracing::info!(%id, "Primäres Telefon zurückgegeben"),

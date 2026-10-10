@@ -217,6 +217,14 @@ impl Client {
 
     /// URL für den Systembrowser.
     pub fn authorize_url(&self, pkce: &Pkce, state: &str) -> Result<Url> {
+        self.authorize_url_with(pkce, state, false)
+    }
+
+    /// Wie [`Client::authorize_url`]; mit `fresh` fragt der Login immer nach
+    /// den Zugangsdaten (`prompt=login`), statt eine noch offene Anmeldung im
+    /// Browser zu übernehmen. Nötig, um ein weiteres Konto derselben Anlage
+    /// hinzuzufügen.
+    pub fn authorize_url_with(&self, pkce: &Pkce, state: &str, fresh: bool) -> Result<Url> {
         let mut url = Url::parse(&self.discovery.authorization_endpoint)?;
         url.query_pairs_mut()
             .append_pair("response_type", "code")
@@ -230,6 +238,9 @@ impl Client {
         }
         if let Some(resource) = self.resource() {
             url.query_pairs_mut().append_pair("resource", &resource);
+        }
+        if fresh {
+            url.query_pairs_mut().append_pair("prompt", "login");
         }
         Ok(url)
     }
@@ -492,6 +503,13 @@ mod tests {
         assert!(
             q.iter()
                 .any(|(k, v)| k == "resource" && v == "edgenode://42")
+        );
+        assert!(!q.iter().any(|(k, _)| k == "prompt"));
+        let fresh = client.authorize_url_with(&pkce, "s", true).unwrap();
+        assert!(
+            fresh
+                .query_pairs()
+                .any(|(k, v)| k == "prompt" && v == "login")
         );
     }
 

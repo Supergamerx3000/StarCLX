@@ -3,6 +3,10 @@
 //! Eine [`Session`] hält die gRPC-Verbindung, legt das Refresh-Token im
 //! Schlüsselbund ab und erneuert das Access-Token (an der Testanlage 300 s
 //! gültig) im Hintergrund, bevor es abläuft.
+//!
+//! Im Schlüsselbund steht je Konto (Anlage und Benutzer) ein eigenes
+//! Refresh-Token, siehe [`account_key`]. So lässt sich zwischen gespeicherten
+//! Konten wechseln, ohne sich neu anzumelden.
 
 pub mod account;
 pub mod conference;
@@ -50,8 +54,9 @@ pub type Result<T> = std::result::Result<T, Error>;
 
 #[derive(Debug, Clone)]
 pub enum SessionEvent {
-    /// Die Anlage hat das Refresh-Token abgelehnt; neu anmelden.
-    LoggedOut { reason: String },
+    /// Die Anlage hat das Refresh-Token abgelehnt; neu anmelden. `key` ist
+    /// das betroffene Konto (siehe [`Session::key`]).
+    LoggedOut { key: String, reason: String },
 }
 
 #[derive(Debug, Clone)]
@@ -85,9 +90,21 @@ impl Resumer {
     }
 }
 
+/// Eintrag im Schlüsselbund für ein Konto. Ohne Benutzer-ID (Einträge aus
+/// Versionen ohne Kontenliste) nur die Anlage.
+pub fn account_key(server: &str, user_id: &str) -> String {
+    if user_id.is_empty() {
+        server.to_owned()
+    } else {
+        format!("{server}#{user_id}")
+    }
+}
+
 pub struct Session {
     hub: OneHub,
     info: SessionInfo,
+    /// Eintrag im Schlüsselbund
+    key: String,
     auth: std::sync::Arc<sf_auth::Client>,
     refresher: JoinHandle<()>,
     /// Sofort erneuern; der Sender meldet den Erfolg zurück
@@ -123,12 +140,14 @@ impl Session {
             .into_inner()
             .user;
         let user = user.unwrap_or_default();
+        let user_id = user.user_id.map(|u| u.id).unwrap_or_default();
+        let key = account_key(server, &user_id);
 
         // Ohne Schlüsselbund (kein gnome-keyring/KWallet) trotzdem anmelden,
         // nur eben nicht über das Beenden hinaus.
         STORE_WARNED.store(false, Ordering::Relaxed);
         if let Some(rt) = &tokens.refresh_token
-            && let Err(e) = store_refresh_token(server, rt).await
+            && let Err(e) = store_refresh_token(&key, rt).await
         {
             STORE_WARNED.store(true, Ordering::Relaxed);
             tracing::warn!(error = %e, "Refresh-Token nicht gespeichert; Anmeldung gilt bis zum Beenden");
@@ -137,7 +156,7 @@ impl Session {
         let auth = std::sync::Arc::new(auth);
         let (wake, wake_rx) = mpsc::unbounded_channel();
         let refresher = tokio::spawn(refresh_loop(
-            server.to_owned(),
+            key.clone(),
             auth.clone(),
             tokens,
             token,
@@ -150,26 +169,31 @@ impl Session {
             server_version,
             first_name: user.first_name,
             last_name: user.last_name,
-            user_id: user.user_id.map(|u| u.id).unwrap_or_default(),
+            user_id,
             cloud: auth.discovery().edge_node_id.is_some(),
         };
         Ok(Self {
             hub,
             info,
+            key,
             auth,
             refresher,
             wake,
         })
     }
 
-    /// Stellt eine Sitzung aus dem gespeicherten Refresh-Token wieder her.
+    /// Stellt eine Sitzung aus dem gespeicherten Refresh-Token des Kontos
+    /// wieder her. Ohne `user_id` gilt der Eintrag nur mit der Anlage, wie
+    /// ihn ältere Versionen angelegt haben; er zieht dabei auf das Konto um.
     /// `None`, wenn nichts gespeichert ist oder die Anlage es nicht mehr
     /// annimmt; dann ist ein neuer Browser-Login nötig.
     pub async fn restore(
         server: &str,
+        user_id: Option<&str>,
         events: mpsc::UnboundedSender<SessionEvent>,
     ) -> Result<Option<Self>> {
-        let Some(refresh_token) = load_refresh_token(server).await else {
+        let key = account_key(server, user_id.unwrap_or_default());
+        let Some(refresh_token) = load_refresh_token(&key).await else {
             return Ok(None);
         };
         let auth = sf_auth::Client::discover(server).await?;
@@ -177,12 +201,37 @@ impl Session {
             Ok(tokens) => tokens,
             Err(sf_auth::Error::Rejected { error, .. }) => {
                 tracing::info!(%error, "gespeichertes Refresh-Token abgelehnt");
-                delete_refresh_token(server).await;
+                delete_refresh_token(&key).await;
                 return Ok(None);
             }
             Err(e) => return Err(e.into()),
         };
-        Self::start(server, auth, tokens, events).await.map(Some)
+        let session = Self::start(server, auth, tokens, events).await?;
+        // Alter Eintrag nur mit der Anlage: liegt jetzt beim Konto
+        if session.key != key {
+            delete_refresh_token(&key).await;
+        }
+        Ok(Some(session))
+    }
+
+    /// Meldet ein gespeichertes Konto ab, ohne es zu verbinden: Token bei der
+    /// Anlage widerrufen (soweit erreichbar) und aus dem Schlüsselbund
+    /// löschen.
+    pub async fn forget(server: &str, user_id: &str) {
+        let key = account_key(server, user_id);
+        if let Some(rt) = load_refresh_token(&key).await {
+            match sf_auth::Client::discover(server).await {
+                Ok(auth) => {
+                    if let Err(e) = auth.revoke(&rt).await {
+                        tracing::warn!(error = %e, "Widerruf fehlgeschlagen, lösche Token nur lokal");
+                    }
+                }
+                Err(e) => {
+                    tracing::warn!(error = %e, "Anlage nicht erreichbar, lösche Token nur lokal")
+                }
+            }
+        }
+        delete_refresh_token(&key).await;
     }
 
     pub fn hub(&self) -> &OneHub {
@@ -191,6 +240,11 @@ impl Session {
 
     pub fn info(&self) -> &SessionInfo {
         &self.info
+    }
+
+    /// Eintrag des Kontos im Schlüsselbund, wie in [`SessionEvent::LoggedOut`]
+    pub fn key(&self) -> &str {
+        &self.key
     }
 
     /// Griff zum sofortigen Erneuern des Tokens, nutzbar ohne die Sitzung
@@ -203,13 +257,13 @@ impl Session {
     /// Schlüsselbund löschen. Gelingt das nicht, ist man trotzdem abgemeldet.
     pub async fn logout(self) -> Result<()> {
         self.refresher.abort();
-        let server = self.info.server.clone();
-        if let Some(rt) = load_refresh_token(&server).await
+        let key = self.key.clone();
+        if let Some(rt) = load_refresh_token(&key).await
             && let Err(e) = self.auth.revoke(&rt).await
         {
             tracing::warn!(error = %e, "Widerruf fehlgeschlagen, lösche Token nur lokal");
         }
-        delete_refresh_token(&server).await;
+        delete_refresh_token(&key).await;
         Ok(())
     }
 }
@@ -232,6 +286,7 @@ async fn store_refresh_token(server: &str, token: &str) -> Result<()> {
 }
 
 /// Gespeichertes Refresh-Token; ohne Schlüsselbund wie „nichts gespeichert“.
+/// `key` wie [`account_key`].
 async fn load_refresh_token(server: &str) -> Option<String> {
     let key = server.to_owned();
     match tokio::task::spawn_blocking(move || sf_auth::secret::load_refresh_token(&key)).await {
@@ -259,7 +314,7 @@ async fn delete_refresh_token(server: &str) {
 }
 
 async fn refresh_loop(
-    server: String,
+    key: String,
     auth: std::sync::Arc<sf_auth::Client>,
     mut tokens: Tokens,
     handle: TokenHandle,
@@ -283,6 +338,7 @@ async fn refresh_loop(
         }
         let Some(refresh_token) = tokens.refresh_token.clone() else {
             let _ = events.send(SessionEvent::LoggedOut {
+                key,
                 reason: "kein Refresh-Token".into(),
             });
             return;
@@ -293,7 +349,7 @@ async fn refresh_loop(
                 // Die Anlage kann das Refresh-Token rotieren; sonst das alte behalten.
                 match &fresh.refresh_token {
                     Some(rt) if *rt != refresh_token => {
-                        if let Err(e) = store_refresh_token(&server, rt).await {
+                        if let Err(e) = store_refresh_token(&key, rt).await {
                             // Ohne Schlüsselbund scheitert das bei jeder Erneuerung;
                             // einmal warnen reicht.
                             if STORE_WARNED.swap(true, Ordering::Relaxed) {
@@ -314,8 +370,9 @@ async fn refresh_loop(
                 }
             }
             Err(sf_auth::Error::Rejected { error, description }) => {
-                delete_refresh_token(&server).await;
+                delete_refresh_token(&key).await;
                 let _ = events.send(SessionEvent::LoggedOut {
+                    key,
                     reason: format!("{error} {description}"),
                 });
                 return;
@@ -462,7 +519,7 @@ mod tests {
             .await
             .unwrap();
         assert!(
-            matches!(event, Some(SessionEvent::LoggedOut { reason }) if reason.contains("invalid_grant"))
+            matches!(event, Some(SessionEvent::LoggedOut { reason, .. }) if reason.contains("invalid_grant"))
         );
         task.await.unwrap();
 
