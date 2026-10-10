@@ -189,12 +189,12 @@
           <!-- Keine <button>, weil Notiz und Zurückgerufen eigene Knöpfe darin sind -->
           <div class="open" role="button" tabindex="0" aria-expanded={selected === e.id} onclick={() => select(e)} onkeydown={(ev) => (ev.key === "Enter" || ev.key === " ") && (ev.preventDefault(), select(e))}>
           <!-- Wie in der STARFACE-App: oben der Kontakt (sonst „---“), darunter nur die Nummer -->
-          <span class="whocell">
-            <span class="who">
-              <strong>{e.name || "---"}</strong>
-              <small>{e.number || t("Unbekannt")}</small>
-            </span>
-            <!-- Wie in der STARFACE-App hinter Kontakt und Nummer: Notiz (mit Vorschau) und Zurückgerufen -->
+          <span class="who">
+            <strong>{e.name || "---"}</strong>
+            <small>{e.number || t("Unbekannt")}</small>
+          </span>
+          <!-- Eigene Spalte wie in der STARFACE-App: Notiz (mit Vorschau) und Zurückgerufen, in jeder Zeile auf gleicher Höhe -->
+          <span class="marks">
             {#if e.comment}
               <span class="notewrap">
                 <span class="noteicon" aria-label={t("Kommentar")}>
@@ -295,7 +295,7 @@
   .row.selected { background: var(--accent-soft); }
   /* Feste Spalten wie eine Tabelle: Kontakt/Nummer | (Gruppe/Annehmer) | Uhrzeit/Dauer; Richtung und Zurückgerufen davor */
   .open {
-    flex: 1; min-width: 0; display: grid; grid-template-columns: minmax(0, 1fr) 4.5rem; align-items: center; gap: 0.8rem;
+    flex: 1; min-width: 0; display: grid; grid-template-columns: minmax(0, 1fr) 3.4rem 4.5rem; align-items: center; gap: 0.8rem;
     padding: 0; background: none; border: none; color: inherit; text-align: left; cursor: pointer;
   }
   .dir { flex: none; width: 1.5rem; display: grid; color: var(--green); }
@@ -306,8 +306,9 @@
   .who small { color: var(--muted); }
   .when { display: flex; flex-direction: column; align-items: flex-end; font-variant-numeric: tabular-nums; white-space: nowrap; }
   .dur { color: var(--muted); font-size: 0.75rem; }
-  .whocell { min-width: 0; display: flex; align-items: center; gap: 0.5rem; }
-  .who { flex: 0 1 auto; }
+  /* Notiz links, Zurückgerufen rechts: beide Plätze fest, auch wenn einer fehlt */
+  .marks { display: grid; grid-template-columns: 1.4rem 1.7rem; align-items: center; justify-items: center; gap: 0.3rem; }
+  .marks .cb { grid-column: 2; }
   .cb { flex: none; width: 1.7rem; height: 1.7rem; padding: 0; display: grid; place-items: center; background: none; border: none; border-radius: 50%; color: var(--text); opacity: 0; }
   .cb svg { width: 1.2rem; height: 1.2rem; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
   .row:hover .cb, .cb:focus-visible { opacity: 0.4; }
@@ -333,7 +334,7 @@
   .dacts { display: flex; flex-wrap: wrap; gap: 0.4rem; }
   .dacts button { display: inline-flex; align-items: center; gap: 0.35rem; padding: 0.25rem 0.6rem; }
   /* Spalte für Gruppe/Voicemail nur, wenn eine Zeile sie braucht */
-  .list.wide .open { grid-template-columns: minmax(0, 1fr) minmax(0, 9rem) 4.5rem; }
+  .list.wide .open { grid-template-columns: minmax(0, 1fr) 3.4rem minmax(0, 9rem) 4.5rem; }
   .extra { min-width: 0; display: flex; flex-direction: column; align-items: flex-start; gap: 0.15rem; }
   .tag { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding: 0 0.5rem; border: 1px solid var(--muted); border-radius: 999px; font-size: 0.78rem; }
   .by { max-width: 100%; display: inline-flex; align-items: center; gap: 0.2rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 0.78rem; color: var(--muted); }
