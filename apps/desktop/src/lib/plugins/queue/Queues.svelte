@@ -162,17 +162,17 @@
   .name { flex: 1; min-width: 0; }
   .login { padding: 0.25rem 0.8rem; border-radius: 999px; font-size: 0.9rem; }
   .login.on { background: var(--panel-2); }
-  .login:not(.on) { background: var(--accent); color: #111; border-color: var(--accent); }
+  .login:not(.on) { background: var(--accent); color: var(--on-accent); border-color: var(--accent); }
   .stats { display: flex; gap: 0.9rem; flex-wrap: wrap; color: var(--muted); font-size: 0.9rem; }
   .stats b { color: var(--text); font-variant-numeric: tabular-nums; }
-  .stats .warn b { color: var(--accent); }
+  .stats .warn b { color: var(--accent-text); }
   .calls { display: flex; flex-direction: column; }
   .call { display: flex; align-items: center; gap: 0.7rem; padding: 0.4rem 0.2rem; border-top: 1px solid var(--line); }
   .call.ringing .pos { animation: blink 0.6s steps(2) infinite; }
-  .pos { width: 1.4rem; text-align: center; font-weight: 600; color: var(--accent); font-variant-numeric: tabular-nums; }
+  .pos { width: 1.4rem; text-align: center; font-weight: 600; color: var(--accent-text); font-variant-numeric: tabular-nums; }
   .who { flex: 1; min-width: 0; display: flex; flex-direction: column; }
   .who small { color: var(--muted); }
-  .prio { color: var(--accent); margin-left: 0.3rem; }
+  .prio { color: var(--accent-text); margin-left: 0.3rem; }
   .bot { display: grid; grid-template-columns: auto 1fr; gap: 0 0.5rem; margin: 0.2rem 0 0; font-size: 0.8rem; }
   .bot dt { color: var(--muted); }
   .bot dd { margin: 0; }
@@ -191,6 +191,6 @@
   .off .lamp { background: transparent; border: 1px solid var(--muted); }
   .off { color: var(--muted); }
   .muted { color: var(--muted); margin: 0.3rem 0; }
-  .error { color: var(--accent); margin: 0; }
+  .error { color: var(--accent-text); margin: 0; }
   @keyframes blink { to { opacity: 0.2; } }
 </style>
