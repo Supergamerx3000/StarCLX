@@ -163,7 +163,23 @@ pub async fn fkeys_load(
                         app.state::<FkeyState>().avatars.lock().unwrap().remove(&me);
                         "me-avatar"
                     }
-                    MeChange::Permission => "me-permission",
+                    MeChange::Permission => {
+                        // Die REST-API (Funktionstasten) prüft die Rechte im
+                        // Token; erst ein frisches Token kennt die neuen.
+                        let resumer = app
+                            .state::<AppState>()
+                            .session
+                            .lock()
+                            .await
+                            .as_ref()
+                            .map(|s| s.resumer());
+                        if let Some(r) = resumer
+                            && !r.resume().await
+                        {
+                            tracing::warn!("Token nach Rechteänderung nicht erneuert");
+                        }
+                        "me-permission"
+                    }
                 };
                 let _ = app.emit(name, ());
             }
