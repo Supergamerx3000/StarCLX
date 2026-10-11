@@ -153,7 +153,7 @@
 
 <style>
   .book { display: flex; flex-direction: column; height: 100%; min-height: 0; }
-  .folders { display: flex; gap: 0.3rem; flex-wrap: wrap; padding-bottom: 0.5rem; }
+  .folders { display: flex; align-items: center; gap: 0.3rem; flex-wrap: wrap; min-height: 2.4rem; margin-bottom: 0.5rem; }
   .folders button { padding: 0.3rem 0.8rem; border-radius: 999px; font-size: 0.9rem; background: var(--panel); }
   .spacer { flex: 1; }
   .folders .add, .edit { display: flex; align-items: center; gap: 0.35rem; }

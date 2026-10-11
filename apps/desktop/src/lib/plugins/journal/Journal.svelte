@@ -294,7 +294,7 @@
 
 <style>
   .journal { display: flex; flex-direction: column; height: 100%; min-height: 0; gap: 0.5rem; }
-  .bar { display: flex; align-items: center; gap: 0.3rem; flex-wrap: wrap; }
+  .bar { display: flex; align-items: center; gap: 0.3rem; flex-wrap: wrap; min-height: 2.4rem; }
   .chip { padding: 0.3rem 0.8rem; border-radius: 999px; font-size: 0.9rem; background: var(--panel); }
   .chip.active { background: var(--accent); color: var(--on-accent); border-color: var(--accent); }
   .filter { margin-left: auto; min-width: 0; display: flex; align-items: center; gap: 0.4rem; padding: 0 0.6rem; background: var(--bar-2); border: 1px solid var(--line); border-radius: 999px; }

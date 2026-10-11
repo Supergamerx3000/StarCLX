@@ -151,7 +151,7 @@
 
 <style>
   .vm { display: flex; flex-direction: column; height: 100%; min-height: 0; gap: 0.5rem; }
-  .bar { display: flex; align-items: center; gap: 0.3rem; flex-wrap: wrap; }
+  .bar { display: flex; align-items: center; gap: 0.3rem; flex-wrap: wrap; min-height: 2.4rem; }
   .chip { padding: 0.3rem 0.8rem; border-radius: 999px; font-size: 0.9rem; background: var(--panel); }
   .chip.active { background: var(--accent); color: var(--on-accent); border-color: var(--accent); }
   .list { flex: 1; overflow: auto; border-radius: 4px; padding: 0.2rem 0.8rem 0.8rem; }
